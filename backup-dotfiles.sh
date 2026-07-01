@@ -25,10 +25,14 @@ declare -A SYNC_MAP=(
   ["$CONFIG/matugen"]="$DOTFILES/matugen"
 )
 
-# dwm: adjust this path to wherever your dwm source lives.
-# Since dwm bakes config.h into the binary, we back up the whole source dir.
-DWM_SRC="$HOME/.local/src/dwm"
+# dwm: source lives at ~/dwm (own git repo, config.h baked into the binary
+# at compile time, so we back up the source dir rather than a config file).
+DWM_SRC="$HOME/dwm"
 SYNC_MAP["$DWM_SRC"]="$DOTFILES/dwm"
+
+# slstatus: same deal as dwm, suckless-style config.h compiled into the binary.
+SLSTATUS_SRC="$HOME/slstatus"
+SYNC_MAP["$SLSTATUS_SRC"]="$DOTFILES/slstatus"
 
 echo "==> Ensuring dotfiles repo exists at $DOTFILES"
 if [ ! -d "$DOTFILES/.git" ]; then
@@ -48,6 +52,9 @@ for src in "${!SYNC_MAP[@]}"; do
         --exclude '.git' \
         --exclude '*.cache' \
         --exclude 'node_modules' \
+        --exclude '*.o' \
+        --exclude 'dwm' \
+        --exclude 'slstatus' \
         "$src/" "$dest/"
     else
       cp -f "$src" "$dest"
