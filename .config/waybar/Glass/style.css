@@ -18,8 +18,8 @@ window#waybar {
 .modules-center,
 .modules-right {
     background: alpha(@surface, 0.4);
-    border: 1px solid alpha(@outline, 0.12);
-    border-radius: 14px;
+    border: 0.5px solid alpha(@outline, 0.12);
+    border-radius: 11px;
     margin: 0 4px 0 4px;
     padding: 0 4px;
 }

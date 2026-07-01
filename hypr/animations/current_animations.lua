@@ -1,0 +1,1 @@
+/home/bukh0/.config/hypr/animations/Horizontal-Quick.lua

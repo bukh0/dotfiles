@@ -7,11 +7,11 @@
 update_vscodium() {
     local theme=$1
     case "$theme" in
+        "Matugen")    vsc_theme="Default Dark Modern" ;;
+        "pywal")      vsc_theme="Default Dark Modern" ;;
         "gruvbox")    vsc_theme="Gruvbox Dark Soft" ;;
         "catppuccin") vsc_theme="Catppuccin Mocha" ;;
         "everforest") vsc_theme="Everforest Dark Soft" ;;
-        "Matugen")    vsc_theme="Default Dark Modern" ;;
-        "pywal")      vsc_theme="Default Dark Modern" ;;
         *)            vsc_theme="Default Dark Modern" ;;
     esac
     sed -i "s/\"workbench.colorTheme\": \".*\"/\"workbench.colorTheme\": \"$vsc_theme\"/" "$HOME/.config/VSCodium/User/settings.json"
@@ -24,7 +24,7 @@ update_vscodium() {
 PRESET_DIR="$HOME/.themes/presets"
 ROFI_CONF="$HOME/.config/rofi/config.rasi"
 
-CHOICE=$(ls "$PRESET_DIR" | { cat; echo "Matugen"; echo "pywal"; } | rofi -dmenu -i -p "󰃟 Theme" -config "$ROFI_CONF")
+CHOICE=$( { cat; echo "Matugen"; echo "pywal"; ls "$PRESET_DIR"; } | rofi -dmenu -i -p "󰃟 Theme" -config "$ROFI_CONF")
 
 [[ -z "$CHOICE" ]] && exit 0
 

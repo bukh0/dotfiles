@@ -1,9 +1,10 @@
 {
     "layer": "top",
     "position": "top",
-    "margin-bottom": 1,
-    "margin-left": 5,
-    "margin-right": 5,
+    "margin-bottom": 6,
+    "margin-top": 6,
+    "margin-left": 0,
+    "margin-right": 0,
     "height": 33,
     "spacing": 0,
     "modules-left": ["custom/launcher", "hyprland/workspaces", "hyprland/window"],
@@ -29,7 +30,7 @@
     "custom/prev": {
         "exec": "playerctl status 2>/dev/null | grep -q 'Playing\\|Paused' && echo '{\"text\": \"󰒮\"}' || echo '{\"text\": \"\"}'",
         "return-type": "json",
-        "interval": 2,
+        "interval": 1,
         "on-click": "playerctl previous",
         "tooltip": false
     },
