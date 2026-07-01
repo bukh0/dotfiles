@@ -67,8 +67,18 @@ if [ "${1:-}" == "--push" ]; then
     echo "==> Nothing new to commit"
   else
     git commit -m "Backup configs: $ts"
+  fi
+
+  # Push whenever local is ahead of remote, regardless of whether this
+  # run created a new commit (covers commits left over from prior runs).
+  git fetch origin --quiet || true
+  LOCAL=$(git rev-parse @)
+  REMOTE=$(git rev-parse @{u} 2>/dev/null || echo "")
+  if [ -n "$REMOTE" ] && [ "$LOCAL" != "$REMOTE" ]; then
     git push
     echo "==> Pushed to remote"
+  else
+    echo "==> Nothing to push, already up to date with remote"
   fi
 else
   echo "==> Synced and staged. Review with 'git status' / 'git diff --cached', then commit+push manually,"
