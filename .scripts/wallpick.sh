@@ -15,7 +15,7 @@ done | rofi -dmenu -i -show-icons -theme "$ROFI_THEME" -p " Wallpaper")
 
 FULL_PATH="$WALLPAPER_DIR/$SELECTED"
 
-swww img "$FULL_PATH" \
+awww img "$FULL_PATH" \
     --transition-type grow \
     --transition-duration 2 \
     --transition-fps 60 &

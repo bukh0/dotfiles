@@ -9,7 +9,7 @@
     "spacing": 0,
     "modules-left": ["custom/launcher", "hyprland/workspaces", "hyprland/window"],
     "modules-center": ["custom/prev", "mpris", "custom/next", "clock"],
-    "modules-right": ["cpu", "memory", "battery", "network", "bluetooth", "custom/performance", "tray", "custom/swaync", "custom/power"],
+    "modules-right": ["cpu", "memory", "battery", "network", "network#speed", "bluetooth", "custom/performance", "tray", "custom/swaync", "custom/power"],
     "custom/launcher": {
         "format": "󰣇",
         "on-click": "rofi -show drun",
@@ -50,6 +50,14 @@
         "tooltip": true,
         "tooltip-format": "{artist} - {title} [{player}]"
     },
+    "network#speed": {
+    "interval": 1,
+    "format": " {bandwidthDownBytes}  {bandwidthUpBytes}",
+    "format-disconnected": "󰌙 Offline",
+    "tooltip-format": "{ifname} via {gwaddr}",
+    "max-length": 22,
+    "min-length": 22
+    },
     "custom/next": {
         "exec": "playerctl status 2>/dev/null | grep -q 'Playing\\|Paused' && echo '{\"text\": \"󰒭\"}' || echo '{\"text\": \"\"}'",
         "return-type": "json",
@@ -85,7 +93,7 @@
     "network": {
         "format-wifi": "󰤨 {essid}",
         "format-disconnected": "󰤭",
-        "on-click": "networkmanager_dmenu",
+        "on-click": "nm-connection-editor",
         "tooltip-format": "{essid} {signalStrength}%",
         "max-length": 14
     },
