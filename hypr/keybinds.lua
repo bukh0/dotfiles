@@ -18,11 +18,11 @@ hl.bind(mod .. " + Y", hl.dsp.exec_cmd("kitty -e yazi"))
 hl.bind(mod .. " + Q", hl.dsp.window.close())
 hl.bind(mod .. " + M", hl.dsp.exec_cmd("wlogout"))
 hl.bind(mod .. " + L", hl.dsp.exec_cmd("hyprlock"))
-hl.bind(mod .. " + J", hl.dsp.exec_cmd("hyprctl dispatch togglesplit"))
 hl.bind(mod .. " + V", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mod .. " + N", hl.dsp.exec_cmd("swaync-client --close-latest"))
 hl.bind(mod .. " + F", hl.dsp.window.fullscreen({ action = "toggle" }))
 hl.bind(mod .. " + SHIFT + M",  hl.dsp.exit())
+hl.bind(mod .. " + SHIFT + Q", hl.dsp.exec_cmd("uwsm stop"))
 
 -- Screenshot
 hl.bind(mod .." + CTRL + S", hl.dsp.exec_cmd('grim -g "$(slurp)" ~/Pictures/Screenshots/screenshot-$(date +%Y%m%d-%H%M%S).png'))

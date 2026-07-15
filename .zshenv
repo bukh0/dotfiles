@@ -8,3 +8,4 @@ if ! source $ZDOTDIR/.zshenv; then
     return 1
 fi
 alias zen="flatpak run app.zen_browser.zen"
+alias nv="neovim"

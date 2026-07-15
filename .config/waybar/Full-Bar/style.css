@@ -5,10 +5,12 @@
     font-size: 13px;
     font-weight: 700;
     border: none;
+    border-radius: 0;
 }
 
 window#waybar {
-    background: alpha(@surface, 0.85); 
+    /*background: alpha(@surface, 0.85);*/ 
+    background: transparent;
     border-radius: 16px;
     color: @on_surface;
     border: 1px solid alpha(@outline, 0.2);

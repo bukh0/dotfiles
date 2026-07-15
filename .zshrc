@@ -113,7 +113,7 @@ alias ls="exa -l"
 alias music="exec ncmpcpp"
 alias exe="sudo chmod +x"
 alias i="sudo pacman -S"
-
+alias nv="neovim"
 
 
 export PATH=$PATH:/home/bukh0/.spicetify

@@ -1,10 +1,11 @@
 {
     "layer": "top",
     "position": "top",
-    "margin-top": 2,
-    "margin-left": 2,
-    "margin-right": 2,
-    "height": 38,
+    "margin-top": 6,
+    "margin-bottom": 6,
+    "margin-left": 0,
+    "margin-right": 0,
+    "height": 32,
     "spacing": 10,
     "modules-left": ["custom/launcher", "hyprland/window"],
     "modules-center": [
@@ -19,7 +20,7 @@
         "battery",
         "custom/power"
     ],
-    "modules-right": ["tray", "custom/swaync", "network", "bluetooth"],
+    "modules-right": ["tray", "custom/swaync", "network"],
     "custom/swaync": {
         "format": "󰂚",
         "on-click": "swaync-client -t",
@@ -31,7 +32,7 @@
         "tooltip": false
     },
     "hyprland/window": {
-        "format": "Desktop\n{initialTitle}",
+        "format": "{initialTitle}",
         "max-length": 20
     },
     "cpu": {
@@ -78,7 +79,7 @@
         "format": "{id}",
         "on-click": "activate",
         "all-outputs": true,
-        "persistent-workspaces": { "*": [1, 2, 3, 4, 5, 6] }
+        "persistent-workspaces": { "*": [1, 2, 3, 4] }
     },
     "clock": { "format": "{:%H:%M · %a, %d/%m}" },
     "custom/performance": {
@@ -106,6 +107,7 @@
         "format-disconnected": "󰤭 Disconnected",
         "on-click": "networkmanager_dmenu",
         "tooltip-format": "{essid} {signalStrength}%"
-    },
-    "bluetooth": { "format": "󰂯", "on-click": "blueman-manager" }
+    }
+ //   },
+//    "bluetooth": { "format": "󰂯", "on-click": "blueman-manager" }
 }
