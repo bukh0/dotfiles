@@ -69,10 +69,10 @@ static const struct arg args[] = {
     { datetime,       "^c#ff9800^Time: ^d^%s |",      "%T | ^c#ff9800^Date: ^d^%F" },
     { battery_perc,   " ^c#ff9800^Battery:^d^ %s%% [", "BAT0" },
     { battery_state,  "(%s)]",                "BAT0" },
-    { ram_perc,       " | ^c#ff9800^RAM: ^d^%s%%  ",  NULL },
+    { ram_perc,       " | ^c#ff9800^RAM: ^d^%s%% ",  NULL },
     { wifi_essid,     " | ^c#ff9800^WiFi: ^d^%s",     "wlan0" },
     { wifi_perc,      " %s%% |",              "wlan0" },
-    { netspeed_rx,   " %sB/s  ",    "wlan0" },
-    { netspeed_tx,   " %sB/s  ",    "wlan0" },
+//    { netspeed_rx,   "↓ %sB/s ",    "wlan0" },
+//    { netspeed_tx,   "↑ %sB/s  ",    "wlan0" },
     { run_command,    " ^c#ff9800^Bluetooth: ^d^%s",  "bluetoothctl show | grep -q 'Powered: yes' && echo 'On' || echo 'Off'" },
 };

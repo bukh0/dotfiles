@@ -110,7 +110,6 @@ source $ZSH/oh-my-zsh.sh
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 alias ls="exa -l"
-alias music="exec ncmpcpp"
 alias exe="sudo chmod +x"
 alias i="sudo pacman -S"
 alias nv="nvim"
