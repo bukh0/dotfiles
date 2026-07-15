@@ -9,7 +9,7 @@
     "spacing": 0,
     "modules-left": ["custom/launcher", "hyprland/workspaces", "hyprland/window"],
     "modules-center": ["custom/prev", "mpris", "custom/next", "clock"],
-    "modules-right": ["cpu", "memory", "battery", "network", "network#speed", "custom/performance", "tray", "custom/swaync", "custom/power"],
+    "modules-right": ["cpu", "memory", "battery", "network", "network#speed", "bluetooth", "custom/performance", "tray", "custom/swaync", "custom/power"],
     "custom/launcher": {
         "format": "󰣇",
         "on-click": "rofi -show drun",
@@ -97,11 +97,10 @@
         "tooltip-format": "{essid} {signalStrength}%",
         "max-length": 14
     },
-/*    "bluetooth": {
+    "bluetooth": {
         "format": "󰂯",
         "on-click": "blueman-manager",
-        "tooltip": false
-*/  
+        "tooltip": false 
     },
     "custom/performance": {
         "exec": "~/.scripts/performance-status.sh",
