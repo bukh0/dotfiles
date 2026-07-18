@@ -9,7 +9,7 @@ set -euo pipefail
 
 DOTFILES="$HOME/dotfiles"
 CONFIG="$HOME/.config"
-WALLPAPERS="$HOME/Pictures/Wallpapers"
+#WALLPAPERS="$HOME/Pictures/Wallpapers"
 
 # --- Map of source -> destination inside dotfiles repo -----------------
 # Add/remove lines here as your setup evolves.
@@ -24,7 +24,7 @@ declare -A SYNC_MAP=(
   ["$HOME/.zshrc"]="$DOTFILES/zsh/.zshrc"
   ["$CONFIG/swaync"]="$DOTFILES/swaync"
   ["$CONFIG/matugen"]="$DOTFILES/matugen"
-  ["$WALLPAPERS"]="$DOTFILES/Wallpapers"
+#  ["$WALLPAPERS"]="$DOTFILES/Wallpapers"
 )
 
 # dwm: source lives at ~/dwm (own git repo, config.h baked into the binary

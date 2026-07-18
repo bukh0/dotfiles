@@ -3,35 +3,58 @@ import QtQuick.Layouts
 import Quickshell
 import "."
 
-PopupWindow {
+PanelWindow {
     id: root
 
-    implicitWidth: 340
-    implicitHeight: 540
+    property bool isOpen: NotificationDaemon.isDrawerOpen
+    visible: isOpen
     color: "transparent"
-    visible: NotificationDaemon.isDrawerOpen
+
+    anchors {
+        top: true
+        bottom: true
+        left: true
+        right: true
+    }
+
+    onVisibleChanged: {
+        if (visible) {
+            bgCloser.forceActiveFocus()
+        }
+    }
+
+    MouseArea {
+        id: bgCloser
+        anchors.fill: parent
+        hoverEnabled: true
+        focus: true
+        Keys.onEscapePressed: NotificationDaemon.isDrawerOpen = false
+        onClicked: NotificationDaemon.isDrawerOpen = false
+    }
 
     Rectangle {
-        anchors.fill: parent
+        id: drawerBg
+        width: 340
+        height: 540
+        
+        x: parent.width - width - 10
+        y: 52
+        
         radius: 12
-        color: Qt.rgba(
-            Colors.surfaceContainer.r,
-            Colors.surfaceContainer.g,
-            Colors.surfaceContainer.b,
-            0.97
-        )
+        color: Qt.rgba(Colors.surfaceContainer.r, Colors.surfaceContainer.g, Colors.surfaceContainer.b, 0.97)
         border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
         border.width: 1
 
-        opacity: root.visible ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 200 } }
+        MouseArea {
+            anchors.fill: parent
+            onClicked: mouse.accepted = true
+        }
 
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 16
             spacing: 12
 
-            // Header
             RowLayout {
                 Layout.fillWidth: true
 
@@ -62,7 +85,6 @@ PopupWindow {
                 }
             }
 
-            // Empty state
             Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -90,7 +112,6 @@ PopupWindow {
                 }
             }
 
-            // Notification list
             ListView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -117,7 +138,6 @@ PopupWindow {
                         }
                         spacing: 3
 
-                        // App name + dismiss
                         RowLayout {
                             Layout.fillWidth: true
 
@@ -141,13 +161,12 @@ PopupWindow {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        if (modelData.close) modelData.close()
+                                        NotificationDaemon.closeNotification(index)
                                     }
                                 }
                             }
                         }
 
-                        // Summary
                         Text {
                             text: modelData.summary || ""
                             color: Colors.surfaceFg
@@ -159,7 +178,6 @@ PopupWindow {
                             visible: text !== ""
                         }
 
-                        // Body
                         Text {
                             text: modelData.body || ""
                             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.7)

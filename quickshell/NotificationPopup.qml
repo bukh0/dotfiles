@@ -7,38 +7,24 @@ PopupWindow {
     id: popup
     color: "transparent"
     visible: false
-    stayOnTop: true   // if available; if not, ignore
 
     property var notificationData: null
     property int displayDuration: 3000
 
     implicitWidth: 340
-    implicitHeight: content.implicitHeight + 24
-
-    // For testing, set a fixed position
-    x: 100
-    y: 100
+    implicitHeight: bg.implicitHeight
 
     Timer {
         id: hideTimer
         interval: popup.displayDuration
-        onTriggered: {
-            console.log("Popup timer triggered, hiding")
-            popup.visible = false
-        }
+        onTriggered: popup.visible = false
         repeat: false
-    }
-
-    onVisibleChanged: {
-        console.log("Popup visibility changed to:", visible)
-        if (visible) {
-            console.log("Popup data:", notificationData)
-        }
     }
 
     Rectangle {
         id: bg
-        anchors.fill: parent
+        implicitWidth: parent.width
+        implicitHeight: content.implicitHeight + 24
         radius: 12
         color: Qt.rgba(Colors.surfaceContainer.r, Colors.surfaceContainer.g, Colors.surfaceContainer.b, 0.97)
         border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
@@ -90,14 +76,12 @@ PopupWindow {
     MouseArea {
         anchors.fill: parent
         onClicked: {
-            console.log("Popup clicked, dismissing")
             visible = false
             hideTimer.stop()
         }
     }
 
     function showNotification(data) {
-        console.log("showNotification called with data:", data)
         notificationData = data
         visible = true
         hideTimer.restart()

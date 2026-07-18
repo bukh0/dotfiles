@@ -9,21 +9,23 @@ ColumnLayout {
 
     property real volume: 0.5
     property bool muted: false
+    
+    property bool isDragging: volMa.pressed
+    property real dragVolume: 0.5
+    property real visualVolume: isDragging ? dragVolume : volume
 
     property string volIcon: {
-        if (muted || volume === 0) return "󰝟"
-        if (volume < 0.33) return "󰕿"
-        if (volume < 0.66) return "󰖀"
+        if (muted || visualVolume === 0) return "󰝟"
+        if (visualVolume < 0.33) return "󰕿"
+        if (visualVolume < 0.66) return "󰖀"
         return "󰕾"
     }
 
     Process {
         id: volPoll
         command: ["sh", "-c", "wpctl get-volume @DEFAULT_AUDIO_SINK@"]
-        running: true
         stdout: StdioCollector {
             onStreamFinished: {
-                // Output: "Volume: 0.50" or "Volume: 0.50 [MUTED]"
                 const match = text.match(/Volume:\s+([\d.]+)/)
                 if (match) volume = parseFloat(match[1])
                 muted = text.includes("[MUTED]")
@@ -32,10 +34,27 @@ ColumnLayout {
     }
 
     Timer {
+        id: volPollTimer
         interval: 1000
-        running: true
+        running: !isDragging
         repeat: true
         onTriggered: volPoll.running = true
+        Component.onCompleted: volPoll.running = true
+    }
+
+    Process { id: ctlProc }
+
+    Timer {
+        id: cmdDebounce
+        interval: 30
+        onTriggered: {
+            if (ctlProc.running) {
+                restart()
+                return
+            }
+            ctlProc.command = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", dragVolume.toFixed(2)]
+            ctlProc.running = true
+        }
     }
 
     RowLayout {
@@ -54,15 +73,14 @@ ColumnLayout {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    const p = Qt.createQmlObject('import Quickshell.Io; Process {}', parent)
-                    p.command = ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]
-                    p.running = true
+                    ctlProc.command = ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]
+                    ctlProc.running = true
+                    volPollTimer.restart()
                     Qt.callLater(() => volPoll.running = true)
                 }
             }
         }
 
-        // Slider track
         Item {
             Layout.fillWidth: true
             height: 20
@@ -75,45 +93,44 @@ ColumnLayout {
                 color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
 
                 Rectangle {
-                    width: parent.width * Math.min(volume, 1.0)
+                    width: parent.width * Math.min(visualVolume, 1.0)
                     height: parent.height
                     radius: 2
                     color: muted
                         ? Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.4)
                         : Colors.primary
-                    Behavior on width { NumberAnimation { duration: 80 } }
+                    Behavior on width { NumberAnimation { duration: isDragging ? 0 : 80 } }
                 }
             }
 
-            // Drag handle
             Rectangle {
-                x: Math.min(volume, 1.0) * (parent.width - width)
+                x: Math.min(visualVolume, 1.0) * (parent.width - width)
                 anchors.verticalCenter: parent.verticalCenter
                 width: 14
                 height: 14
                 radius: 7
                 color: Colors.primary
-                Behavior on x { NumberAnimation { duration: 80 } }
+                Behavior on x { NumberAnimation { duration: isDragging ? 0 : 80 } }
             }
 
             MouseArea {
+                id: volMa
                 anchors.fill: parent
                 cursorShape: Qt.SizeHorCursor
                 onClicked: mouse => setVolume(mouse.x / width)
                 onPositionChanged: mouse => { if (pressed) setVolume(mouse.x / width) }
 
                 function setVolume(val) {
-                    val = Math.max(0, Math.min(1, val))
-                    volume = val
-                    const p = Qt.createQmlObject('import Quickshell.Io; Process {}', parent)
-                    p.command = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", val.toFixed(2)]
-                    p.running = true
+                    dragVolume = Math.max(0, Math.min(1, val))
+                    volume = dragVolume // Fix click snapping
+                    cmdDebounce.restart()
+                    volPollTimer.restart() // Delay next background poll so they don't fight
                 }
             }
         }
 
         Text {
-            text: Math.round(volume * 100) + "%"
+            text: Math.round(Math.min(visualVolume, 1.0) * 100) + "%"
             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6)
             font.pixelSize: 11
             font.family: "JetBrainsMono Nerd Font"

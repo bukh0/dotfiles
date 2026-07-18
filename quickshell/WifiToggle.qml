@@ -14,39 +14,27 @@ ColumnLayout {
     property var networks: []
     property bool scanning: false
 
-    // ---- Shared Process for commands ----
     property var cmdProc: Process {
         id: cmdProc
         running: false
+        // Wait until nmcli actually finishes connecting before re-polling
+        onRunningChanged: {
+            if (!running) {
+                wifiPoll.running = true
+                if (expanded) scan()
+            }
+        }
     }
 
     function runCommand(cmd) {
-        console.log("WIFI: Running command:", cmd.join(" "))
-        // Define callbacks
-        let onFinished = function() {
-            console.log("WIFI: Command finished:", cmd.join(" "))
-            cmdProc.finished.disconnect(onFinished)
-            cmdProc.failed.disconnect(onFailed)
-        }
-        let onFailed = function() {
-            console.log("WIFI: Command FAILED:", cmd.join(" "))
-            cmdProc.finished.disconnect(onFinished)
-            cmdProc.failed.disconnect(onFailed)
-        }
-        // Connect signals
-        cmdProc.finished.connect(onFinished)
-        cmdProc.failed.connect(onFailed)
-        // Set and run
+        if (cmdProc.running) return
         cmdProc.command = cmd
         cmdProc.running = true
     }
-    // ---- end ----
 
-    // Poll wifi state + current SSID
     Process {
         id: wifiPoll
         command: ["sh", "-c", "nmcli radio wifi && nmcli -t -f ACTIVE,SSID dev wifi | grep '^yes' | cut -d: -f2 | head -1"]
-        running: true
         stdout: StdioCollector {
             onStreamFinished: {
                 const lines = text.trim().split("\n")
@@ -60,10 +48,10 @@ ColumnLayout {
         interval: 5000
         running: true
         repeat: true
-        onTriggered: wifiPoll.running = true
+        onTriggered: { if (!cmdProc.running) wifiPoll.running = true }
+        Component.onCompleted: wifiPoll.running = true
     }
 
-    // Scan networks
     Process {
         id: scanPoll
         command: ["sh", "-c", "nmcli -t -f SSID,SIGNAL,SECURITY,ACTIVE dev wifi list | head -20"]
@@ -105,7 +93,6 @@ ColumnLayout {
         return "󰤟"
     }
 
-    // Header toggle row
     Rectangle {
         Layout.fillWidth: true
         implicitHeight: 48
@@ -146,7 +133,6 @@ ColumnLayout {
                 }
             }
 
-            // Expand arrow
             Text {
                 visible: wifiOn
                 text: expanded ? "󰅃" : "󰅀"
@@ -154,7 +140,6 @@ ColumnLayout {
                 font.pixelSize: 14
                 font.family: "JetBrainsMono Nerd Font"
             }
-
         }
 
         MouseArea {
@@ -163,7 +148,7 @@ ColumnLayout {
             onClicked: {
                 if (!wifiOn) {
                     root.runCommand(["nmcli", "radio", "wifi", "on"])
-                    Qt.callLater(() => wifiPoll.running = true)
+                    wifiOn = true // Optimistic update
                 } else {
                     expanded = !expanded
                     if (expanded) scan()
@@ -172,13 +157,11 @@ ColumnLayout {
         }
     }
 
-    // Expanded network list
     ColumnLayout {
         visible: expanded && wifiOn
         Layout.fillWidth: true
         spacing: 4
 
-        // Scanning indicator
         Text {
             visible: scanning
             Layout.alignment: Qt.AlignHCenter
@@ -247,16 +230,30 @@ ColumnLayout {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         let cmd = modelData.active
-                            ? ["nmcli", "dev", "disconnect", "wlan0"]
+                            ? ["sh", "-c", "nmcli dev disconnect \"$(nmcli -t -f DEVICE,TYPE dev | grep ':wifi$' | cut -d: -f1 | head -1)\""]
                             : ["nmcli", "dev", "wifi", "connect", modelData.ssid]
+                            
+                        // Optimistic UI updates (ES5 compatible for QML)
+                        let newState = !modelData.active
+                        let newNetworks = []
+                        for (let i = 0; i < root.networks.length; i++) {
+                            let n = root.networks[i]
+                            newNetworks.push({
+                                ssid: n.ssid,
+                                signal: n.signal,
+                                security: n.security,
+                                active: n.ssid === modelData.ssid ? newState : false
+                            })
+                        }
+                        root.networks = newNetworks
+                        if (newState) root.ssid = modelData.ssid
+                        
                         root.runCommand(cmd)
-                        Qt.callLater(() => { wifiPoll.running = true; scan() })
                     }
                 }
             }
         }
 
-        // Rescan button
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 32

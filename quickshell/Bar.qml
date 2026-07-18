@@ -25,78 +25,112 @@ PanelWindow {
         right: sidePadding
     }
 
-    // Control panel drawer anchored to this window
+    // Control panel fullscreen overlay
     ControlPanel {
         id: controlPanel
+        screen: root.screen
+    }
+
+    // Notification drawer fullscreen overlay
+    NotificationDrawer {
+        id: notifDrawer
+        screen: root.screen
+    }
+
+    // Notification toast anchored to the right
+    NotificationPopup {
+        id: notifPopup
         anchor.window: root
         anchor.rect.x: root.width - implicitWidth - 10
         anchor.rect.y: root.height + 6
     }
 
-    Rectangle {
-        id: pill
+    Connections {
+        target: NotificationDaemon
+        function onNewNotification(data) {
+            notifPopup.showNotification(data)
+        }
+    }
+
+    Item {
         anchors.fill: parent
-        radius: pillRadius
-        color: "#cc252b2b"
-        border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35)
-        border.width: 1
 
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 14
-            anchors.rightMargin: 14
-            spacing: 0
+        // LEFT PILL — Workspaces
+        Rectangle {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            height: root.barHeight
+            width: leftLayout.implicitWidth + 28
+            radius: root.pillRadius
+            color: "#cc252b2b"
+            border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35)
+            border.width: 1
 
-            // LEFT — Workspaces
-            Workspaces { Layout.alignment: Qt.AlignVCenter }
-
-            // CENTER — Clock
-            Item { Layout.fillWidth: true }
-            Clock { Layout.alignment: Qt.AlignVCenter }
-            Item { Layout.fillWidth: true }
-
-            // RIGHT — modules + control panel toggle
             RowLayout {
-                Layout.alignment: Qt.AlignVCenter
+                id: leftLayout
+                anchors.centerIn: parent
+                spacing: 0
+                Workspaces { screen: root.screen }
+            }
+        }
+
+        // CENTER PILL — Clock & Control Panel Toggle
+        Rectangle {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            height: root.barHeight
+            width: centerLayout.implicitWidth + 28
+            radius: root.pillRadius
+            border.width: 1
+
+            color: controlPanel.isOpen 
+                ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.2)
+                : centerMa.containsMouse
+                ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.1)
+                : "#cc252b2b"
+            
+            border.color: controlPanel.isOpen
+                ? Colors.primary
+                : Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35)
+            
+            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+            RowLayout {
+                id: centerLayout
+                anchors.centerIn: parent
+                Clock {}
+            }
+
+            MouseArea {
+                id: centerMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: controlPanel.isOpen = !controlPanel.isOpen
+            }
+        }
+
+        // RIGHT PILL — System modules
+        Rectangle {
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: root.barHeight
+            width: rightLayout.implicitWidth + 28
+            radius: root.pillRadius
+            color: "#cc252b2b"
+            border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35)
+            border.width: 1
+
+            RowLayout {
+                id: rightLayout
+                anchors.centerIn: parent
                 spacing: 10
 
                 SystemTray {}
                 NetworkIndicator {}
                 BatteryIndicator {}
                 NotificationBell {}
-
-                // Control panel toggle button
-                Item {
-                    width: 22
-                    height: 22
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: 6
-                        color: controlPanel.isOpen
-                            ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.3)
-                            : toggleMa.containsMouse
-                            ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.15)
-                            : "transparent"
-                        Behavior on color { ColorAnimation { duration: 100 } }
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "󰄶"
-                        color: controlPanel.isOpen ? Colors.primary : Colors.surfaceFg
-                        font.pixelSize: 14
-                        font.family: "JetBrainsMono Nerd Font"
-                    }
-
-                    MouseArea {
-                        id: toggleMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: controlPanel.toggle()
-                    }
-                }
             }
         }
     }

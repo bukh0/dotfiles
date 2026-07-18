@@ -8,40 +8,56 @@ Item {
     property var notifications: []
     property bool isDrawerOpen: false
 
+    signal newNotification(var data)
+
     function toggleDrawer() {
-        console.log("DEBUG: Drawer toggle called. Current state:", isDrawerOpen);
-        isDrawerOpen = !isDrawerOpen;
+        isDrawerOpen = !isDrawerOpen
     }
 
     function clearAll() {
         for (let i = root.notifications.length - 1; i >= 0; i--) {
             let n = root.notifications[i]
-            if (n && typeof n === "object" && typeof n.close === "function") {
+            if (n && typeof n.close === "function") {
                 try {
                     n.close()
-                } catch (e) {
-                    console.warn("Error closing notification:", e)
-                }
+                } catch (e) {}
             }
         }
         root.notifications = []
     }
 
+    function closeNotification(idx) {
+        let n = root.notifications[idx]
+        
+        // 1. Tell the system we dismissed it
+        if (n && typeof n.close === "function") {
+            try {
+                n.close()
+            } catch(e) {}
+        }
+        
+        // 2. Forcefully and instantly remove it from the UI list
+        let arr = root.notifications.slice()
+        arr.splice(idx, 1)
+        root.notifications = arr
+    }
+
     NotificationServer {
         id: server
         onNotification: notif => {
-            console.log("NOTIFICATION RECEIVED: " + notif.summary)
-
             let data = {
                 summary: notif.summary || "",
                 body: notif.body || "",
                 appName: notif.appName || "",
                 close: function() {
-                    notif.close()
+                    try {
+                        notif.close()
+                    } catch(e) {}
                 }
             }
 
             root.notifications = [data].concat(root.notifications)
+            root.newNotification(data)
 
             notif.closed.connect(() => {
                 root.notifications = root.notifications.filter(n => n !== data)

@@ -9,13 +9,13 @@ Item {
 
     Process {
         id: netPoll
-        // Get active connection type: wifi/ethernet/none
-        command: ["sh", "-c", "nmcli -t -f TYPE,STATE dev | grep activated | head -1 | cut -d: -f1"]
+        // FIX: nmcli outputs 'connected', not 'activated'
+        command: ["sh", "-c", "nmcli -t -f TYPE,STATE dev | grep connected | head -1 | cut -d: -f1"]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
                 const t = text.trim()
-                if (t === "wifi")     status = "󰤨"   // wifi connected
+                if (t === "wifi")      status = "󰤨"   // wifi connected
                 else if (t === "ethernet") status = "󰈀"  // ethernet
                 else                  status = "󰤭"   // none
             }

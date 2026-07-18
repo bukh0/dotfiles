@@ -33,12 +33,10 @@ Item {
             font.family: "JetBrainsMono Nerd Font"
         }
     }
-MouseArea {
+
+    MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
-        onClicked: {
-            console.log("DEBUG: Bell clicked!");
-            NotificationDaemon.toggleDrawer();
-        }
-      }
+        onClicked: NotificationDaemon.toggleDrawer()
     }
+}

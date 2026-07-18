@@ -13,12 +13,6 @@ ShellRoot {
                     id: bar
                     screen: modelData
                 }
-
-                NotificationDrawer {
-                    anchor.window: bar
-                    anchor.rect.x: bar.width - implicitWidth - 10
-                    anchor.rect.y: bar.height + 6
-                }
             }
         }
     }

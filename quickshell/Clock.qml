@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
-import Quickshell.Io
+import "."
 
 RowLayout {
     spacing: 6
@@ -9,32 +8,25 @@ RowLayout {
     property string timeText: "00:00"
     property string dateText: "Mon 01 Jan"
 
-    Process {
-        id: timePoll
-        command: ["date", "+%H:%M"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: timeText = text.trim()
-        }
-    }
-
-    Process {
-        id: datePoll
-        command: ["date", "+%a %d %b"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: dateText = text.trim()
-        }
+    function updateTime() {
+        let d = new Date()
+        
+        let h = d.getHours().toString()
+        let m = d.getMinutes().toString()
+        
+        // ES5 safe zero-padding to avoid QML engine crashes
+        timeText = (h.length < 2 ? "0" + h : h) + ":" + (m.length < 2 ? "0" + m : m)
+        
+        // Native Qt date formatting
+        dateText = Qt.formatDateTime(d, "ddd dd MMM")
     }
 
     Timer {
-        interval: 10000  // update every 10 seconds
+        interval: 1000 
         running: true
         repeat: true
-        onTriggered: {
-            timePoll.running = true
-            datePoll.running = true
-        }
+        onTriggered: updateTime()
+        Component.onCompleted: updateTime()
     }
 
     Text {

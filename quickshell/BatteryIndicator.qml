@@ -24,9 +24,11 @@ RowLayout {
         return Colors.surfaceFg
     }
 
+    // FIX: was hardcoded to BAT0, which doesn't exist on every ThinkPad
+    // (some show up as BAT1). Glob it and take the first match instead.
     Process {
         id: battLevel
-        command: ["sh", "-c", "cat /sys/class/power_supply/BAT0/capacity"]
+        command: ["sh", "-c", "cat /sys/class/power_supply/BAT*/capacity 2>/dev/null | head -1"]
         running: true
         stdout: StdioCollector {
             onStreamFinished: level = parseInt(text.trim()) || 100
@@ -35,7 +37,7 @@ RowLayout {
 
     Process {
         id: battStatus
-        command: ["sh", "-c", "cat /sys/class/power_supply/BAT0/status"]
+        command: ["sh", "-c", "cat /sys/class/power_supply/BAT*/status 2>/dev/null | head -1"]
         running: true
         stdout: StdioCollector {
             onStreamFinished: charging = text.trim() === "Charging"
