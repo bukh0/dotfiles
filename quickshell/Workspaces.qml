@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Io
 import "."
 
 RowLayout {
@@ -9,19 +10,48 @@ RowLayout {
     property var screen
     spacing: 10
 
+    // Always show 1, 2, 3 — matches Waybar's "persistent-workspaces": { "*": [1,2,3] }.
+    readonly property var persistentIds: [1, 2, 3]
+
+    // Any workspace beyond 3 that's actually in use still shows up too,
+    // same as before — just no longer the only thing driving 1-3's visibility.
+    readonly property var extraIds: {
+        const ids = []
+        for (const ws of Hyprland.workspaces.values) {
+            if (ws.id > 3 && (ws.windows > 0 || ws.id === Hyprland.focusedMonitor?.activeWorkspace?.id))
+                ids.push(ws.id)
+        }
+        ids.sort((a, b) => a - b)
+        return ids
+    }
+
+    readonly property var allIds: persistentIds.concat(extraIds)
+
+    // Fallback for switching to a workspace that has no Hyprland object yet
+    // (i.e. it's never been visited) — HyprlandWorkspace.activate() only
+    // exists on workspaces the compositor already knows about.
+    Process {
+        id: switchProc
+    }
+
     Repeater {
-        model: Hyprland.workspaces
+        model: root.allIds
 
         delegate: Item {
             id: wsItem
-            required property HyprlandWorkspace modelData
-            property bool active: Hyprland.focusedMonitor?.activeWorkspace?.id === modelData.id
-            property bool occupied: modelData.windows > 0
+            required property int modelData
+            readonly property int wsId: modelData
 
-            visible: modelData.id > 0 && (modelData.id <= 5 || occupied || active)
+            readonly property var wsObject: {
+                for (const ws of Hyprland.workspaces.values) {
+                    if (ws.id === wsId) return ws
+                }
+                return null
+            }
 
-            // Fixed size always — nothing here changes with state, so the
-            // row's layout positions never shift and numbers stay parallel.
+            property bool active: Hyprland.focusedMonitor?.activeWorkspace?.id === wsId
+            property bool occupied: wsObject ? wsObject.windows > 0 : false
+
             width: 18
             height: 18
 
@@ -43,7 +73,7 @@ RowLayout {
 
             Text {
                 anchors.centerIn: parent
-                text: wsItem.modelData.id
+                text: wsItem.wsId
                 font.pixelSize: 11
                 font.family: "JetBrainsMono Nerd Font"
                 font.weight: Font.Bold
@@ -60,7 +90,14 @@ RowLayout {
                 anchors.margins: -3
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: wsItem.modelData.activate()
+                onClicked: {
+                    if (wsItem.wsObject) {
+                        wsItem.wsObject.activate()
+                    } else if (!switchProc.running) {
+                        switchProc.command = ["hyprctl", "dispatch", "workspace", String(wsItem.wsId)]
+                        switchProc.running = true
+                    }
+                }
             }
         }
     }

@@ -40,9 +40,17 @@ fi
 
 if [ "$CHOICE" == "Matugen" ] || [ "$CHOICE" == "pywal" ]; then
     cd "$WALL_DIR" || exit 1
-    SELECTED=$(for f in $(ls -t *.jpg *.png *.gif *.jpeg *.webp 2>/dev/null); do
-        echo -en "$f\0icon\x1f$WALL_DIR/$f\n"
-    done | rofi -dmenu -i -show-icons -theme "$HOME/.config/rofi/wallpaper.rasi" -p " Wallpaper")
+
+    shopt -s nullglob nocaseglob
+    mapfile -d '' -t wall_files < <(find . -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.webp' \) -printf '%T@ %p\0' | sort -z -rn | cut -z -d' ' -f2-)
+
+    entries=""
+    for f in "${wall_files[@]}"; do
+        f="${f#./}"
+        entries+="$f\0icon\x1f$WALL_DIR/$f\n"
+    done
+
+    SELECTED=$(echo -en "$entries" | rofi -dmenu -i -show-icons -theme "$HOME/.config/rofi/wallpaper.rasi" -p " Wallpaper")
     [[ -z "$SELECTED" ]] && exit 0
     FULL_PATH="$WALL_DIR/$SELECTED"
 else

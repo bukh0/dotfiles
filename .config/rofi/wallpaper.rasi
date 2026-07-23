@@ -1,29 +1,15 @@
 /**
  * ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
- * ┃                                                                  ┃
- * ┃      ZUSQII  -  S I D E B A R   C O N F I G                      ┃
- * ┃                                                                  ┃
+ * ┃      WALLPAPER PICKER — GRID CONFIG                              ┃
  * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  */
 
 @import "colors.rasi"
 
-/**
- * ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
- * ┃      GENERAL CONFIGURATION                                       ┃
- * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
- */
 configuration {
-    modi:                        "drun";
     show-icons:                  true;
-    drun-display-format:         "{name}";
 }
 
-/**
- * ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
- * ┃      GLOBAL VARIABLES & SETTINGS                                 ┃
- * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
- */
 * {
     background-color:            transparent;
     text-color:                  @on-surface;
@@ -31,17 +17,15 @@ configuration {
 
 /**
  * ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
- * ┃      WINDOW LAYOUT                                               ┃
+ * ┃      WINDOW LAYOUT — centered grid, not a sidebar                ┃
  * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  */
 window {
-    anchor:                      west;
-    location:                    west;
-    width:                       320px;   
-    height:                      95%;   
-    x-offset:                    15px;
-    y-offset:                    0px;
-    
+    anchor:                      center;
+    location:                    center;
+    width:                       50%;
+    height:                      92%;
+
     background-color:            @surface;
     border:                      1px;
     border-radius:               24px;
@@ -49,8 +33,8 @@ window {
 }
 
 mainbox {
-    spacing:                     10px;     
-    padding:                     15px;
+    spacing:                     10px;
+    padding:                     16px;
     children:                    [ "inputbar", "listview" ];
 }
 
@@ -60,30 +44,37 @@ mainbox {
  * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  */
 inputbar {
-    padding:                     10px;
-    margin:                      0px 0px 5px 0px;
+    padding:                     8px 12px;
     background-color:            @surface-container-high;
-    border-radius:               12px;
+    border-radius:               10px;
     children:                    [ "entry" ];
 }
 
 entry {
-    placeholder:                 "Search...";
+    placeholder:                 "Search wallpapers...";
     placeholder-color:           @on-surface-variant;
 }
 
 /**
  * ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
- * ┃      LIST VIEW                                                   ┃
+ * ┃      GRID — 3 columns x 5 rows                                   ┃
  * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  */
 listview {
-    columns:                     1;
-    lines:                       7;      
-    spacing:                     10px;     
+    columns:                     3;
+    lines:                       5;
+    spacing:                     8px;
     cycle:                       true;
-    fixed-height:                false;  
-    scrollbar:                   false;
+    fixed-height:                false;
+    scrollbar:                   true;
+}
+
+scrollbar {
+    width:                       4px;
+    border-radius:               4px;
+    handle-color:                @outline;
+    handle-width:                4px;
+    padding:                     0px 0px 0px 6px;
 }
 
 /**
@@ -93,22 +84,38 @@ listview {
  */
 element {
     orientation:                 vertical;
-    padding:                     8px;     
-    border-radius:               15px;
+    padding:                     5px;
+    border-radius:               12px;
+    border:                      2px;
+    border-color:                transparent;
+}
+
+element normal.normal {
+    background-color:            @surface-container;
+}
+
+element alternate.normal {
+    background-color:            @surface-container;
 }
 
 element selected {
     background-color:            @surface-container-highest;
-    border:                      2px;
     border-color:                @primary;
 }
 
 element-icon {
-    size:                        160px;     
+    size:                        130px;
+    border-radius:               8px;
     horizontal-align:            0.5;
+    vertical-align:              0.5;
 }
 
 element-text {
     horizontal-align:            0.5;
-    font:                        "JetBrainsMono Nerd Font 9";
+    font:                        "JetBrainsMono Nerd Font 8";
+    padding:                     4px 4px 0px 4px;
+}
+
+element selected element-text {
+    text-color:                  @primary;
 }
