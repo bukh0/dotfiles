@@ -4,8 +4,10 @@ import Quickshell
 import Quickshell.Io
 import "."
 
-RowLayout {
-    spacing: 12
+Item {
+    id: root
+    Layout.fillWidth: true
+    implicitHeight: 84
 
     property string title: "Nothing playing"
     property string artist: ""
@@ -40,39 +42,45 @@ RowLayout {
     }
 
     Rectangle {
-        width: 64
-        height: 64
-        radius: 8
+        id: art
+        anchors.left: parent.left
+        anchors.top: parent.top
+        width: 84
+        height: 84
+        radius: 10
         color: Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
         clip: true
 
         Image {
             anchors.fill: parent
-            source: artUrl
+            source: root.artUrl
             fillMode: Image.PreserveAspectCrop
-            visible: artUrl !== ""
+            visible: root.artUrl !== ""
             asynchronous: true
         }
 
         Text {
             anchors.centerIn: parent
-            visible: artUrl === ""
+            visible: root.artUrl === ""
             text: "󰎆"
             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
-            font.pixelSize: 24
+            font.pixelSize: 30
             font.family: "JetBrainsMono Nerd Font"
         }
     }
 
     ColumnLayout {
-        Layout.fillWidth: true
-        spacing: 4
+        anchors.left: art.right
+        anchors.leftMargin: 14
+        anchors.right: parent.right
+        anchors.top: parent.top
+        spacing: 6
 
         Text {
             Layout.fillWidth: true
-            text: title
+            text: root.title
             color: Colors.surfaceFg
-            font.pixelSize: 13
+            font.pixelSize: 15
             font.family: "JetBrainsMono Nerd Font"
             font.weight: Font.Medium
             elide: Text.ElideRight
@@ -80,45 +88,43 @@ RowLayout {
 
         Text {
             Layout.fillWidth: true
-            visible: artist !== "" || album !== ""
-            text: artist + (artist !== "" && album !== "" ? " • " : "") + album
+            visible: root.artist !== "" || root.album !== ""
+            text: root.artist + (root.artist !== "" && root.album !== "" ? " • " : "") + root.album
             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6)
-            font.pixelSize: 11
+            font.pixelSize: 12
             font.family: "JetBrainsMono Nerd Font"
             elide: Text.ElideRight
         }
+    }
 
-        Item { height: 2 }
+    // Centered on the whole widget, independent of where the album art pushes the text column.
+    RowLayout {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        spacing: 12
 
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8
+        MediaButton {
+            icon: "󰒮"
+            size: 21
+            boxSize: 36
+            command: ["playerctl", "previous"]
+            onClicked: Qt.callLater(() => metaPoll.running = true)
+        }
 
-            MediaButton {
-                icon: "󰒮"
-                size: 19
-                boxSize: 32
-                command: ["playerctl", "previous"]
-                onClicked: Qt.callLater(() => metaPoll.running = true)
-            }
+        MediaButton {
+            icon: root.playing ? "󰏤" : "󰐊"
+            size: 25
+            boxSize: 42
+            command: ["playerctl", "play-pause"]
+            onClicked: Qt.callLater(() => metaPoll.running = true)
+        }
 
-            MediaButton {
-                icon: playing ? "󰏤" : "󰐊"
-                size: 22
-                boxSize: 36
-                command: ["playerctl", "play-pause"]
-                onClicked: Qt.callLater(() => metaPoll.running = true)
-            }
-
-            MediaButton {
-                icon: "󰒭"
-                size: 19
-                boxSize: 32
-                command: ["playerctl", "next"]
-                onClicked: Qt.callLater(() => metaPoll.running = true)
-            }
-
-            Item { Layout.fillWidth: true }
+        MediaButton {
+            icon: "󰒭"
+            size: 21
+            boxSize: 36
+            command: ["playerctl", "next"]
+            onClicked: Qt.callLater(() => metaPoll.running = true)
         }
     }
 }

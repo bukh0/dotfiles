@@ -3,13 +3,25 @@ import QtQuick.Layouts
 import Quickshell
 import "."
 
-PopupWindow {
+PanelWindow {
     id: popup
-    color: "transparent"
-    visible: false
 
     property var notificationData: null
     property int displayDuration: 3000
+    property bool isVisible: false
+
+    color: "transparent"
+    visible: isVisible
+
+    anchors {
+        top: true
+        right: true
+    }
+
+    margins {
+        top: 50
+        right: 10
+    }
 
     implicitWidth: 340
     implicitHeight: bg.implicitHeight
@@ -17,27 +29,25 @@ PopupWindow {
     Timer {
         id: hideTimer
         interval: popup.displayDuration
-        onTriggered: popup.visible = false
+        onTriggered: popup.isVisible = false
         repeat: false
     }
 
     Rectangle {
         id: bg
-        implicitWidth: parent.width
+        width: parent.width
         implicitHeight: content.implicitHeight + 24
         radius: 12
         color: Qt.rgba(Colors.surfaceContainer.r, Colors.surfaceContainer.g, Colors.surfaceContainer.b, 0.97)
         border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
         border.width: 1
 
+        opacity: popup.isVisible ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+
         ColumnLayout {
             id: content
-            anchors {
-                top: parent.top
-                left: parent.left
-                right: parent.right
-                margins: 12
-            }
+            anchors { top: parent.top; left: parent.left; right: parent.right; margins: 12 }
             spacing: 4
 
             Text {
@@ -71,19 +81,19 @@ PopupWindow {
                 visible: text !== ""
             }
         }
-    }
 
-    MouseArea {
-        anchors.fill: parent
-        onClicked: {
-            visible = false
-            hideTimer.stop()
+        MouseArea {
+            anchors.fill: parent
+            onClicked: {
+                popup.isVisible = false
+                hideTimer.stop()
+            }
         }
     }
 
     function showNotification(data) {
         notificationData = data
-        visible = true
+        isVisible = true
         hideTimer.restart()
     }
 }

@@ -11,7 +11,7 @@ PanelWindow {
     visible: windowVisible
     color: "transparent"
 
-    property int hoverCloseDelay: 350
+    property int hoverCloseDelay: 300
     property int fadeOutDuration: 200
 
     property int openY: 46

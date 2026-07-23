@@ -19,17 +19,25 @@ RowLayout {
             property bool occupied: modelData.windows > 0
 
             visible: modelData.id > 0 && (modelData.id <= 5 || occupied || active)
-            width: active ? 18 : 16
-            height: active ? 18 : 16
+
+            // Fixed size always — nothing here changes with state, so the
+            // row's layout positions never shift and numbers stay parallel.
+            width: 18
+            height: 18
 
             Rectangle {
-                anchors.fill: parent
+                anchors.centerIn: parent
+                width: wsItem.active ? 18 : 16
+                height: wsItem.active ? 18 : 16
                 radius: width / 2
                 color: wsItem.active
                     ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.15)
                     : wsMa.containsMouse
                         ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.06)
                         : "transparent"
+
+                Behavior on width { NumberAnimation { duration: 150 } }
+                Behavior on height { NumberAnimation { duration: 150 } }
                 Behavior on color { ColorAnimation { duration: 150 } }
             }
 
