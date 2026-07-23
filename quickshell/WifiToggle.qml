@@ -17,7 +17,6 @@ ColumnLayout {
     property var cmdProc: Process {
         id: cmdProc
         running: false
-        // Wait until nmcli actually finishes connecting before re-polling
         onRunningChanged: {
             if (!running) {
                 wifiPoll.running = true
@@ -148,7 +147,7 @@ ColumnLayout {
             onClicked: {
                 if (!wifiOn) {
                     root.runCommand(["nmcli", "radio", "wifi", "on"])
-                    wifiOn = true // Optimistic update
+                    wifiOn = true
                 } else {
                     expanded = !expanded
                     if (expanded) scan()
@@ -232,8 +231,7 @@ ColumnLayout {
                         let cmd = modelData.active
                             ? ["sh", "-c", "nmcli dev disconnect \"$(nmcli -t -f DEVICE,TYPE dev | grep ':wifi$' | cut -d: -f1 | head -1)\""]
                             : ["nmcli", "dev", "wifi", "connect", modelData.ssid]
-                            
-                        // Optimistic UI updates (ES5 compatible for QML)
+
                         let newState = !modelData.active
                         let newNetworks = []
                         for (let i = 0; i < root.networks.length; i++) {
@@ -247,7 +245,7 @@ ColumnLayout {
                         }
                         root.networks = newNetworks
                         if (newState) root.ssid = modelData.ssid
-                        
+
                         root.runCommand(cmd)
                     }
                 }

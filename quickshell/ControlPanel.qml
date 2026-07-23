@@ -7,8 +7,15 @@ PanelWindow {
     id: controlPanel
 
     property bool isOpen: false
-    visible: isOpen
+    property bool windowVisible: false
+    visible: windowVisible
     color: "transparent"
+
+    property int hoverCloseDelay: 350
+    property int fadeOutDuration: 200
+
+    property int openY: 46
+    property int closedY: 26
 
     anchors {
         top: true
@@ -17,9 +24,47 @@ PanelWindow {
         right: true
     }
 
+    onIsOpenChanged: {
+        if (isOpen) {
+            hideTimer.stop()
+            windowVisible = true
+        } else {
+            hideTimer.restart()
+        }
+    }
+
+    Timer {
+        id: hideTimer
+        interval: controlPanel.fadeOutDuration
+        onTriggered: controlPanel.windowVisible = false
+    }
+
+    Timer {
+        id: closeTimer
+        interval: controlPanel.hoverCloseDelay
+        onTriggered: controlPanel.isOpen = false
+    }
+
+    function beginHoverOpen() {
+        closeTimer.stop()
+        isOpen = true
+    }
+
+    function scheduleHoverClose() {
+        closeTimer.restart()
+    }
+
+    function cancelHoverClose() {
+        closeTimer.stop()
+    }
+
     onVisibleChanged: {
         if (visible) {
-            bgCloser.forceActiveFocus()
+            Qt.callLater(() => {
+                if (typeof bgCloser !== "undefined") {
+                    bgCloser.forceActiveFocus()
+                }
+            })
         }
     }
 
@@ -34,15 +79,15 @@ PanelWindow {
 
     Rectangle {
         id: drawerBg
-        width: 320
-        height: contentCol.implicitHeight + 32
+        width: 420 
+        height: contentCol.implicitHeight + 40
         Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutQuart } }
-        
+
         x: (parent.width - width) / 2
-        y: controlPanel.isOpen ? 52 : 30
+        y: controlPanel.isOpen ? controlPanel.openY : controlPanel.closedY
         Behavior on y { NumberAnimation { duration: 250; easing.type: Easing.OutQuart } }
-        
-        radius: 12
+
+        radius: 16
         color: Qt.rgba(Colors.surfaceContainer.r, Colors.surfaceContainer.g, Colors.surfaceContainer.b, 0.97)
         border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
         border.width: 1
@@ -55,22 +100,36 @@ PanelWindow {
             onClicked: mouse.accepted = true
         }
 
+        HoverHandler {
+            onHoveredChanged: {
+                if (hovered) {
+                    closeTimer.stop()
+                    controlPanel.isOpen = true
+                } else {
+                    controlPanel.scheduleHoverClose()
+                }
+            }
+        }
+
         ColumnLayout {
             id: contentCol
             anchors {
                 top: parent.top
                 left: parent.left
                 right: parent.right
-                margins: 16
+                margins: 20
             }
-            spacing: 12
+            spacing: 16
 
+            // ==========================================
+            // MODULES
+            // ==========================================
             MusicWidget {}
 
             Rectangle {
                 Layout.fillWidth: true
                 height: 1
-                color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
+                color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
             }
 
             VolumeSlider {}
@@ -79,7 +138,15 @@ PanelWindow {
             Rectangle {
                 Layout.fillWidth: true
                 height: 1
-                color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
+                color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
+            }
+
+            SystemResourceRow {}
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: 1
+                color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
             }
 
             WifiToggle {}

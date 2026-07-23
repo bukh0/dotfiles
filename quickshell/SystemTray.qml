@@ -11,14 +11,25 @@ RowLayout {
 
         delegate: Item {
             required property SystemTrayItem modelData
-            width: 18
-            height: 18
+
+            property bool isNetworkApplet: {
+                const id = (modelData.id || "").toLowerCase()
+                const title = (modelData.title || "").toLowerCase()
+                return id.includes("nm-applet") || id.includes("networkmanager") || title.includes("network")
+            }
+
+            visible: !isNetworkApplet
+            width: visible ? 18 : 0
+            height: visible ? 18 : 0
+
+            Component.onCompleted: console.log("[tray-debug]", modelData.id, "|", modelData.title)
 
             Image {
                 anchors.fill: parent
                 source: modelData.icon
                 fillMode: Image.PreserveAspectFit
                 smooth: true
+                visible: parent.visible
             }
 
             MouseArea {
@@ -31,6 +42,7 @@ RowLayout {
                         modelData.secondaryActivate()
                 }
                 cursorShape: Qt.PointingHandCursor
+                enabled: parent.visible
             }
         }
     }

@@ -6,62 +6,53 @@ import "."
 
 RowLayout {
     id: root
-    property var screen // Added this property declaration to fix the error
-    spacing: 8
-
-    // Ask Hyprland to update our lastIpcObject whenever a window state changes
-    Connections {
-        target: Hyprland
-        function onRawEvent(event) {
-            if (event.name === "openwindow" || event.name === "closewindow" || event.name === "movewindow") {
-                Hyprland.refreshWorkspaces()
-            }
-        }
-    }
+    property var screen
+    spacing: 10
 
     Repeater {
         model: Hyprland.workspaces
 
-        delegate: Rectangle {
-            visible: modelData.id > 0
-            
-            width: 28
-            height: 28
-            radius: 14
-            color: modelData.active 
-                ? Colors.primary 
-                : Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.5)
+        delegate: Item {
+            id: wsItem
+            required property HyprlandWorkspace modelData
+            property bool active: Hyprland.focusedMonitor?.activeWorkspace?.id === modelData.id
+            property bool occupied: modelData.windows > 0
 
-            Behavior on color { ColorAnimation { duration: 150 } }
+            visible: modelData.id > 0 && (modelData.id <= 5 || occupied || active)
+            width: active ? 18 : 16
+            height: active ? 18 : 16
+
+            Rectangle {
+                anchors.fill: parent
+                radius: width / 2
+                color: wsItem.active
+                    ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.15)
+                    : wsMa.containsMouse
+                        ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.06)
+                        : "transparent"
+                Behavior on color { ColorAnimation { duration: 150 } }
+            }
 
             Text {
                 anchors.centerIn: parent
-                text: modelData.id
-                color: modelData.active ? Colors.surfaceBg : Colors.surfaceFg
-                font.pixelSize: 13
+                text: wsItem.modelData.id
+                font.pixelSize: 11
                 font.family: "JetBrainsMono Nerd Font"
-                font.weight: modelData.active ? Font.Bold : Font.Medium
-            }
-
-            Rectangle {
-                width: 4
-                height: 4
-                radius: 2
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: 4
-                anchors.horizontalCenter: parent.horizontalCenter
-                
-                // Show the dot if the workspace is inactive but has windows on it
-                visible: !modelData.active && modelData.lastIpcObject && modelData.lastIpcObject.windows > 0
-                color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
+                font.weight: Font.Bold
+                color: wsItem.active
+                    ? Colors.primary
+                    : wsMa.containsMouse
+                        ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6)
+                        : Colors.surfaceFg
             }
 
             MouseArea {
+                id: wsMa
                 anchors.fill: parent
+                anchors.margins: -3
+                hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    Hyprland.dispatch("workspace " + modelData.id)
-                }
+                onClicked: wsItem.modelData.activate()
             }
         }
     }

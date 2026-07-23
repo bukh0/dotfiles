@@ -5,17 +5,15 @@ import "."
 Item {
     id: btn
     property string icon: ""
-    property int size: 15
+    property int size: 17
+    property int boxSize: 34
     property var command: []   // e.g. ["playerctl", "play-pause"]
     signal clicked()
 
-    width: 32
-    height: 32
+    width: boxSize
+    height: boxSize
 
-    // FIX: single reusable Process instead of Qt.createQmlObject per click.
-    // The old MusicWidget pattern created a brand-new Process object on
-    // every play/pause/next/prev click and never destroyed it — a
-    // permanent leak over a session.
+    // Single reusable Process instead of creating one per click.
     Process {
         id: proc
     }

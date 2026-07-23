@@ -7,14 +7,33 @@ PanelWindow {
     id: root
 
     property bool isOpen: NotificationDaemon.isDrawerOpen
-    visible: isOpen
+    property bool windowVisible: false
+    visible: windowVisible
     color: "transparent"
+
+    property int fadeOutDuration: 200
+    property int drawerY: 44   // was 52 — see ControlPanel.qml for the math
 
     anchors {
         top: true
         bottom: true
         left: true
         right: true
+    }
+
+    onIsOpenChanged: {
+        if (isOpen) {
+            hideTimer.stop()
+            windowVisible = true
+        } else {
+            hideTimer.restart()
+        }
+    }
+
+    Timer {
+        id: hideTimer
+        interval: root.fadeOutDuration
+        onTriggered: root.windowVisible = false
     }
 
     onVisibleChanged: {
@@ -34,20 +53,34 @@ PanelWindow {
 
     Rectangle {
         id: drawerBg
-        width: 340
-        height: 540
-        
+        width: 360
+        height: 560
+
         x: parent.width - width - 10
-        y: 52
-        
+        y: root.drawerY
+
         radius: 12
         color: Qt.rgba(Colors.surfaceContainer.r, Colors.surfaceContainer.g, Colors.surfaceContainer.b, 0.97)
         border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
         border.width: 1
 
+        opacity: root.isOpen ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+
         MouseArea {
             anchors.fill: parent
             onClicked: mouse.accepted = true
+        }
+
+        HoverHandler {
+            onHoveredChanged: {
+                if (hovered) {
+                    NotificationDaemon.cancelHoverClose()
+                    NotificationDaemon.isDrawerOpen = true
+                } else {
+                    NotificationDaemon.scheduleHoverClose()
+                }
+            }
         }
 
         ColumnLayout {

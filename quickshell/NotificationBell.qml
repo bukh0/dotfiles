@@ -36,7 +36,10 @@ Item {
 
     MouseArea {
         anchors.fill: parent
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        onEntered: NotificationDaemon.beginHoverOpen()
+        onExited: NotificationDaemon.scheduleHoverClose()
         onClicked: NotificationDaemon.toggleDrawer()
     }
 }

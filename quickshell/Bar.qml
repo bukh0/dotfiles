@@ -5,65 +5,37 @@ import "."
 
 PanelWindow {
     id: root
-    property var screen
-
-    property int barHeight: 34
-    property int sidePadding: 10
-    property int topPadding: 6
-    property int pillRadius: 12
-
-    anchors.top: true
-    anchors.left: true
-    anchors.right: true
-    implicitHeight: barHeight + topPadding * 2
-    exclusiveZone: barHeight + topPadding * 2
+    
+    anchors {
+        top: true
+        left: true
+        right: true
+    }
+    
+    height: 42 
     color: "transparent"
 
-    margins {
-        top: topPadding
-        left: sidePadding
-        right: sidePadding
-    }
-
-    // Control panel fullscreen overlay
-    ControlPanel {
-        id: controlPanel
-        screen: root.screen
-    }
-
-    // Notification drawer fullscreen overlay
-    NotificationDrawer {
-        id: notifDrawer
-        screen: root.screen
-    }
-
-    // Notification toast anchored to the right
-    NotificationPopup {
-        id: notifPopup
-        anchor.window: root
-        anchor.rect.x: root.width - implicitWidth - 10
-        anchor.rect.y: root.height + 6
-    }
-
-    Connections {
-        target: NotificationDaemon
-        function onNewNotification(data) {
-            notifPopup.showNotification(data)
-        }
-    }
+    property int barHeight: 36 
+    property int pillRadius: 15 
+    
+property color pillBg: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.4)
+property color pillBorder: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.12)
 
     Item {
         anchors.fill: parent
+        anchors.margins: 7
 
+        // ==========================================
         // LEFT PILL — Workspaces
+        // ==========================================
         Rectangle {
             anchors.left: parent.left
-            anchors.top: parent.top
+            anchors.verticalCenter: parent.verticalCenter
             height: root.barHeight
-            width: leftLayout.implicitWidth + 28
+            width: leftLayout.implicitWidth + 20
             radius: root.pillRadius
-            color: "#cc252b2b"
-            border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35)
+            color: root.pillBg
+            border.color: root.pillBorder
             border.width: 1
 
             RowLayout {
@@ -74,25 +46,30 @@ PanelWindow {
             }
         }
 
-        // CENTER PILL — Clock & Control Panel Toggle
+        // ==========================================
+        // CENTER PILL — Clock & Control Panel
+        // ==========================================
         Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
+            anchors.verticalCenter: parent.verticalCenter
             height: root.barHeight
-            width: centerLayout.implicitWidth + 28
+            
+            // Increased the padding (+ 80) to stretch the central bar wider
+            width: Math.max(centerLayout.implicitWidth + 80, 180)
+            
             radius: root.pillRadius
             border.width: 1
 
-            color: controlPanel.isOpen 
+            color: controlPanel.isOpen
                 ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.2)
                 : centerMa.containsMouse
-                ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.1)
-                : "#cc252b2b"
-            
+                ? Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.6)
+                : root.pillBg
+
             border.color: controlPanel.isOpen
                 ? Colors.primary
-                : Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35)
-            
+                : root.pillBorder
+
             Behavior on color { ColorAnimation { duration: 150 } }
             Behavior on border.color { ColorAnimation { duration: 150 } }
 
@@ -107,31 +84,50 @@ PanelWindow {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
+                onEntered: controlPanel.beginHoverOpen()
+                onExited: controlPanel.scheduleHoverClose()
                 onClicked: controlPanel.isOpen = !controlPanel.isOpen
             }
         }
 
-        // RIGHT PILL — System modules
+        // ==========================================
+        // RIGHT PILL — System Modules
+        // ==========================================
         Rectangle {
             anchors.right: parent.right
-            anchors.top: parent.top
+            anchors.verticalCenter: parent.verticalCenter
             height: root.barHeight
-            width: rightLayout.implicitWidth + 28
+            width: rightLayout.implicitWidth + 24
             radius: root.pillRadius
-            color: "#cc252b2b"
-            border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35)
+            color: root.pillBg
+            border.color: root.pillBorder
             border.width: 1
 
             RowLayout {
                 id: rightLayout
                 anchors.centerIn: parent
-                spacing: 10
+                spacing: 13
 
                 SystemTray {}
                 NetworkIndicator {}
                 BatteryIndicator {}
                 NotificationBell {}
+
             }
         }
+    }
+
+    // ==========================================
+    // OVERLAYS (Attached directly to the Bar)
+    // ==========================================
+    ControlPanel {
+        id: controlPanel
+        openY: 10 
+        closedY: 26
+    }
+    
+    NotificationDrawer {
+        id: notificationDrawer
+        drawerY: 10
     }
 }

@@ -9,7 +9,7 @@ RowLayout {
 
     property string title: "Nothing playing"
     property string artist: ""
-    property string album: "" // Added property
+    property string album: ""
     property string status: "Stopped"
     property string artUrl: ""
     property bool playing: status === "Playing"
@@ -20,11 +20,10 @@ RowLayout {
         stdout: StdioCollector {
             onStreamFinished: {
                 const parts = text.trim().split("|")
-                // Increased length check to 4 to account for the new album field
                 if (parts.length >= 4) {
                     title = parts[0] || "Nothing playing"
                     artist = parts[1] || ""
-                    album = parts[2] || "" // Assigned value
+                    album = parts[2] || ""
                     status = parts[3] || "Stopped"
                     artUrl = parts[4] || ""
                 }
@@ -40,9 +39,6 @@ RowLayout {
         Component.onCompleted: metaPoll.running = true
     }
 
-    Process { id: actionProc }
-
-    // Album Art Container
     Rectangle {
         width: 64
         height: 64
@@ -82,7 +78,6 @@ RowLayout {
             elide: Text.ElideRight
         }
 
-        // Updated Artist and Album line
         Text {
             Layout.fillWidth: true
             visible: artist !== "" || album !== ""
@@ -97,62 +92,32 @@ RowLayout {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 8
 
-            Text {
-                text: "󰒮"
-                color: prevMa.containsMouse ? Colors.primary : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.8)
-                font.pixelSize: 18
-                font.family: "JetBrainsMono Nerd Font"
-                MouseArea {
-                    id: prevMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        actionProc.command = ["playerctl", "previous"]
-                        actionProc.running = true
-                        Qt.callLater(() => metaPoll.running = true)
-                    }
-                }
+            MediaButton {
+                icon: "󰒮"
+                size: 19
+                boxSize: 32
+                command: ["playerctl", "previous"]
+                onClicked: Qt.callLater(() => metaPoll.running = true)
             }
 
-            Text {
-                text: playing ? "󰏤" : "󰐊"
-                color: playMa.containsMouse ? Colors.primary : Colors.surfaceFg
-                font.pixelSize: 20
-                font.family: "JetBrainsMono Nerd Font"
-                MouseArea {
-                    id: playMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        actionProc.command = ["playerctl", "play-pause"]
-                        actionProc.running = true
-                        Qt.callLater(() => metaPoll.running = true)
-                    }
-                }
+            MediaButton {
+                icon: playing ? "󰏤" : "󰐊"
+                size: 22
+                boxSize: 36
+                command: ["playerctl", "play-pause"]
+                onClicked: Qt.callLater(() => metaPoll.running = true)
             }
 
-            Text {
-                text: "󰒭"
-                color: nextMa.containsMouse ? Colors.primary : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.8)
-                font.pixelSize: 18
-                font.family: "JetBrainsMono Nerd Font"
-                MouseArea {
-                    id: nextMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        actionProc.command = ["playerctl", "next"]
-                        actionProc.running = true
-                        Qt.callLater(() => metaPoll.running = true)
-                    }
-                }
+            MediaButton {
+                icon: "󰒭"
+                size: 19
+                boxSize: 32
+                command: ["playerctl", "next"]
+                onClicked: Qt.callLater(() => metaPoll.running = true)
             }
-            
+
             Item { Layout.fillWidth: true }
         }
     }

@@ -7,10 +7,33 @@ Item {
 
     property var notifications: []
     property bool isDrawerOpen: false
+    property int hoverCloseDelay: 300
 
     signal newNotification(var data)
 
+    Timer {
+        id: closeTimer
+        interval: root.hoverCloseDelay
+        onTriggered: root.isDrawerOpen = false
+    }
+
+    // Called from NotificationBell when the cursor enters the bell icon.
+    function beginHoverOpen() {
+        closeTimer.stop()
+        isDrawerOpen = true
+    }
+
+    // Called when the cursor leaves the bell, or leaves the drawer itself.
+    function scheduleHoverClose() {
+        closeTimer.restart()
+    }
+
+    function cancelHoverClose() {
+        closeTimer.stop()
+    }
+
     function toggleDrawer() {
+        closeTimer.stop()
         isDrawerOpen = !isDrawerOpen
     }
 
@@ -28,15 +51,13 @@ Item {
 
     function closeNotification(idx) {
         let n = root.notifications[idx]
-        
-        // 1. Tell the system we dismissed it
+
         if (n && typeof n.close === "function") {
             try {
                 n.close()
             } catch(e) {}
         }
-        
-        // 2. Forcefully and instantly remove it from the UI list
+
         let arr = root.notifications.slice()
         arr.splice(idx, 1)
         root.notifications = arr

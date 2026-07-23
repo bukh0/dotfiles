@@ -1,74 +1,75 @@
 import QtQuick
-import QtQuick.Layouts
 import Quickshell.Io
+import "."
 
-RowLayout {
-    spacing: 4
+Item {
+    id: root
+    width: label.implicitWidth
+    height: label.implicitHeight
 
-    property int level: 100
-    property bool charging: false
+    property int capacity: 100
+    property string status: "Unknown"
 
-    property string battIcon: {
-        if (charging) return "󰂄"
-        if (level >= 90) return "󰁹"
-        if (level >= 70) return "󰂁"
-        if (level >= 50) return "󰁾"
-        if (level >= 30) return "󰁼"
-        if (level >= 10) return "󰁺"
-        return "󰂃"
+    readonly property var icons: ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
+
+    readonly property bool isCharging: status === "Charging" || status === "Full" || status === "Not charging"
+    readonly property bool isCritical: !isCharging && capacity <= 10
+    readonly property bool isLow: !isCharging && capacity <= 20
+
+    readonly property string icon: {
+        if (status === "Charging") return "󰂄"
+        if (status === "Full" || status === "Not charging") return "󰚥"
+        const idx = Math.min(9, Math.max(0, Math.floor(capacity / 10)))
+        return icons[idx]
     }
 
-    property color battColor: {
-        if (charging) return Colors.tertiary
-        if (level <= 15) return Colors.error
+    readonly property color iconColor: {
+        if (isCharging) return Colors.primary
+        if (isCritical) return Colors.error
+        if (isLow) return Colors.tertiary
         return Colors.surfaceFg
     }
 
-    // FIX: was hardcoded to BAT0, which doesn't exist on every ThinkPad
-    // (some show up as BAT1). Glob it and take the first match instead.
     Process {
-        id: battLevel
-        command: ["sh", "-c", "cat /sys/class/power_supply/BAT*/capacity 2>/dev/null | head -1"]
+        id: battPoll
+        // Changed && to ; just in case the capacity read fails on weird hardware
+        command: ["sh", "-c", "cat /sys/class/power_supply/BAT*/capacity 2>/dev/null | head -1 ; cat /sys/class/power_supply/BAT*/status 2>/dev/null | head -1"]
         running: true
         stdout: StdioCollector {
-            onStreamFinished: level = parseInt(text.trim()) || 100
-        }
-    }
-
-    Process {
-        id: battStatus
-        command: ["sh", "-c", "cat /sys/class/power_supply/BAT*/status 2>/dev/null | head -1"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: charging = text.trim() === "Charging"
+            onStreamFinished: {
+                const lines = text.trim().split("\n")
+                if (lines.length >= 2) {
+                    root.capacity = parseInt(lines[0]) || 0
+                    root.status = lines[1].trim()
+                }
+            }
         }
     }
 
     Timer {
-        interval: 30000
+        interval: 15000
         running: true
         repeat: true
-        onTriggered: {
-            battLevel.running = true
-            battStatus.running = true
-        }
+        onTriggered: battPoll.running = true
+    }
+
+    SequentialAnimation {
+        running: root.isCritical
+        loops: Animation.Infinite
+        NumberAnimation { target: label; property: "opacity"; to: 0.3; duration: 500 }
+        NumberAnimation { target: label; property: "opacity"; to: 1.0; duration: 500 }
+        // Reset opacity when plugged in to prevent getting stuck at 0.3
+        onStopped: label.opacity = 1.0 
     }
 
     Text {
-        text: battIcon
-        color: battColor
-        font.pixelSize: 15
+        id: label
+        text: root.icon + " " + root.capacity + "%"
+        color: root.iconColor
+        font.pixelSize: 13
         font.family: "JetBrainsMono Nerd Font"
+        font.weight: Font.Bold
 
-        Behavior on color { ColorAnimation { duration: 300 } }
-    }
-
-    Text {
-        text: level + "%"
-        color: battColor
-        font.pixelSize: 12
-        font.family: "JetBrainsMono Nerd Font"
-
-        Behavior on color { ColorAnimation { duration: 300 } }
+        Behavior on color { ColorAnimation { duration: 200 } }
     }
 }

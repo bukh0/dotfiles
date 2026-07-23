@@ -1,47 +1,80 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell.Io
 import "."
 
 RowLayout {
-    spacing: 6
+    spacing: 8
 
     property string timeText: "00:00"
-    property string dateText: "Mon 01 Jan"
+    property string dateText: "..."
+    property bool isPlaying: false
 
-    function updateTime() {
-        let d = new Date()
-        
-        let h = d.getHours().toString()
-        let m = d.getMinutes().toString()
-        
-        // ES5 safe zero-padding to avoid QML engine crashes
-        timeText = (h.length < 2 ? "0" + h : h) + ":" + (m.length < 2 ? "0" + m : m)
-        
-        // Native Qt date formatting
-        dateText = Qt.formatDateTime(d, "ddd dd MMM")
+    Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        onTriggered: {
+            let d = new Date()
+            let h = d.getHours().toString()
+            let m = d.getMinutes().toString()
+            timeText = (h.length < 2 ? "0" + h : h) + ":" + (m.length < 2 ? "0" + m : m)
+            dateText = Qt.formatDateTime(d, "ddd - dd/MM/yyyy")
+        }
+        Component.onCompleted: triggered()
+    }
+
+    Process {
+        id: playerPoll
+        command: ["playerctl", "status"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                isPlaying = (text.trim() === "Playing")
+            }
+        }
     }
 
     Timer {
-        interval: 1000 
+        interval: 2000
         running: true
         repeat: true
-        onTriggered: updateTime()
-        Component.onCompleted: updateTime()
+        onTriggered: playerPoll.running = true
+        Component.onCompleted: playerPoll.running = true
+    }
+
+    Row {
+        visible: isPlaying
+        spacing: 2
+        Layout.alignment: Qt.AlignVCenter
+
+        component EqBar: Rectangle {
+            property int minH: 4
+            property int maxH: 10
+            property int dur: 400
+
+            width: 3
+            height: minH
+            radius: 1.5
+            color: Colors.primary
+
+            SequentialAnimation on height {
+                running: isPlaying
+                loops: Animation.Infinite
+                NumberAnimation { to: maxH; duration: dur; easing.type: Easing.InOutQuad }
+                NumberAnimation { to: minH; duration: dur; easing.type: Easing.InOutQuad }
+            }
+        }
+
+        EqBar { maxH: 9; dur: 350 }
+        EqBar { maxH: 14; dur: 400 }
+        EqBar { maxH: 10; dur: 450 }
     }
 
     Text {
-        text: dateText
-        color: Colors.surfaceFg
-        font.pixelSize: 12
-        font.family: "JetBrainsMono Nerd Font"
-        opacity: 0.7
-    }
-
-    Text {
-        text: timeText
-        color: Colors.surfaceFg
+        text: timeText + " · " + dateText
+        color: Colors.primary
         font.pixelSize: 13
         font.family: "JetBrainsMono Nerd Font"
-        font.weight: Font.Medium
+        font.weight: Font.Bold
     }
 }
