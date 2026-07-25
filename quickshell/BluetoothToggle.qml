@@ -14,7 +14,13 @@ ColumnLayout {
     property var devices: []
     property bool scanning: false
 
-    property var cmdProc: Process {
+    function runCommand(cmd) {
+        if (cmdProc.running) return
+        cmdProc.command = cmd
+        cmdProc.running = true
+    }
+
+    Process {
         id: cmdProc
         running: false
         onRunningChanged: {
@@ -25,21 +31,13 @@ ColumnLayout {
         }
     }
 
-    function runCommand(cmd) {
-        if (cmdProc.running) return
-        cmdProc.command = cmd
-        cmdProc.running = true
-    }
-
     Process {
         id: btPoll
-        // Fetch power status AND connected device names in one go
-        command: ["sh", "-c", "bluetoothctl show | grep 'Powered:' | awk '{print $2}' && bluetoothctl devices Connected | cut -d ' ' -f 3-"]
+        command: ["sh", "-c", "bluetoothctl show | grep 'Powered:' | awk '{print $2}'; bluetoothctl devices Connected | cut -d ' ' -f 3-"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const lines = text.trim().split("\n")
                 btOn = lines[0]?.trim() === "yes"
-                // Extract everything after the first line as connected devices
                 const devLines = lines.slice(1).filter(l => l.trim() !== "")
                 connectedName = devLines.join(", ")
             }
@@ -121,7 +119,6 @@ ColumnLayout {
                     font.family: "JetBrainsMono Nerd Font"
                 }
                 Text {
-                    // Make the text visible when Bluetooth is on and a device is connected
                     visible: btOn && connectedName !== ""
                     text: connectedName
                     color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.55)
@@ -146,7 +143,7 @@ ColumnLayout {
             onClicked: {
                 if (!btOn) {
                     root.runCommand(["bluetoothctl", "power", "on"])
-                    btOn = true 
+                    btOn = true
                 } else {
                     expanded = !expanded
                     if (expanded) scan()
@@ -231,8 +228,7 @@ ColumnLayout {
                         let cmd = modelData.connected
                             ? ["bluetoothctl", "disconnect", modelData.mac]
                             : ["bluetoothctl", "connect", modelData.mac]
-                            
-                        // Optimistic UI updates
+
                         let newState = !modelData.connected
                         let newDevices = []
                         for (let i = 0; i < root.devices.length; i++) {
@@ -246,7 +242,6 @@ ColumnLayout {
                         }
                         root.devices = newDevices
 
-                        // Optimistically update the main Bluetooth label
                         if (newState) {
                             if (root.connectedName === "") {
                                 root.connectedName = modelData.name
@@ -256,7 +251,7 @@ ColumnLayout {
                         } else {
                             root.connectedName = root.connectedName.split(", ").filter(n => n !== modelData.name).join(", ")
                         }
-                        
+
                         root.runCommand(cmd)
                     }
                 }
