@@ -14,8 +14,8 @@ ColumnLayout {
     property var networks: []
     property bool scanning: false
     
-    // Globally track if a command is running so we don't spam clicks
-    property bool isProcessing: actionProc.running
+    // Helps other delegates know to uncheck themselves when a new network is clicked
+    property string targetSsid: ""
 
     Process {
         id: notifyProc
@@ -28,7 +28,7 @@ ColumnLayout {
         notifyProc.running = true
     }
 
-    // Safely isolated command runner that cannot be destroyed by UI updates
+    // Global process for power toggling and rescanning
     Process {
         id: actionProc
         running: false
@@ -44,7 +44,6 @@ ColumnLayout {
             }
         }
         onRunningChanged: {
-            // Instantly poll real system state when the command finishes
             if (!running) wifiPoll.running = true;
         }
     }
@@ -77,7 +76,7 @@ ColumnLayout {
 
     Process {
         id: scanPoll
-        // We put ACTIVE first so it never gets shifted by weird SSIDs
+        // ACTIVE is first to prevent shifting if SSID contains colons
         command: ["sh", "-c", "nmcli -c no -t -f ACTIVE,SSID,SIGNAL,SECURITY dev wifi list | head -20"]
         stdout: StdioCollector {
             onStreamFinished: {
@@ -98,7 +97,7 @@ ColumnLayout {
                     if (!name) continue
 
                     if (!parsedMap[name]) {
-                        parsedMap[name] = { ssid: name, signal: signal, security: security, active: isActive, connecting: false }
+                        parsedMap[name] = { ssid: name, signal: signal, security: security, active: isActive }
                     } else {
                         // Merge multi-band routers (2.4/5GHz) correctly
                         if (isActive) parsedMap[name].active = true;
@@ -106,7 +105,8 @@ ColumnLayout {
                     }
                 }
                 const parsed = Object.values(parsedMap)
-                // Always push connected network to the top of the list
+                
+                // Always sort the connected network to the top
                 parsed.sort((a, b) => {
                     if (a.active) return -1;
                     if (b.active) return 1;
@@ -226,13 +226,25 @@ ColumnLayout {
         Repeater {
             model: wifiRoot.networks
             delegate: Rectangle {
+                id: delegateRoot
                 Layout.fillWidth: true
                 implicitHeight: 38
                 radius: 8
                 
-                property bool isConnecting: modelData.connecting || false
+                // Pure Local UI State overrides
+                property bool isProcessing: itemProc.running
+                property bool isConnecting: false
+                property bool isDisconnecting: false
 
-                color: (modelData.active || isConnecting)
+                property bool showActive: {
+                    if (isDisconnecting) return false;
+                    if (isConnecting) return true;
+                    // Instantly uncheck visually if the user is connecting to a different network
+                    if (wifiRoot.targetSsid !== "" && wifiRoot.targetSsid !== modelData.ssid) return false;
+                    return modelData.active;
+                }
+
+                color: showActive
                     ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.2)
                     : networkMa.containsMouse
                     ? Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
@@ -240,35 +252,60 @@ ColumnLayout {
 
                 Behavior on color { ColorAnimation { duration: 100 } }
 
+                Process {
+                    id: itemProc
+                    running: false
+                    stdout: StdioCollector {
+                        onStreamFinished: {
+                            const out = text.trim();
+                            if (out.toLowerCase().includes("error")) wifiRoot.notify("Wi-Fi Warning", out);
+                        }
+                    }
+                    stderr: StdioCollector {
+                        onStreamFinished: {
+                            if (text.trim().length > 0) wifiRoot.notify("Wi-Fi Error", text.trim());
+                        }
+                    }
+                    onRunningChanged: {
+                        if (!running) {
+                            // Clear local overrides and trigger a real state fetch
+                            delegateRoot.isConnecting = false;
+                            delegateRoot.isDisconnecting = false;
+                            wifiRoot.targetSsid = "";
+                            wifiPoll.running = true;
+                        }
+                    }
+                }
+
                 RowLayout {
                     anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
                     spacing: 8
 
                     Text {
                         text: wifiRoot.signalIcon(modelData.signal)
-                        color: (modelData.active || isConnecting) ? Colors.primary : Colors.surfaceFg
+                        color: delegateRoot.showActive ? Colors.primary : Colors.surfaceFg
                         font.pixelSize: 14
                         font.family: "JetBrainsMono Nerd Font"
                     }
                     Text {
                         text: modelData.ssid
-                        color: (modelData.active || isConnecting) ? Colors.primary : Colors.surfaceFg
+                        color: delegateRoot.showActive ? Colors.primary : Colors.surfaceFg
                         font.pixelSize: 12
                         font.family: "JetBrainsMono Nerd Font"
                         Layout.fillWidth: true
                         elide: Text.ElideRight
                     }
                     Text {
-                        visible: modelData.security && !modelData.active && !isConnecting
+                        visible: modelData.security && !delegateRoot.showActive && !delegateRoot.isProcessing
                         text: "󰌾"
                         color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
                         font.pixelSize: 11
                         font.family: "JetBrainsMono Nerd Font"
                     }
                     Text {
-                        visible: modelData.active || isConnecting
-                        text: isConnecting ? "󰔟" : "󰄬"
-                        color: isConnecting ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6) : Colors.primary
+                        visible: delegateRoot.showActive || delegateRoot.isProcessing
+                        text: delegateRoot.isProcessing ? "󰔟" : "󰄬"
+                        color: delegateRoot.isProcessing ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6) : Colors.primary
                         font.pixelSize: 12
                         font.family: "JetBrainsMono Nerd Font"
                     }
@@ -278,41 +315,26 @@ ColumnLayout {
                     id: networkMa
                     anchors.fill: parent
                     hoverEnabled: true
-                    cursorShape: wifiRoot.isProcessing ? Qt.WaitCursor : Qt.PointingHandCursor
+                    cursorShape: delegateRoot.isProcessing ? Qt.WaitCursor : Qt.PointingHandCursor
                     onClicked: {
-                        if (wifiRoot.isProcessing) return;
+                        if (delegateRoot.isProcessing) return;
                         
                         let disconnecting = modelData.active;
-                        let cmd = disconnecting
+                        wifiRoot.targetSsid = modelData.ssid; // Signals other delegates to visually drop active state
+
+                        if (disconnecting) {
+                            delegateRoot.isDisconnecting = true;
+                            wifiRoot.ssid = "";
+                        } else {
+                            delegateRoot.isConnecting = true;
+                            wifiRoot.ssid = modelData.ssid;
+                        }
+                        
+                        itemProc.command = disconnecting
                             ? ["sh", "-c", "dev=$(nmcli -t -f DEVICE,TYPE dev | grep ':wifi$' | cut -d: -f1 | head -n1); if [ -n \"$dev\" ]; then nmcli dev disconnect \"$dev\"; fi"]
                             : ["nmcli", "dev", "wifi", "connect", modelData.ssid];
                             
-                        // Pure Optimistic UI Update directly into the model array
-                        let newNetworks = [];
-                        for (let i = 0; i < wifiRoot.networks.length; i++) {
-                            let n = wifiRoot.networks[i];
-                            let isActive = n.active;
-                            let isConn = false; 
-                            
-                            if (disconnecting) {
-                                if (n.ssid === modelData.ssid) isActive = false;
-                            } else {
-                                if (n.active) isActive = false; 
-                                if (n.ssid === modelData.ssid) {
-                                    isActive = false; 
-                                    isConn = true;    
-                                }
-                            }
-                            newNetworks.push({
-                                ssid: n.ssid, signal: n.signal, security: n.security, active: isActive, connecting: isConn
-                            });
-                        }
-                        
-                        wifiRoot.networks = newNetworks;
-                        wifiRoot.ssid = disconnecting ? "" : modelData.ssid;
-                        
-                        // Execute in the central runner safely
-                        wifiRoot.runCommand(cmd);
+                        itemProc.running = true;
                     }
                 }
             }
