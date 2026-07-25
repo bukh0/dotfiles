@@ -8,8 +8,9 @@ Item {
     id: root
     width: label.implicitWidth
     height: label.implicitHeight
-
     property string status: "󰤭"
+
+    signal requestPanelOpen()
 
     Process {
         id: netPoll
@@ -29,16 +30,28 @@ Item {
         interval: 15000
         running: true
         repeat: true
-        onTriggered: netPoll.running = true
+        onTriggered: if (!netPoll.running) netPoll.running = true
     }
 
-    property var nmAppletItem: {
+    property var nmAppletItem: null
+
+    function findNmApplet() {
         for (const item of SystemTray.items.values) {
-            if ((item.id || "").toLowerCase() === "nm-applet")
+            const id = (item.id || "").toLowerCase()
+            if (id.includes("nm-applet") || id.includes("networkmanager"))
                 return item
         }
         return null
     }
+
+    Timer {
+        interval: 3000
+        running: root.nmAppletItem === null
+        repeat: true
+        onTriggered: root.nmAppletItem = root.findNmApplet()
+    }
+
+    Component.onCompleted: nmAppletItem = findNmApplet()
 
     QsMenuAnchor {
         id: menuAnchor
@@ -47,27 +60,24 @@ Item {
     }
 
     Text {
-        id: label // Added missing ID so the root item has a valid width/height
-        text: root.status // Changed to actually use the network status icon
-        
-        // Optional: Make it error-colored if disconnected, otherwise standard color
-        color: root.status === "󰤭" 
-            ? Colors.error 
+        id: label
+        text: root.status
+        color: root.status === "󰤭"
+            ? Colors.error
             : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.8)
-            
         font.pixelSize: 15
         font.family: "JetBrainsMono Nerd Font"
         font.weight: Font.Bold
-
         Behavior on color { ColorAnimation { duration: 200 } }
     }
-
+    
     MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
         onClicked: {
-            if (menuAnchor.menu)
-                menuAnchor.open()
+            // Ignore the buggy nm-applet tray menu entirely
+            // and just open our beautiful Control Panel instead
+            root.requestPanelOpen()
         }
     }
 }

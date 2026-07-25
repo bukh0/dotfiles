@@ -10,15 +10,15 @@ RowLayout {
     property var screen
     spacing: 10
 
-    // Always show 1, 2, 3 — matches Waybar's "persistent-workspaces": { "*": [1,2,3] }.
     readonly property var persistentIds: [1, 2, 3]
 
-    // Any workspace beyond 3 that's actually in use still shows up too,
-    // same as before — just no longer the only thing driving 1-3's visibility.
     readonly property var extraIds: {
         const ids = []
         for (const ws of Hyprland.workspaces.values) {
-            if (ws.id > 3 && (ws.windows > 0 || ws.id === Hyprland.focusedMonitor?.activeWorkspace?.id))
+            // Was `ws.windows` — that property doesn't exist on HyprlandWorkspace,
+            // so this always read as `undefined` and "occupied" was always false.
+            // The real list of a workspace's windows is `toplevels`.
+            if (ws.id > 3 && (ws.toplevels.values.length > 0 || ws.id === Hyprland.focusedMonitor?.activeWorkspace?.id))
                 ids.push(ws.id)
         }
         ids.sort((a, b) => a - b)
@@ -27,34 +27,26 @@ RowLayout {
 
     readonly property var allIds: persistentIds.concat(extraIds)
 
-    // Fallback for switching to a workspace that has no Hyprland object yet
-    // (i.e. it's never been visited) — HyprlandWorkspace.activate() only
-    // exists on workspaces the compositor already knows about.
     Process {
         id: switchProc
     }
 
     Repeater {
         model: root.allIds
-
         delegate: Item {
             id: wsItem
             required property int modelData
             readonly property int wsId: modelData
-
             readonly property var wsObject: {
                 for (const ws of Hyprland.workspaces.values) {
                     if (ws.id === wsId) return ws
                 }
                 return null
             }
-
             property bool active: Hyprland.focusedMonitor?.activeWorkspace?.id === wsId
-            property bool occupied: wsObject ? wsObject.windows > 0 : false
-
+            property bool occupied: wsObject ? wsObject.toplevels.values.length > 0 : false
             width: 18
             height: 18
-
             Rectangle {
                 anchors.centerIn: parent
                 width: wsItem.active ? 18 : 16
@@ -65,12 +57,10 @@ RowLayout {
                     : wsMa.containsMouse
                         ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.06)
                         : "transparent"
-
                 Behavior on width { NumberAnimation { duration: 150 } }
                 Behavior on height { NumberAnimation { duration: 150 } }
                 Behavior on color { ColorAnimation { duration: 150 } }
             }
-
             Text {
                 anchors.centerIn: parent
                 text: wsItem.wsId
@@ -83,7 +73,6 @@ RowLayout {
                         ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6)
                         : Colors.surfaceFg
             }
-
             MouseArea {
                 id: wsMa
                 anchors.fill: parent

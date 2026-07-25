@@ -1,25 +1,26 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Wayland
 import "."
 
 PanelWindow {
     id: root
-    
+    WlrLayershell.layer: WlrLayer.Overlay   // keep the bar above ControlPanel's overlay
+
     anchors {
         top: true
         left: true
         right: true
     }
-    
-    height: 42 
-    color: "transparent"
 
-    property int barHeight: 36 
-    property int pillRadius: 15 
-    
-property color pillBg: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.4)
-property color pillBorder: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
+    height: 42
+    color: "transparent"
+    property int barHeight: 36
+    property int pillRadius: 15
+
+    property color pillBg: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.4)
+    property color pillBorder: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
 
     Item {
         anchors.fill: parent
@@ -37,7 +38,6 @@ property color pillBorder: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.ou
             color: root.pillBg
             border.color: root.pillBorder
             border.width: 1
-
             RowLayout {
                 id: leftLayout
                 anchors.centerIn: parent
@@ -53,32 +53,27 @@ property color pillBorder: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.ou
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
             height: root.barHeight
-            
+
             // Increased the padding (+ 80) to stretch the central bar wider
             width: Math.max(centerLayout.implicitWidth + 80, 180)
-            
+
             radius: root.pillRadius
             border.width: 1
-
             color: controlPanel.isOpen
                 ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.2)
                 : centerMa.containsMouse
                 ? Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.6)
                 : root.pillBg
-
             border.color: controlPanel.isOpen
                 ? Colors.primary
                 : root.pillBorder
-
             Behavior on color { ColorAnimation { duration: 150 } }
             Behavior on border.color { ColorAnimation { duration: 150 } }
-
             RowLayout {
                 id: centerLayout
                 anchors.centerIn: parent
                 Clock {}
             }
-
             MouseArea {
                 id: centerMa
                 anchors.fill: parent
@@ -102,17 +97,16 @@ property color pillBorder: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.ou
             color: root.pillBg
             border.color: root.pillBorder
             border.width: 1
-
             RowLayout {
                 id: rightLayout
                 anchors.centerIn: parent
                 spacing: 13
-
                 SystemTray {}
-                NetworkIndicator {}
+                NetworkIndicator {
+                  onRequestPanelOpen: controlPanel.isOpen = true
+                }
                 BatteryIndicator {}
                 NotificationBell {}
-
             }
         }
     }
@@ -122,10 +116,10 @@ property color pillBorder: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.ou
     // ==========================================
     ControlPanel {
         id: controlPanel
-        openY: 10 
+        openY: 10
         closedY: 26
-    }
-    
+        barHeight: root.height
+}
     NotificationDrawer {
         id: notificationDrawer
         drawerY: 10
