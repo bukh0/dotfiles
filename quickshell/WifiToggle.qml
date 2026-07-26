@@ -13,7 +13,8 @@ ColumnLayout {
     property bool expanded: false
     property var networks: []
     property bool scanning: false
-    
+    property bool rescanPending: false
+
     // Helps other delegates know to uncheck themselves when a new network is clicked
     property string targetSsid: ""
 
@@ -44,7 +45,15 @@ ColumnLayout {
             }
         }
         onRunningChanged: {
-            if (!running) wifiPoll.running = true;
+            if (!running) {
+                wifiPoll.running = true;
+                // If this run was a "rescan" request, the AP list is only
+                // trustworthy now that the actual scan has finished.
+                if (wifiRoot.rescanPending) {
+                    wifiRoot.rescanPending = false;
+                    scanPoll.running = true;
+                }
+            }
         }
     }
 
@@ -123,6 +132,16 @@ ColumnLayout {
         scanPoll.running = true
     }
 
+    // Distinct from scan(): actually asks the radio to rediscover APs first,
+    // then lists once that finishes (see actionProc.onRunningChanged above).
+    // Listing immediately after firing the rescan would just return the
+    // pre-rescan cache.
+    function rescan() {
+        scanning = true
+        rescanPending = true
+        runCommand(["nmcli", "dev", "wifi", "rescan"])
+    }
+
     function signalIcon(sig) {
         if (sig >= 75) return "󰤨"
         if (sig >= 50) return "󰤥"
@@ -157,6 +176,9 @@ ColumnLayout {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
+                        // Don't flip the displayed state if the command is
+                        // actually going to be dropped because actionProc is busy.
+                        if (actionProc.running) return;
                         if (wifiRoot.wifiOn) {
                             wifiRoot.runCommand(["nmcli", "radio", "wifi", "off"])
                             wifiRoot.wifiOn = false; wifiRoot.expanded = false
@@ -273,6 +295,10 @@ ColumnLayout {
                             delegateRoot.isDisconnecting = false;
                             wifiRoot.targetSsid = "";
                             wifiPoll.running = true;
+                            // Also refresh the list itself — otherwise the
+                            // .active flag we just changed on the real system
+                            // stays stale and the checkmark flips back.
+                            scanPoll.running = true;
                         }
                     }
                 }
@@ -361,10 +387,7 @@ ColumnLayout {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    wifiRoot.runCommand(["nmcli", "dev", "wifi", "rescan"])
-                    wifiRoot.scan()
-                }
+                onClicked: wifiRoot.rescan()
             }
         }
     }

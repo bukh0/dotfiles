@@ -28,6 +28,22 @@ ColumnLayout {
     Process {
         id: actionProc
         running: false
+        // Was missing entirely — power on/off failures (bluetoothctl not
+        // present, permission denied, adapter missing) were silently
+        // swallowed. Mirrors WifiToggle.qml's actionProc.
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const out = text.trim();
+                if (out.toLowerCase().includes("error") || out.toLowerCase().includes("failed")) {
+                    btRoot.notify("Bluetooth Warning", out);
+                }
+            }
+        }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (text.trim().length > 0) btRoot.notify("Bluetooth Error", text.trim());
+            }
+        }
         onRunningChanged: {
             if (!running) btPoll.running = true;
         }
@@ -131,6 +147,7 @@ ColumnLayout {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
+                        if (actionProc.running) return;
                         if (btRoot.btOn) {
                             btRoot.runCommand(["bluetoothctl", "power", "off"])
                             btRoot.btOn = false; btRoot.expanded = false

@@ -44,8 +44,12 @@ Item {
         id: statusPoll
         command: ["sh", "-c",
             "nmcli radio wifi && " +
-            "nmcli -t -f ACTIVE,SSID dev wifi | grep '^yes' | cut -d: -f2 | head -1 && " +
-            "nmcli -t -f TYPE,STATE dev | grep connected | head -1 | cut -d: -f1"
+            // -f2- (not -f2): SSIDs can contain colons, and -f2 alone
+            // truncates at the first one.
+            "nmcli -t -f ACTIVE,SSID dev wifi | grep '^yes' | cut -d: -f2- | head -1 && " +
+            // Anchored to end-of-line: unanchored "connected" also matches
+            // "disconnected" as a substring.
+            "nmcli -t -f TYPE,STATE dev | grep ':connected$' | head -1 | cut -d: -f1"
         ]
         stdout: StdioCollector {
             onStreamFinished: {
@@ -102,11 +106,13 @@ Item {
     }
 
     function toggleWifiRadio() {
-        if (!wifiOn) {
+        if (wifiOn) {
+            runCommand(["nmcli", "radio", "wifi", "off"])
+        } else {
             runCommand(["nmcli", "radio", "wifi", "on"])
-            // No optimistic flip here — statusPoll (triggered by cmdProc
-            // finishing) is what actually confirms the radio came on.
         }
+        // No optimistic flip here — statusPoll (triggered by cmdProc
+        // finishing) is what actually confirms the radio state.
     }
 
     // --- Connect / disconnect, with a password fallback for secured networks ---

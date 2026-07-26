@@ -14,7 +14,10 @@ Item {
 
     Process {
         id: netPoll
-        command: ["sh", "-c", "nmcli -t -f TYPE,STATE dev | grep connected | head -1 | cut -d: -f1"]
+        // Anchored to end-of-line: unanchored "connected" also matches
+        // "disconnected" as a substring, which could report the wrong
+        // device/type when a disconnected interface sorts first.
+        command: ["sh", "-c", "nmcli -t -f TYPE,STATE dev | grep ':connected$' | head -1 | cut -d: -f1"]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
