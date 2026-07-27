@@ -2,11 +2,14 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Io
 import "."
 
 PanelWindow {
     id: root
-    WlrLayershell.layer: WlrLayer.Overlay   // keep the bar above ControlPanel's overlay
+    
+    // Changed from Overlay to Top so fullscreen applications cover the bar
+    WlrLayershell.layer: WlrLayer.Top   
 
     anchors {
         top: true
@@ -21,6 +24,19 @@ PanelWindow {
 
     property color pillBg: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.4)
     property color pillBorder: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
+
+    // ==========================================
+    // HYPRLAND SHORTCUT INTEGRATION
+    // ==========================================
+    Process {
+        id: toggleFullscreen
+        command: ["hyprctl", "dispatch", "fullscreen"]
+    }
+
+    Shortcut {
+        sequence: "Meta+F"
+        onActivated: toggleFullscreen.running = true
+    }
 
     Item {
         anchors.fill: parent
@@ -103,7 +119,7 @@ PanelWindow {
                 spacing: 13
                 SystemTray {}
                 NetworkIndicator {
-                  onRequestPanelOpen: controlPanel.isOpen = true
+                    onRequestPanelOpen: controlPanel.isOpen = true
                 }
                 BatteryIndicator {}
                 NotificationBell {}
@@ -119,7 +135,7 @@ PanelWindow {
         openY: 10
         closedY: 26
         barHeight: root.height
-}
+    }
     NotificationDrawer {
         id: notificationDrawer
         drawerY: 10
