@@ -17,10 +17,10 @@ PanelWindow {
         right: true
     }
 
-    height: 42
+    height: 45
     color: "transparent"
-    property int barHeight: 36
-    property int pillRadius: 15
+    property int barHeight: 35
+    property int pillRadius: 12
 
     property color pillBg: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.4)
     property color pillBorder: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
