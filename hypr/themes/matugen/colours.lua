@@ -1,8 +1,8 @@
 return {
-    primary   = "#ffb5a0",
-    secondary = "#e7bdb2",
-    surface   = "#1a110f",
-    base      = "#1a110f",
-    text      = "#f1dfda",
-    outline   = "#a08c87",
+    primary   = "#ffb779",
+    secondary = "#e3c0a5",
+    surface   = "#19120c",
+    base      = "#19120c",
+    text      = "#efe0d6",
+    outline   = "#9e8e82",
 }
