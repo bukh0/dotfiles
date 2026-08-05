@@ -3,20 +3,14 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.SystemTray
 import "."
-
 Item {
     id: root
     width: label.implicitWidth
     height: label.implicitHeight
     property string status: "󰤭"
 
-    signal requestPanelOpen()
-
     Process {
         id: netPoll
-        // Anchored to end-of-line: unanchored "connected" also matches
-        // "disconnected" as a substring, which could report the wrong
-        // device/type when a disconnected interface sorts first.
         command: ["sh", "-c", "nmcli -t -f TYPE,STATE dev | grep ':connected$' | head -1 | cut -d: -f1"]
         running: true
         stdout: StdioCollector {
@@ -28,7 +22,6 @@ Item {
             }
         }
     }
-
     Timer {
         interval: 15000
         running: true
@@ -37,7 +30,6 @@ Item {
     }
 
     property var nmAppletItem: null
-
     function findNmApplet() {
         for (const item of SystemTray.items.values) {
             const id = (item.id || "").toLowerCase()
@@ -46,14 +38,12 @@ Item {
         }
         return null
     }
-
     Timer {
         interval: 3000
         running: root.nmAppletItem === null
         repeat: true
         onTriggered: root.nmAppletItem = root.findNmApplet()
     }
-
     Component.onCompleted: nmAppletItem = findNmApplet()
 
     QsMenuAnchor {
@@ -73,14 +63,12 @@ Item {
         font.weight: Font.Bold
         Behavior on color { ColorAnimation { duration: 200 } }
     }
-    
+
     MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
         onClicked: {
-            // Ignore the buggy nm-applet tray menu entirely
-            // and just open our beautiful Control Panel instead
-            root.requestPanelOpen()
+            if (menuAnchor.menu) menuAnchor.open()
         }
     }
 }

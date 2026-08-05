@@ -118,9 +118,7 @@ PanelWindow {
                 anchors.centerIn: parent
                 spacing: 13
                 SystemTray {}
-                NetworkIndicator {
-                    onRequestPanelOpen: controlPanel.isOpen = true
-                }
+                NetworkIndicator {}
                 BatteryIndicator {}
                 NotificationBell {}
             }
