@@ -17,13 +17,11 @@ Item {
         onTriggered: root.isDrawerOpen = false
     }
 
-    // Called from NotificationBell when the cursor enters the bell icon.
     function beginHoverOpen() {
         closeTimer.stop()
         isDrawerOpen = true
     }
 
-    // Called when the cursor leaves the bell, or leaves the drawer itself.
     function scheduleHoverClose() {
         closeTimer.restart()
     }
@@ -38,24 +36,18 @@ Item {
     }
 
     function clearAll() {
-        for (let i = root.notifications.length - 1; i >= 0; i--) {
-            let n = root.notifications[i]
-            if (n && typeof n.close === "function") {
-                try {
-                    n.close()
-                } catch (e) {}
+        root.notifications.forEach(n => {
+            if (typeof n.close === "function") {
+                try { n.close() } catch(e) {}
             }
-        }
+        })
         root.notifications = []
     }
 
     function closeNotification(idx) {
         let n = root.notifications[idx]
-
         if (n && typeof n.close === "function") {
-            try {
-                n.close()
-            } catch(e) {}
+            try { n.close() } catch(e) {}
         }
 
         let arr = root.notifications.slice()
@@ -69,15 +61,15 @@ Item {
             let data = {
                 summary: notif.summary || "",
                 body: notif.body || "",
-                appName: notif.appName || "",
+                appName: notif.appName || "App",
+                time: new Date(),
                 close: function() {
-                    try {
-                        notif.close()
-                    } catch(e) {}
+                    try { notif.close() } catch(e) {}
                 }
             }
 
-            root.notifications = [data].concat(root.notifications)
+            // Insert new notification at the beginning
+            root.notifications = [data, ...root.notifications]
             root.newNotification(data)
 
             notif.closed.connect(() => {

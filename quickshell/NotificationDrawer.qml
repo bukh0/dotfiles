@@ -12,7 +12,7 @@ PanelWindow {
     color: "transparent"
 
     property int fadeOutDuration: 200
-    property int drawerY: 44   // was 52 — see ControlPanel.qml for the math
+    property int drawerY: 44
 
     anchors {
         top: true
@@ -42,6 +42,7 @@ PanelWindow {
         }
     }
 
+    // Keep MouseArea here for Keys/Focus handling
     MouseArea {
         id: bgCloser
         anchors.fill: parent
@@ -102,22 +103,21 @@ PanelWindow {
 
                 Text {
                     text: "Clear All"
-                    color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
+                    color: clearHover.hovered ? Colors.primary : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
                     font.pixelSize: 11
                     font.family: "JetBrainsMono Nerd Font"
 
-                    MouseArea {
-                        anchors.fill: parent
+                    HoverHandler {
+                        id: clearHover
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: NotificationDaemon.clearAll()
-                        hoverEnabled: true
-                        onContainsMouseChanged: parent.color = containsMouse
-                            ? Colors.primary
-                            : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
+                    }
+                    TapHandler {
+                        onTapped: NotificationDaemon.clearAll()
                     }
                 }
             }
 
+            // Restored Item wrapper for perfect centering
             Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -154,8 +154,12 @@ PanelWindow {
                 model: NotificationDaemon.notifications
 
                 delegate: Rectangle {
+                    // Optimization: Explicit variable mapping for delegates
+                    required property var modelData
+                    required property int index
+
                     width: ListView.view.width
-                    implicitHeight: notifContent.implicitHeight + 20
+                    implicitHeight: notifContent.implicitHeight + 20 // Restored to + 20
                     radius: 10
                     color: Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
                     border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
@@ -169,7 +173,7 @@ PanelWindow {
                             right: parent.right
                             margins: 12
                         }
-                        spacing: 3
+                        spacing: 3 // Restored to 3
 
                         RowLayout {
                             Layout.fillWidth: true
@@ -184,18 +188,27 @@ PanelWindow {
                                 elide: Text.ElideRight
                             }
 
+                            // Added time string
+                            Text {
+                                text: modelData.time ? Qt.formatTime(modelData.time, "hh:mm") : ""
+                                color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
+                                font.pixelSize: 10
+                                font.family: "JetBrainsMono Nerd Font"
+                                Layout.rightMargin: 8
+                            }
+
                             Text {
                                 text: "󰅖"
-                                color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
+                                color: closeHover.hovered ? Colors.primary : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
                                 font.pixelSize: 12
                                 font.family: "JetBrainsMono Nerd Font"
 
-                                MouseArea {
-                                    anchors.fill: parent
+                                HoverHandler {
+                                    id: closeHover
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        NotificationDaemon.closeNotification(index)
-                                    }
+                                }
+                                TapHandler {
+                                    onTapped: NotificationDaemon.closeNotification(index)
                                 }
                             }
                         }
@@ -208,7 +221,7 @@ PanelWindow {
                             font.family: "JetBrainsMono Nerd Font"
                             wrapMode: Text.Wrap
                             Layout.fillWidth: true
-                            visible: text !== ""
+                            visible: text !== "" // Restored conditional
                         }
 
                         Text {
@@ -218,7 +231,7 @@ PanelWindow {
                             font.family: "JetBrainsMono Nerd Font"
                             wrapMode: Text.Wrap
                             Layout.fillWidth: true
-                            visible: text !== ""
+                            visible: text !== "" // Restored conditional
                         }
                     }
                 }

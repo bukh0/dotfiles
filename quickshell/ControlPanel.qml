@@ -6,20 +6,17 @@ import "."
 PanelWindow {
     id: controlPanel
 
-    // ❌ REMOVE THIS LINE entirely: keyboardFocus: KeyboardFocus.OnDemand
-
     property int barHeight: 42
-
     property bool isOpen: false
     property bool windowVisible: false
-    visible: windowVisible
-    color: "transparent"
     
-    // ... [keep the rest of the file exactly the same] ...
     property int hoverCloseDelay: 300
     property int fadeOutDuration: 200
     property int openY: 46
     property int closedY: 26
+
+    visible: windowVisible
+    color: "transparent"
 
     anchors {
         top: true
@@ -28,7 +25,6 @@ PanelWindow {
         right: true
     }
 
-    // THE FIX: Define the positive clickable space instead of subtracting.
     mask: Region {
         x: 0
         y: controlPanel.barHeight
@@ -61,9 +57,11 @@ PanelWindow {
         closeTimer.stop()
         isOpen = true
     }
+    
     function scheduleHoverClose() {
         closeTimer.restart()
     }
+    
     function cancelHoverClose() {
         closeTimer.stop()
     }
@@ -88,24 +86,35 @@ PanelWindow {
         onClicked: controlPanel.isOpen = false
     }
 
+    // --- OPTIMIZATION: Reusable inline component for dividers ---
+    component Divider: Rectangle {
+        Layout.fillWidth: true
+        height: 1
+        color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
+    }
+
     Rectangle {
         id: drawerBg
         width: 420
         height: contentCol.implicitHeight + 40
-        Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutQuart } }
+        
         x: (parent.width - width) / 2
         y: controlPanel.isOpen ? controlPanel.openY : controlPanel.closedY
+        
+        // Only animate Y and Opacity (Height animation removed for performance)
         Behavior on y { NumberAnimation { duration: 250; easing.type: Easing.OutQuart } }
+        
         radius: 16
         color: Qt.rgba(Colors.surfaceContainer.r, Colors.surfaceContainer.g, Colors.surfaceContainer.b, 0.97)
         border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
         border.width: 1
+        
         opacity: controlPanel.isOpen ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 200 } }
+        Behavior on opacity { NumberAnimation { duration: controlPanel.fadeOutDuration } }
 
-        MouseArea {
-            anchors.fill: parent
-            onClicked: mouse.accepted = true
+        // --- OPTIMIZATION: Lightweight TapHandler instead of MouseArea ---
+        TapHandler {
+            onTapped: {} // Consumes the click so it doesn't close the panel
         }
 
         HoverHandler {
@@ -126,19 +135,19 @@ PanelWindow {
                 left: parent.left
                 right: parent.right
                 margins: 20
+                bottomMargin: 24 // Added 4px here instead of creating a dummy Item{}
             }
             spacing: 16
             
             MusicWidget {}
-            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2) }
+            Divider {}
             VolumeSlider {}
             BrightnessSlider {}
-            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2) }
+            Divider {}
             SystemResourceRow {}
-            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2) }
+            Divider {}
             WifiToggle {}
             BluetoothToggle {}
-            Item { height: 4 }
         }
     }
 }

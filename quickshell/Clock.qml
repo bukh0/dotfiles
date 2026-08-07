@@ -1,46 +1,36 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Io
+import Quickshell
+import Quickshell.Services.Mpris // <-- Native MPRIS service
 import "."
 
 RowLayout {
     spacing: 8
 
-    property string timeText: "00:00"
-    property string dateText: "..."
-    property bool isPlaying: false
+    property string dateTimeText: "00:00 · ..."
+    
+    // OPTIMIZATION: Check if any active player is currently playing natively
+    property bool isPlaying: {
+        for (let i = 0; i < Mpris.players.length; ++i) {
+            // Quickshell Mpris playbackState: 0 is Playing, 1 is Paused, 2 is Stopped
+            if (Mpris.players[i].playbackState === 0) {
+                return true
+            }
+        }
+        return false
+    }
 
     Timer {
         interval: 1000
         running: true
         repeat: true
         onTriggered: {
-            let d = new Date()
-            let h = d.getHours().toString()
-            let m = d.getMinutes().toString()
-            timeText = (h.length < 2 ? "0" + h : h) + ":" + (m.length < 2 ? "0" + m : m)
-            dateText = Qt.formatDateTime(d, "ddd - dd/MM/yyyy")
+            dateTimeText = Qt.formatDateTime(new Date(), "hh:mm · ddd - dd/MM/yyyy")
         }
         Component.onCompleted: triggered()
     }
 
-    Process {
-        id: playerPoll
-        command: ["playerctl", "status"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                isPlaying = (text.trim() === "Playing")
-            }
-        }
-    }
-
-    Timer {
-        interval: 2000
-        running: true
-        repeat: true
-        onTriggered: playerPoll.running = true
-        Component.onCompleted: playerPoll.running = true
-    }
+    // Notice: We completely deleted the Process and the 2000ms Timer!
 
     Row {
         visible: isPlaying
@@ -71,10 +61,12 @@ RowLayout {
     }
 
     Text {
-        text: timeText + " · " + dateText
+        text: dateTimeText
         color: Colors.primary
-        font.pixelSize: 13
-        font.family: "JetBrainsMono Nerd Font"
-        font.weight: Font.Bold
+        font {
+            pixelSize: 13
+            family: "JetBrainsMono Nerd Font"
+            weight: Font.Bold
+        }
     }
 }

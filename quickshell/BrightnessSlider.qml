@@ -8,7 +8,6 @@ ColumnLayout {
     spacing: 6
 
     property real brightness: 0.5
-    property real maxBrightness: 100
     
     property bool isDragging: brightMa.pressed
     property real dragBright: 0.5
@@ -23,17 +22,12 @@ ColumnLayout {
 
     Process {
         id: brightPoll
-        command: ["sh", "-c", "brightnessctl get && brightnessctl max"]
+        command: ["brightnessctl", "-m"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const lines = text.trim().split("\n")
-                if (lines.length >= 2) {
-                    const cur = parseInt(lines[0])
-                    const max = parseInt(lines[1])
-                    if (max > 0) {
-                        maxBrightness = max
-                        brightness = cur / max
-                    }
+                const parts = text.trim().split(",")
+                if (parts.length >= 4) {
+                    brightness = parseFloat(parts[3].replace("%", "")) / 100.0
                 }
             }
         }
@@ -52,13 +46,9 @@ ColumnLayout {
 
     Timer {
         id: cmdDebounce
-        interval: 30
+        interval: 75
         onTriggered: {
-            if (setProc.running) {
-                restart()
-                return
-            }
-            setProc.command = ["brightnessctl", "set", Math.round(dragBright * maxBrightness) + ""]
+            setProc.command = ["brightnessctl", "set", Math.round(dragBright * 100) + "%"]
             setProc.running = true
         }
     }
@@ -70,8 +60,10 @@ ColumnLayout {
         Text {
             text: brightIcon
             color: Colors.tertiary
-            font.pixelSize: 16
-            font.family: "JetBrainsMono Nerd Font"
+            font {
+                pixelSize: 16
+                family: "JetBrainsMono Nerd Font"
+            }
         }
 
         Item {
@@ -108,14 +100,26 @@ ColumnLayout {
                 id: brightMa
                 anchors.fill: parent
                 cursorShape: Qt.SizeHorCursor
-                onClicked: mouse => setBrightness(mouse.x / width)
+                
+                onPressed: mouse => setBrightness(mouse.x / width)
                 onPositionChanged: mouse => { if (pressed) setBrightness(mouse.x / width) }
+                onReleased: mouse => {
+                    dragBright = Math.max(0.05, Math.min(1, mouse.x / width))
+                    brightness = dragBright // <--- FIX: Optimistic update
+                    cmdDebounce.stop()
+                    
+                    setProc.command = ["brightnessctl", "set", Math.round(dragBright * 100) + "%"]
+                    setProc.running = true
+                    
+                    brightPollTimer.restart()
+                }
 
                 function setBrightness(val) {
                     dragBright = Math.max(0.05, Math.min(1, val))
-                    brightness = dragBright // Fix click snapping
-                    cmdDebounce.restart()
-                    brightPollTimer.restart()
+                    brightness = dragBright // <--- FIX: Applied here too
+                    if (!cmdDebounce.running) {
+                        cmdDebounce.start()
+                    }
                 }
             }
         }
@@ -123,8 +127,10 @@ ColumnLayout {
         Text {
             text: Math.round(visualBright * 100) + "%"
             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6)
-            font.pixelSize: 11
-            font.family: "JetBrainsMono Nerd Font"
+            font {
+                pixelSize: 11
+                family: "JetBrainsMono Nerd Font"
+            }
             Layout.minimumWidth: 32
         }
     }

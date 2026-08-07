@@ -23,12 +23,13 @@ ColumnLayout {
 
     Process {
         id: volPoll
-        command: ["sh", "-c", "wpctl get-volume @DEFAULT_AUDIO_SINK@"]
+        command: ["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const match = text.match(/Volume:\s+([\d.]+)/)
+                const txt = text.trim()
+                const match = txt.match(/Volume:\s+([\d.]+)/)
                 if (match) volume = parseFloat(match[1])
-                muted = text.includes("[MUTED]")
+                muted = txt.includes("[MUTED]")
             }
         }
     }
@@ -43,15 +44,12 @@ ColumnLayout {
     }
 
     Process { id: ctlProc }
+    Process { id: muteProc }
 
     Timer {
         id: cmdDebounce
-        interval: 30
+        interval: 75
         onTriggered: {
-            if (ctlProc.running) {
-                restart()
-                return
-            }
             ctlProc.command = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", dragVolume.toFixed(2)]
             ctlProc.running = true
         }
@@ -63,18 +61,17 @@ ColumnLayout {
 
         Text {
             text: volIcon
-            color: muted
-                ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
-                : Colors.primary
-            font.pixelSize: 16
-            font.family: "JetBrainsMono Nerd Font"
+            color: muted ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4) : Colors.primary
+            font {
+                pixelSize: 16
+                family: "JetBrainsMono Nerd Font"
+            }
 
-            MouseArea {
-                anchors.fill: parent
+            TapHandler {
                 cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    ctlProc.command = ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]
-                    ctlProc.running = true
+                onTapped: {
+                    muteProc.command = ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]
+                    muteProc.running = true
                     volPollTimer.restart()
                     Qt.callLater(() => volPoll.running = true)
                 }
@@ -96,9 +93,7 @@ ColumnLayout {
                     width: parent.width * Math.min(visualVolume, 1.0)
                     height: parent.height
                     radius: 2
-                    color: muted
-                        ? Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.4)
-                        : Colors.primary
+                    color: muted ? Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.4) : Colors.primary
                     Behavior on width { NumberAnimation { duration: isDragging ? 0 : 80 } }
                 }
             }
@@ -117,14 +112,26 @@ ColumnLayout {
                 id: volMa
                 anchors.fill: parent
                 cursorShape: Qt.SizeHorCursor
-                onClicked: mouse => setVolume(mouse.x / width)
+                
+                onPressed: mouse => setVolume(mouse.x / width)
                 onPositionChanged: mouse => { if (pressed) setVolume(mouse.x / width) }
+                onReleased: mouse => {
+                    dragVolume = Math.max(0, Math.min(1, mouse.x / width))
+                    volume = dragVolume // <--- FIX: Optimistic update prevents rubber-banding
+                    cmdDebounce.stop()
+                    
+                    ctlProc.command = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", dragVolume.toFixed(2)]
+                    ctlProc.running = true
+                    
+                    volPollTimer.restart()
+                }
 
                 function setVolume(val) {
                     dragVolume = Math.max(0, Math.min(1, val))
-                    volume = dragVolume // Fix click snapping
-                    cmdDebounce.restart()
-                    volPollTimer.restart() // Delay next background poll so they don't fight
+                    volume = dragVolume // <--- FIX: Applied here too for fast clicks
+                    if (!cmdDebounce.running) {
+                        cmdDebounce.start()
+                    }
                 }
             }
         }
@@ -132,8 +139,10 @@ ColumnLayout {
         Text {
             text: Math.round(Math.min(visualVolume, 1.0) * 100) + "%"
             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6)
-            font.pixelSize: 11
-            font.family: "JetBrainsMono Nerd Font"
+            font {
+                pixelSize: 11
+                family: "JetBrainsMono Nerd Font"
+            }
             Layout.minimumWidth: 32
         }
     }
