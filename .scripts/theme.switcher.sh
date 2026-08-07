@@ -1,30 +1,14 @@
 #!/usr/bin/env bash
 
 # ===================================================================
-# 🛠️  FUNCTIONS
-# ===================================================================
-
-update_vscodium() {
-    local theme=$1
-    case "$theme" in
-        "Matugen")    vsc_theme="Default Dark Modern" ;;
-        "pywal")      vsc_theme="Default Dark Modern" ;;
-        "gruvbox")    vsc_theme="Gruvbox Dark Soft" ;;
-        "catppuccin") vsc_theme="Catppuccin Mocha" ;;
-        "everforest") vsc_theme="Everforest Dark Soft" ;;
-        *)            vsc_theme="Default Dark Modern" ;;
-    esac
-    sed -i "s/\"workbench.colorTheme\": \".*\"/\"workbench.colorTheme\": \"$vsc_theme\"/" "$HOME/.config/VSCodium/User/settings.json"
-}
-
-# ===================================================================
 # 🎨 SELECTION & SETUP
 # ===================================================================
 
 PRESET_DIR="$HOME/.themes/presets"
 ROFI_CONF="$HOME/.config/rofi/config.rasi"
 
-CHOICE=$( { cat; echo "Matugen"; echo "pywal"; ls "$PRESET_DIR"; } | rofi -dmenu -i -p "󰃟 Theme" -config "$ROFI_CONF")
+# Removed 'cat' to prevent standard input hanging. Added 2>/dev/null to ls.
+CHOICE=$( { echo "Matugen"; echo "pywal"; ls "$PRESET_DIR" 2>/dev/null; } | rofi -dmenu -i -p "󰃟 Theme" -config "$ROFI_CONF")
 
 [[ -z "$CHOICE" ]] && exit 0
 
@@ -54,11 +38,19 @@ if [ "$CHOICE" == "Matugen" ] || [ "$CHOICE" == "pywal" ]; then
     [[ -z "$SELECTED" ]] && exit 0
     FULL_PATH="$WALL_DIR/$SELECTED"
 else
-    RANDOM_WALL=$(ls "$WALL_DIR" | shuf -n 1)
-    FULL_PATH="$WALL_DIR/$RANDOM_WALL"
+    # Check if the wallpaper directory exists for the preset to avoid 'ls' errors
+    if [ -d "$WALL_DIR" ]; then
+        RANDOM_WALL=$(ls "$WALL_DIR" | shuf -n 1)
+        FULL_PATH="$WALL_DIR/$RANDOM_WALL"
+    else
+        FULL_PATH="" 
+    fi
 fi
 
-swww img "$FULL_PATH" --transition-type center --transition-fps 60
+# Only apply wallpaper if a valid path was found
+if [ -n "$FULL_PATH" ] && [ -f "$FULL_PATH" ]; then
+    swww img "$FULL_PATH" --transition-type center --transition-fps 60
+fi
 
 # ===================================================================
 # 🚀 COLOR GENERATION & SYMLINKING
@@ -67,10 +59,10 @@ swww img "$FULL_PATH" --transition-type center --transition-fps 60
 if [ "$CHOICE" == "Matugen" ]; then
     matugen image "$FULL_PATH" --prefer=saturation
 
-    # FIXED: Now points to rofi.rasi instead of colors.rasi
     ln -sf "$HOME/.config/matugen/generated/rofi.rasi" "$HOME/.config/rofi/colors.rasi"
-    ln -sf "$HOME/.config/matugen/generated/waybar.css"  "$HOME/.config/waybar/theme.css"
     ln -sf "$HOME/.config/matugen/generated/kitty.conf"  "$HOME/.config/kitty/theme.conf"
+    
+    # TIP: Add any QuickShell specific matugen symlinks here if needed
 
     if pgrep -x "spotify" > /dev/null; then
         spicetify config current_theme Sleek color_scheme Matugen
@@ -80,7 +72,6 @@ if [ "$CHOICE" == "Matugen" ]; then
 elif [ "$CHOICE" == "pywal" ]; then
     wal -i "$FULL_PATH" -n -q
 
-    ln -sf "$HOME/.cache/wal/waybar-theme.css" "$HOME/.config/waybar/theme.css"
     ln -sf "$HOME/.cache/wal/rofi-colors.rasi"  "$HOME/.config/rofi/colors.rasi"
     ln -sf "$HOME/.cache/wal/kitty-theme.conf"   "$HOME/.config/kitty/theme.conf"
     ln -sf "$HOME/.cache/wal/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
@@ -92,12 +83,11 @@ elif [ "$CHOICE" == "pywal" ]; then
 
 else
     ln -sf "$PRESET_DIR/$CHOICE/rofi/colors.rasi" "$HOME/.config/rofi/colors.rasi"
-    ln -sf "$PRESET_DIR/$CHOICE/waybar/theme.css"  "$HOME/.config/waybar/theme.css"
     ln -sf "$PRESET_DIR/$CHOICE/kitty/theme.conf"  "$HOME/.config/kitty/theme.conf"
     ln -sf "$PRESET_DIR/$CHOICE/swaync/style.css"  "$HOME/.config/swaync/style.css"
     ln -sf "$PRESET_DIR/$CHOICE/gtk/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
-
-    update_vscodium "$CHOICE"
+    
+    # TIP: Symlink any static QuickShell preset configs here
 
     if pgrep -x "spotify" > /dev/null; then
         case "$CHOICE" in
@@ -114,10 +104,16 @@ fi
 # 🔄 REFRESH INTERFACE
 # ===================================================================
 
-killall waybar && waybar &
+# Add your QuickShell reload command here if it requires one
+# e.g., quickshell reload
 
+# Reload Kitty (which will dynamically update Neovim if it uses terminal colors)
 if pgrep -x "kitty" > /dev/null; then
-    kill -SIGUSR1 $(pgrep kitty)
+    killall -SIGUSR1 kitty
 fi
 
-notify-send -a "System" "Theme updated to $CHOICE" -i "$FULL_PATH"
+if [ -n "$FULL_PATH" ] && [ -f "$FULL_PATH" ]; then
+    notify-send -a "System" "Theme updated to $CHOICE" -i "$FULL_PATH"
+else
+    notify-send -a "System" "Theme updated to $CHOICE"
+fi
