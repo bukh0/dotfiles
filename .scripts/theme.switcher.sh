@@ -86,8 +86,7 @@ else
     ln -sf "$PRESET_DIR/$CHOICE/kitty/theme.conf"  "$HOME/.config/kitty/theme.conf"
     ln -sf "$PRESET_DIR/$CHOICE/swaync/style.css"  "$HOME/.config/swaync/style.css"
     ln -sf "$PRESET_DIR/$CHOICE/gtk/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
-    
-    # TIP: Symlink any static QuickShell preset configs here
+    ln -sf "$PRESET_DIR/$CHOICE/quickshell/Colors.qml" "$HOME/.config/quickshell/Colors.qml"
 
     if pgrep -x "spotify" > /dev/null; then
         case "$CHOICE" in

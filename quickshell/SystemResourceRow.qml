@@ -24,7 +24,7 @@ RowLayout {
 
     function formatSpeed(bytes) {
         if (bytes < 1024) return bytes + " B/s"
-        if (bytes < 1048576) return (bytes / 1024).toFixed(0) + " K/s"
+        if (bytes < 1048576) return (bytes / 1024).toFixed(0) + " Kb/s"
         return (bytes / 1048576).toFixed(1) + " M/s"
     }
 
@@ -112,7 +112,7 @@ RowLayout {
 
     Stat { icon: "󰍛"; value: root.cpuPercent; textColor: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.8) }
     Divider {}
-    Stat { icon: "󰘚"; value: root.ramPercent; textColor: Colors.surfaceFg }
+    Stat { icon: "󰆼"; value: root.ramPercent; textColor: Colors.surfaceFg }
     Divider {}
     Stat { icon: "󰁅"; value: root.rxSpeed; textColor: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.65) }
     Stat { icon: "󰁝"; value: root.txSpeed; textColor: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.65) }

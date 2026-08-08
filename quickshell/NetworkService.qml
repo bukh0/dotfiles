@@ -21,10 +21,18 @@ Item {
     property string awaitingPasswordFor: ""
 
     signal connectionSettled()
+    // Any stderr output from a command that isn't the expected
+    // "needs a password" case — for UI toast notifications.
+    signal commandError(string message)
 
     property var cmdProc: Process {
         id: cmdProc
         running: false
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (text.trim().length > 0) root.commandError(text.trim())
+            }
+        }
         onRunningChanged: {
             if (!running) {
                 statusPoll.running = true
@@ -137,6 +145,8 @@ Item {
                     t.includes("no network with ssid") ||
                     t.includes("password")) {
                     root.awaitingPasswordFor = connectProc.targetSsid
+                } else if (text.trim().length > 0) {
+                    root.commandError(text.trim())
                 }
             }
         }

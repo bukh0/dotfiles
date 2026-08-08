@@ -21,3 +21,4 @@ BluetoothToggle 1.0 BluetoothToggle.qml
 NotificationDrawer 1.0 NotificationDrawer.qml
 SystemResourceRow 1.0 SystemResourceRow.qml
 NetworkButton 1.0 NetworkButton.qml
+Pill 1.0 Pill.qml

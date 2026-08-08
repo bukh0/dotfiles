@@ -1,29 +1,32 @@
-// Pill.qml
 import QtQuick
 import QtQuick.Layouts
+import "."
 
 Rectangle {
+    id: rootPill
     default property alias content: layout.data
     
-    // Fallback sizing, will stretch to fit contents
-    implicitHeight: 36
-    implicitWidth: layout.implicitWidth + 32
+    property bool isActive: false
+    property bool isHovered: false
     
-    // Dark background matching the screenshot
-    color: "#1e1e2e" // Adjust this to match your Colors.qml if you have a specific surface color
+    implicitHeight: 32 
+    implicitWidth: layout.implicitWidth + 24 
     
-    // Fully rounded corners
-    radius: height / 2 
+    radius: height / 2.5 
     
-    // Optional border for contrast
-    border.color: "#313244"
+    color: isActive ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.3)
+                    : isHovered ? Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.9)
+                    : Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.85)
+                    
+    border.color: isActive ? Colors.primary : Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.5)
     border.width: 1
+    
+    Behavior on color { ColorAnimation { duration: 150 } }
+    Behavior on border.color { ColorAnimation { duration: 150 } }
 
     RowLayout {
         id: layout
-        anchors.fill: parent
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
-        spacing: 8
+        anchors.centerIn: parent
+        spacing: 12
     }
 }

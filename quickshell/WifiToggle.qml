@@ -8,14 +8,17 @@ ColumnLayout {
     id: wifiRoot
     spacing: 6
 
-    property bool wifiOn: false
-    property string ssid: ""
-    property bool expanded: false
-    property var networks: []
-    property bool scanning: false
-    property bool rescanPending: false
+    // Sourced from the shared singleton instead of local polling
+    readonly property bool wifiOn: NetworkService.wifiOn
+    readonly property string ssid: NetworkService.ssid
+    readonly property var networks: NetworkService.networks
+    readonly property bool scanning: NetworkService.scanning
 
-    // Helps other delegates know to uncheck themselves when a new network is clicked
+    property bool expanded: false
+    property bool rescanPending: false
+    property bool actionInFlight: false
+
+    // Helps delegates know to uncheck themselves when a new network is clicked
     property string targetSsid: ""
 
     Process {
@@ -29,117 +32,31 @@ ColumnLayout {
         notifyProc.running = true
     }
 
-    // Global process for power toggling and rescanning
-    Process {
-        id: actionProc
-        running: false
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const out = text.trim();
-                if (out.toLowerCase().includes("error")) wifiRoot.notify("Wi-Fi Warning", out);
+    Connections {
+        target: NetworkService
+        function onConnectionSettled() {
+            wifiRoot.actionInFlight = false
+            if (wifiRoot.rescanPending) {
+                wifiRoot.rescanPending = false
+                NetworkService.scan()
             }
         }
-        stderr: StdioCollector {
-            onStreamFinished: {
-                if (text.trim().length > 0) wifiRoot.notify("Wi-Fi Error", text.trim());
-            }
-        }
-        onRunningChanged: {
-            if (!running) {
-                wifiPoll.running = true;
-                // If this run was a "rescan" request, the AP list is only
-                // trustworthy now that the actual scan has finished.
-                if (wifiRoot.rescanPending) {
-                    wifiRoot.rescanPending = false;
-                    scanPoll.running = true;
-                }
-            }
-        }
-    }
-
-    function runCommand(cmdArray) {
-        if (actionProc.running) return;
-        actionProc.command = cmdArray;
-        actionProc.running = true;
-    }
-
-    Process {
-        id: wifiPoll
-        command: ["sh", "-c", "echo $(nmcli radio wifi); nmcli -t -f ACTIVE,SSID dev wifi | grep '^yes' | cut -d: -f2- | head -1"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const lines = text.trim().split("\n")
-                wifiRoot.wifiOn = (lines[0] || "").trim() === "enabled"
-                wifiRoot.ssid = (lines[1] || "").trim()
-            }
-        }
-    }
-
-    Timer {
-        interval: 5000
-        running: true
-        repeat: true
-        onTriggered: { if (!wifiPoll.running && !actionProc.running) wifiPoll.running = true }
-        Component.onCompleted: wifiPoll.running = true
-    }
-
-    Process {
-        id: scanPoll
-        // ACTIVE is first to prevent shifting if SSID contains colons
-        command: ["sh", "-c", "nmcli -c no -t -f ACTIVE,SSID,SIGNAL,SECURITY dev wifi list | head -20"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                wifiRoot.scanning = false
-                const lines = text.trim().split("\n").filter(l => l.trim() !== "")
-                const parsedMap = {}
-                
-                for (const line of lines) {
-                    const parts = line.split(":")
-                    if (parts.length < 4) continue
-                    
-                    // Bulletproof parsing: read first and last items explicitly
-                    const isActive = parts[0] === "yes"
-                    const security = parts[parts.length - 1] !== "--"
-                    const signal = parseInt(parts[parts.length - 2]) || 0
-                    const name = parts.slice(1, parts.length - 2).join(":")
-                    
-                    if (!name) continue
-
-                    if (!parsedMap[name]) {
-                        parsedMap[name] = { ssid: name, signal: signal, security: security, active: isActive }
-                    } else {
-                        // Merge multi-band routers (2.4/5GHz) correctly
-                        if (isActive) parsedMap[name].active = true;
-                        if (signal > parsedMap[name].signal) parsedMap[name].signal = signal;
-                    }
-                }
-                const parsed = Object.values(parsedMap)
-                
-                // Always sort the connected network to the top
-                parsed.sort((a, b) => {
-                    if (a.active) return -1;
-                    if (b.active) return 1;
-                    return b.signal - a.signal;
-                })
-                wifiRoot.networks = parsed
-            }
+        function onCommandError(message) {
+            wifiRoot.notify("Wi-Fi Error", message)
         }
     }
 
     function scan() {
-        scanning = true
-        networks = []
-        scanPoll.running = true
+        NetworkService.scan()
     }
 
-    // Distinct from scan(): actually asks the radio to rediscover APs first,
-    // then lists once that finishes (see actionProc.onRunningChanged above).
-    // Listing immediately after firing the rescan would just return the
-    // pre-rescan cache.
+    // Distinct from scan(): forces the radio to rediscover APs first, then
+    // lists once that finishes (see the Connections handler above).
     function rescan() {
-        scanning = true
-        rescanPending = true
-        runCommand(["nmcli", "dev", "wifi", "rescan"])
+        if (wifiRoot.actionInFlight) return
+        wifiRoot.actionInFlight = true
+        wifiRoot.rescanPending = true
+        NetworkService.runCommand(["nmcli", "dev", "wifi", "rescan"])
     }
 
     function signalIcon(sig) {
@@ -176,16 +93,10 @@ ColumnLayout {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        // Don't flip the displayed state if the command is
-                        // actually going to be dropped because actionProc is busy.
-                        if (actionProc.running) return;
-                        if (wifiRoot.wifiOn) {
-                            wifiRoot.runCommand(["nmcli", "radio", "wifi", "off"])
-                            wifiRoot.wifiOn = false; wifiRoot.expanded = false
-                        } else {
-                            wifiRoot.runCommand(["nmcli", "radio", "wifi", "on"])
-                            wifiRoot.wifiOn = true
-                        }
+                        if (wifiRoot.actionInFlight) return
+                        wifiRoot.actionInFlight = true
+                        if (wifiRoot.wifiOn) wifiRoot.expanded = false
+                        NetworkService.toggleWifiRadio()
                     }
                 }
             }
@@ -252,16 +163,14 @@ ColumnLayout {
                 Layout.fillWidth: true
                 implicitHeight: 38
                 radius: 8
-                
-                // Pure Local UI State overrides
-                property bool isProcessing: itemProc.running
+
+                property bool isProcessing: wifiRoot.actionInFlight && wifiRoot.targetSsid === modelData.ssid
                 property bool isConnecting: false
                 property bool isDisconnecting: false
 
                 property bool showActive: {
                     if (isDisconnecting) return false;
                     if (isConnecting) return true;
-                    // Instantly uncheck visually if the user is connecting to a different network
                     if (wifiRoot.targetSsid !== "" && wifiRoot.targetSsid !== modelData.ssid) return false;
                     return modelData.active;
                 }
@@ -274,32 +183,13 @@ ColumnLayout {
 
                 Behavior on color { ColorAnimation { duration: 100 } }
 
-                Process {
-                    id: itemProc
-                    running: false
-                    stdout: StdioCollector {
-                        onStreamFinished: {
-                            const out = text.trim();
-                            if (out.toLowerCase().includes("error")) wifiRoot.notify("Wi-Fi Warning", out);
-                        }
-                    }
-                    stderr: StdioCollector {
-                        onStreamFinished: {
-                            if (text.trim().length > 0) wifiRoot.notify("Wi-Fi Error", text.trim());
-                        }
-                    }
-                    onRunningChanged: {
-                        if (!running) {
-                            // Clear local overrides and trigger a real state fetch
-                            delegateRoot.isConnecting = false;
-                            delegateRoot.isDisconnecting = false;
-                            wifiRoot.targetSsid = "";
-                            wifiPoll.running = true;
-                            // Also refresh the list itself — otherwise the
-                            // .active flag we just changed on the real system
-                            // stays stale and the checkmark flips back.
-                            scanPoll.running = true;
-                        }
+                Connections {
+                    target: NetworkService
+                    function onConnectionSettled() {
+                        if (wifiRoot.targetSsid !== modelData.ssid) return
+                        delegateRoot.isConnecting = false
+                        delegateRoot.isDisconnecting = false
+                        wifiRoot.targetSsid = ""
                     }
                 }
 
@@ -343,24 +233,19 @@ ColumnLayout {
                     hoverEnabled: true
                     cursorShape: delegateRoot.isProcessing ? Qt.WaitCursor : Qt.PointingHandCursor
                     onClicked: {
-                        if (delegateRoot.isProcessing) return;
-                        
+                        if (wifiRoot.actionInFlight) return;
+
                         let disconnecting = modelData.active;
-                        wifiRoot.targetSsid = modelData.ssid; // Signals other delegates to visually drop active state
+                        wifiRoot.actionInFlight = true;
+                        wifiRoot.targetSsid = modelData.ssid;
 
                         if (disconnecting) {
                             delegateRoot.isDisconnecting = true;
-                            wifiRoot.ssid = "";
+                            NetworkService.disconnectActive();
                         } else {
                             delegateRoot.isConnecting = true;
-                            wifiRoot.ssid = modelData.ssid;
+                            NetworkService.connectToNetwork(modelData.ssid);
                         }
-                        
-                        itemProc.command = disconnecting
-                            ? ["sh", "-c", "dev=$(nmcli -t -f DEVICE,TYPE dev | grep ':wifi$' | cut -d: -f1 | head -n1); if [ -n \"$dev\" ]; then nmcli dev disconnect \"$dev\"; fi"]
-                            : ["nmcli", "dev", "wifi", "connect", modelData.ssid];
-                            
-                        itemProc.running = true;
                     }
                 }
             }

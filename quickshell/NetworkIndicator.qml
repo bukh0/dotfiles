@@ -3,31 +3,19 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.SystemTray
 import "."
+
 Item {
     id: root
     width: label.implicitWidth
     height: label.implicitHeight
-    property string status: "󰤭"
 
-    Process {
-        id: netPoll
-        command: ["sh", "-c", "nmcli -t -f TYPE,STATE dev | grep ':connected$' | head -1 | cut -d: -f1"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const t = text.trim()
-                if (t === "wifi")      status = "󰤨"
-                else if (t === "ethernet") status = "󰈀"
-                else                  status = "󰤭"
-            }
-        }
+    property string status: {
+        if (NetworkService.connectionType === "wifi") return "󰤨"
+        if (NetworkService.connectionType === "ethernet") return "󰈀"
+        return "󰤭"
     }
-    Timer {
-        interval: 15000
-        running: true
-        repeat: true
-        onTriggered: if (!netPoll.running) netPoll.running = true
-    }
+
+    property bool hovered: false
 
     property var nmAppletItem: null
     function findNmApplet() {
@@ -56,8 +44,10 @@ Item {
         id: label
         text: root.status
         color: root.status === "󰤭"
-            ? Colors.error
-            : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.8)
+            ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
+            : root.hovered
+                ? Colors.surfaceFg
+                : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.8)
         font.pixelSize: 15
         font.family: "JetBrainsMono Nerd Font"
         font.weight: Font.Bold
@@ -66,7 +56,11 @@ Item {
 
     MouseArea {
         anchors.fill: parent
+        anchors.margins: -4
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        onEntered: root.hovered = true
+        onExited: root.hovered = false
         onClicked: {
             if (menuAnchor.menu) menuAnchor.open()
         }
