@@ -42,7 +42,6 @@ PanelWindow {
         }
     }
 
-    // Keep MouseArea here for Keys/Focus handling
     MouseArea {
         id: bgCloser
         anchors.fill: parent
@@ -117,7 +116,6 @@ PanelWindow {
                 }
             }
 
-            // Restored Item wrapper for perfect centering
             Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -154,12 +152,11 @@ PanelWindow {
                 model: NotificationDaemon.notifications
 
                 delegate: Rectangle {
-                    // Optimization: Explicit variable mapping for delegates
                     required property var modelData
                     required property int index
 
                     width: ListView.view.width
-                    implicitHeight: notifContent.implicitHeight + 20 // Restored to + 20
+                    implicitHeight: notifContent.implicitHeight + 20
                     radius: 10
                     color: Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
                     border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
@@ -173,8 +170,9 @@ PanelWindow {
                             right: parent.right
                             margins: 12
                         }
-                        spacing: 3 // Restored to 3
+                        spacing: 6
 
+                        // --- HEADER ---
                         RowLayout {
                             Layout.fillWidth: true
 
@@ -188,7 +186,6 @@ PanelWindow {
                                 elide: Text.ElideRight
                             }
 
-                            // Added time string
                             Text {
                                 text: modelData.time ? Qt.formatTime(modelData.time, "hh:mm") : ""
                                 color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
@@ -213,25 +210,64 @@ PanelWindow {
                             }
                         }
 
-                        Text {
-                            text: modelData.summary || ""
-                            color: Colors.surfaceFg
-                            font.pixelSize: 12
-                            font.weight: Font.Medium
-                            font.family: "JetBrainsMono Nerd Font"
-                            wrapMode: Text.Wrap
+                        // --- CONTENT (Image + Text) ---
+                        RowLayout {
                             Layout.fillWidth: true
-                            visible: text !== "" // Restored conditional
-                        }
+                            spacing: 12
+                            Layout.alignment: Qt.AlignTop
 
-                        Text {
-                            text: modelData.body || ""
-                            color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.7)
-                            font.pixelSize: 11
-                            font.family: "JetBrainsMono Nerd Font"
-                            wrapMode: Text.Wrap
-                            Layout.fillWidth: true
-                            visible: text !== "" // Restored conditional
+                            // IMAGE PREVIEW
+                            Image {
+                                source: {
+                                    if (modelData.image) {
+                                        let img = modelData.image.toString();
+                                        return img.startsWith("/") ? "file://" + img : img;
+                                    }
+                                    if (modelData.appIcon) {
+                                        let icon = modelData.appIcon.toString();
+                                        if (icon.startsWith("/")) return "file://" + icon;
+                                        return Quickshell.iconPath(icon); 
+                                    }
+                                    return "";
+                                }
+                                visible: source.toString() !== ""
+                                Layout.preferredWidth: 64
+                                Layout.preferredHeight: 64
+                                Layout.alignment: Qt.AlignTop
+                                fillMode: Image.PreserveAspectCrop
+                                clip: true
+                                
+                                asynchronous: true
+                                sourceSize: Qt.size(128, 128) 
+                            }
+
+                            // TEXT (Summary + Body)
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 3
+                                Layout.alignment: Qt.AlignTop
+
+                                Text {
+                                    text: modelData.summary || ""
+                                    color: Colors.surfaceFg
+                                    font.pixelSize: 12
+                                    font.weight: Font.Medium
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                    visible: text !== ""
+                                }
+
+                                Text {
+                                    text: modelData.body || ""
+                                    color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.7)
+                                    font.pixelSize: 11
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                    visible: text !== ""
+                                }
+                            }
                         }
                     }
                 }

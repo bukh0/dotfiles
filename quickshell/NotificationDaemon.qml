@@ -63,6 +63,8 @@ Item {
                 body: notif.body || "",
                 appName: notif.appName || "App",
                 time: new Date(),
+                appIcon: notif.appIcon,
+                image: notif.image,
                 close: function() {
                     try { notif.close() } catch(e) {}
                 }
