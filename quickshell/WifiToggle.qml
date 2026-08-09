@@ -8,7 +8,10 @@ ColumnLayout {
     id: wifiRoot
     spacing: 6
 
-    // Sourced from the shared singleton instead of local polling
+    // ── Shared font family (avoids repetition) ─────────────────
+    readonly property string fontFamily: "JetBrainsMono Nerd Font"
+
+    // ── Data from shared NetworkService singleton ──────────────
     readonly property bool wifiOn: NetworkService.wifiOn
     readonly property string ssid: NetworkService.ssid
     readonly property var networks: NetworkService.networks
@@ -18,9 +21,10 @@ ColumnLayout {
     property bool rescanPending: false
     property bool actionInFlight: false
 
-    // Helps delegates know to uncheck themselves when a new network is clicked
+    // Used by network delegates to know which SSID is being targeted
     property string targetSsid: ""
 
+    // ── Simple notification helper (same as Bluetooth) ────────
     Process {
         id: notifyProc
         running: false
@@ -32,6 +36,7 @@ ColumnLayout {
         notifyProc.running = true
     }
 
+    // ── React to external service events ───────────────────────
     Connections {
         target: NetworkService
         function onConnectionSettled() {
@@ -46,12 +51,11 @@ ColumnLayout {
         }
     }
 
+    // ── Convenience functions ──────────────────────────────────
     function scan() {
         NetworkService.scan()
     }
 
-    // Distinct from scan(): forces the radio to rediscover APs first, then
-    // lists once that finishes (see the Connections handler above).
     function rescan() {
         if (wifiRoot.actionInFlight) return
         wifiRoot.actionInFlight = true
@@ -66,6 +70,7 @@ ColumnLayout {
         return "󰤟"
     }
 
+    // ── Wi‑Fi header ───────────────────────────────────────────
     Rectangle {
         Layout.fillWidth: true
         implicitHeight: 48
@@ -79,6 +84,7 @@ ColumnLayout {
             anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
             spacing: 8
 
+            // Toggle button
             Rectangle {
                 width: 32; height: 32; radius: 16
                 color: "transparent"
@@ -87,7 +93,7 @@ ColumnLayout {
                     text: wifiRoot.wifiOn ? "󰤨" : "󰤭"
                     color: wifiRoot.wifiOn ? Colors.primary : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
                     font.pixelSize: 18
-                    font.family: "JetBrainsMono Nerd Font"
+                    font.family: wifiRoot.fontFamily
                 }
                 MouseArea {
                     anchors.fill: parent
@@ -101,11 +107,17 @@ ColumnLayout {
                 }
             }
 
+            // Expandable area
             MouseArea {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: if (wifiRoot.wifiOn) { wifiRoot.expanded = !wifiRoot.expanded; if (wifiRoot.expanded) wifiRoot.scan() }
+                onClicked: {
+                    if (wifiRoot.wifiOn) {
+                        wifiRoot.expanded = !wifiRoot.expanded
+                        if (wifiRoot.expanded) wifiRoot.scan()
+                    }
+                }
 
                 RowLayout {
                     anchors.fill: parent
@@ -118,14 +130,14 @@ ColumnLayout {
                             color: Colors.surfaceFg
                             font.pixelSize: 12
                             font.weight: Font.Medium
-                            font.family: "JetBrainsMono Nerd Font"
+                            font.family: wifiRoot.fontFamily
                         }
                         Text {
                             visible: wifiRoot.wifiOn && wifiRoot.ssid !== ""
                             text: wifiRoot.ssid
                             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.55)
                             font.pixelSize: 10
-                            font.family: "JetBrainsMono Nerd Font"
+                            font.family: wifiRoot.fontFamily
                             elide: Text.ElideRight
                         }
                     }
@@ -135,13 +147,14 @@ ColumnLayout {
                         text: wifiRoot.expanded ? "󰅃" : "󰅀"
                         color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
                         font.pixelSize: 14
-                        font.family: "JetBrainsMono Nerd Font"
+                        font.family: wifiRoot.fontFamily
                     }
                 }
             }
         }
     }
 
+    // ── Network list ───────────────────────────────────────────
     ColumnLayout {
         visible: wifiRoot.expanded && wifiRoot.wifiOn
         Layout.fillWidth: true
@@ -153,7 +166,7 @@ ColumnLayout {
             text: "Scanning..."
             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
             font.pixelSize: 11
-            font.family: "JetBrainsMono Nerd Font"
+            font.family: wifiRoot.fontFamily
         }
 
         Repeater {
@@ -168,12 +181,8 @@ ColumnLayout {
                 property bool isConnecting: false
                 property bool isDisconnecting: false
 
-                property bool showActive: {
-                    if (isDisconnecting) return false;
-                    if (isConnecting) return true;
-                    if (wifiRoot.targetSsid !== "" && wifiRoot.targetSsid !== modelData.ssid) return false;
-                    return modelData.active;
-                }
+                // Show as active only when actually connected and not disconnecting
+                readonly property bool showActive: modelData.active && !isDisconnecting
 
                 color: showActive
                     ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.2)
@@ -183,6 +192,7 @@ ColumnLayout {
 
                 Behavior on color { ColorAnimation { duration: 100 } }
 
+                // Reset local flags when connection attempt settles
                 Connections {
                     target: NetworkService
                     function onConnectionSettled() {
@@ -201,13 +211,13 @@ ColumnLayout {
                         text: wifiRoot.signalIcon(modelData.signal)
                         color: delegateRoot.showActive ? Colors.primary : Colors.surfaceFg
                         font.pixelSize: 14
-                        font.family: "JetBrainsMono Nerd Font"
+                        font.family: wifiRoot.fontFamily
                     }
                     Text {
                         text: modelData.ssid
                         color: delegateRoot.showActive ? Colors.primary : Colors.surfaceFg
                         font.pixelSize: 12
-                        font.family: "JetBrainsMono Nerd Font"
+                        font.family: wifiRoot.fontFamily
                         Layout.fillWidth: true
                         elide: Text.ElideRight
                     }
@@ -216,14 +226,14 @@ ColumnLayout {
                         text: "󰌾"
                         color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
                         font.pixelSize: 11
-                        font.family: "JetBrainsMono Nerd Font"
+                        font.family: wifiRoot.fontFamily
                     }
                     Text {
                         visible: delegateRoot.showActive || delegateRoot.isProcessing
                         text: delegateRoot.isProcessing ? "󰔟" : "󰄬"
                         color: delegateRoot.isProcessing ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6) : Colors.primary
                         font.pixelSize: 12
-                        font.family: "JetBrainsMono Nerd Font"
+                        font.family: wifiRoot.fontFamily
                     }
                 }
 
@@ -233,24 +243,25 @@ ColumnLayout {
                     hoverEnabled: true
                     cursorShape: delegateRoot.isProcessing ? Qt.WaitCursor : Qt.PointingHandCursor
                     onClicked: {
-                        if (wifiRoot.actionInFlight) return;
+                        if (wifiRoot.actionInFlight) return
 
-                        let disconnecting = modelData.active;
-                        wifiRoot.actionInFlight = true;
-                        wifiRoot.targetSsid = modelData.ssid;
+                        const disconnecting = modelData.active
+                        wifiRoot.actionInFlight = true
+                        wifiRoot.targetSsid = modelData.ssid
 
                         if (disconnecting) {
-                            delegateRoot.isDisconnecting = true;
-                            NetworkService.disconnectActive();
+                            delegateRoot.isDisconnecting = true
+                            NetworkService.disconnectActive()
                         } else {
-                            delegateRoot.isConnecting = true;
-                            NetworkService.connectToNetwork(modelData.ssid);
+                            delegateRoot.isConnecting = true
+                            NetworkService.connectToNetwork(modelData.ssid)
                         }
                     }
                 }
             }
         }
 
+        // Rescan button
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 32
@@ -265,7 +276,7 @@ ColumnLayout {
                 text: "󰑐  Rescan"
                 color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
                 font.pixelSize: 11
-                font.family: "JetBrainsMono Nerd Font"
+                font.family: wifiRoot.fontFamily
             }
             MouseArea {
                 id: rescanMa

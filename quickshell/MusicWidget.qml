@@ -22,7 +22,7 @@ ColumnLayout {
     // ── Data model ─────────────────────────────────────────────
     ListModel { id: playersListModel }
 
-    // ── Playerctl process (used once per poll) ─────────────────
+    // ── Playerctl process ──────────────────────────────────────
     Process {
         id: metaPoll
         command: ["playerctl", "-a", "metadata", "--format", "{{playerName}}|{{title}}|{{artist}}|{{album}}|{{status}}|{{mpris:artUrl}}"]
@@ -31,7 +31,9 @@ ColumnLayout {
         }
     }
 
-    // ── Efficient model update logic ──────────────────────────
+    // ── Model update (with Spotify priority sorting & caching) ──
+    property var _lastSnapshot: ({})   // cache for unchanged art URLs
+
     function applyPollResult(rawText) {
         const trimmed = rawText.trim()
         const parsed = []
@@ -46,7 +48,7 @@ ColumnLayout {
                 const fourthSep = line.indexOf("|", thirdSep + 1)
                 const fifthSep = line.indexOf("|", fourthSep + 1)
 
-                if (firstSep === -1) continue  // malformed line
+                if (firstSep === -1) continue
 
                 const player = line.substring(0, firstSep).trim()
                 const title = line.substring(firstSep + 1, secondSep !== -1 ? secondSep : line.length).trim() || "Nothing playing"
@@ -59,33 +61,71 @@ ColumnLayout {
             }
         }
 
-        // Fast lookup: player name -> model index
+        // ── SPOTIFY PRIORITY SORTING ───────────────────────────
+        parsed.sort((a, b) => {
+            const aIsSpotify = a.player.toLowerCase().includes("spotify")
+            const bIsSpotify = b.player.toLowerCase().includes("spotify")
+            if (aIsSpotify && !bIsSpotify) return -1
+            if (!aIsSpotify && bIsSpotify) return 1
+            return 0
+        })
+
+        // Build fast lookups
         const existingMap = new Map()
         for (let i = 0; i < playersListModel.count; i++) {
             existingMap.set(playersListModel.get(i).player, i)
         }
 
-        // Remove vanished players
         const parsedNames = new Set(parsed.map(p => p.player))
+
+        // Remove vanished players – safely, in reverse index order
+        const indicesToRemove = []
         for (const [name, idx] of existingMap.entries()) {
-            if (!parsedNames.has(name)) {
-                playersListModel.remove(idx, 1)
-                existingMap.delete(name)
-            }
+            if (!parsedNames.has(name)) indicesToRemove.push(idx)
+        }
+        indicesToRemove.sort((a, b) => b - a)
+        for (const idx of indicesToRemove) {
+            playersListModel.remove(idx, 1)
         }
 
-        // Add new / update existing
+        // Refresh map after removals
+        existingMap.clear()
+        for (let i = 0; i < playersListModel.count; i++) {
+            existingMap.set(playersListModel.get(i).player, i)
+        }
+
+        // Add / update players
         for (const p of parsed) {
             if (existingMap.has(p.player)) {
                 const idx = existingMap.get(p.player)
                 const cur = playersListModel.get(idx)
+
                 if (cur.title !== p.title) playersListModel.setProperty(idx, "title", p.title)
                 if (cur.artist !== p.artist) playersListModel.setProperty(idx, "artist", p.artist)
                 if (cur.album !== p.album) playersListModel.setProperty(idx, "album", p.album)
                 if (cur.status !== p.status) playersListModel.setProperty(idx, "status", p.status)
-                if (cur.artUrl !== p.artUrl) playersListModel.setProperty(idx, "artUrl", p.artUrl)
+
+                if (cur.artUrl !== p.artUrl) {
+                    playersListModel.setProperty(idx, "artUrl", p.artUrl)
+                    root._lastSnapshot[p.player] = p.artUrl
+                }
             } else {
                 playersListModel.append(p)
+                root._lastSnapshot[p.player] = p.artUrl
+            }
+        }
+
+        // Reorder model to strictly match the sorted `parsed` array order
+        for (let i = 0; i < parsed.length; i++) {
+            let curIndex = -1
+            for (let j = 0; j < playersListModel.count; j++) {
+                if (playersListModel.get(j).player === parsed[i].player) {
+                    curIndex = j
+                    break
+                }
+            }
+            if (curIndex !== -1 && curIndex !== i) {
+                playersListModel.move(curIndex, i, 1)
             }
         }
 
@@ -124,6 +164,7 @@ ColumnLayout {
             autoPollTimer.restart()
         } else {
             autoPollTimer.stop()
+            debounceTimer.stop()
         }
     }
 
@@ -168,7 +209,7 @@ ColumnLayout {
         }
     }
 
-    // ── Pager with individual player cards ─────────────────────
+    // ── Pager with improved touch/swipe & keyboard support ───
     Item {
         id: pager
         Layout.fillWidth: true
@@ -183,7 +224,6 @@ ColumnLayout {
             currentIndex = Math.max(0, Math.min(pageCount - 1, index))
         }
 
-        // Movable row of pages (using parent width to avoid uninitialized width glitches)
         Row {
             id: pagesRow
             x: -pager.currentIndex * root.width
@@ -208,12 +248,10 @@ ColumnLayout {
                         anchors.fill: parent
                         spacing: root.rowGap
 
-                        // Player info row
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 14
 
-                            // Album art with placeholder and memory optimization
                             Rectangle {
                                 id: artBox
                                 Layout.preferredWidth: root.artSize
@@ -235,11 +273,13 @@ ColumnLayout {
                                 Image {
                                     id: artImage
                                     anchors.fill: parent
-                                    source: artUrl
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true
                                     cache: true
                                     sourceSize: Qt.size(root.artSize * 2, root.artSize * 2)
+
+                                    property string stableArt: artUrl !== "" ? artUrl : (root._lastSnapshot[player] || "")
+                                    source: stableArt
 
                                     Behavior on opacity { NumberAnimation { duration: 200 } }
                                     opacity: status === Image.Ready ? 1 : 0
@@ -284,7 +324,6 @@ ColumnLayout {
                             }
                         }
 
-                        // Playback controls
                         RowLayout {
                             Layout.alignment: Qt.AlignHCenter
                             spacing: 12
@@ -318,10 +357,11 @@ ColumnLayout {
             }
         }
 
-        // ── Scroll handling (mouse wheel & touchpad) ──────────
+        // ── Multi-input scroll handler ──────────────────────────
         WheelHandler {
+            id: wheelHandler
             target: null
-            acceptedDevices: PointerDevice.TouchPad | PointerDevice.Mouse
+            acceptedDevices: PointerDevice.TouchPad | PointerDevice.Mouse | PointerDevice.TouchScreen
             property real accumulated: 0
 
             onWheel: (event) => {
@@ -348,6 +388,18 @@ ColumnLayout {
                 }
 
                 if (Math.abs(accumulated) > threshold * 2) accumulated = 0
+                event.accepted = true
+            }
+        }
+
+        // ── Keyboard navigation ──────────────────────────────────
+        focus: true
+        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Left) {
+                pager.goTo(pager.currentIndex - 1)
+                event.accepted = true
+            } else if (event.key === Qt.Key_Right) {
+                pager.goTo(pager.currentIndex + 1)
                 event.accepted = true
             }
         }

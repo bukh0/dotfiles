@@ -9,43 +9,51 @@ Item {
     width: label.implicitWidth
     height: label.implicitHeight
 
-    property string status: {
+    // ── Connection icon ─────────────────────────────────────
+    readonly property string status: {
         if (NetworkService.connectionType === "wifi") return "󰤨"
         if (NetworkService.connectionType === "ethernet") return "󰈀"
         return "󰤭"
     }
 
-    property bool hovered: false
-
+    // ── Find the nm-applet tray item dynamically ────────────
     property var nmAppletItem: null
+
     function findNmApplet() {
         for (const item of SystemTray.items.values) {
             const id = (item.id || "").toLowerCase()
-            if (id.includes("nm-applet") || id.includes("networkmanager"))
-                return item
+            if (id.includes("nm-applet") || id.includes("networkmanager")) {
+                nmAppletItem = item
+                return
+            }
         }
-        return null
+        nmAppletItem = null
     }
-    Timer {
-        interval: 3000
-        running: root.nmAppletItem === null
-        repeat: true
-        onTriggered: root.nmAppletItem = root.findNmApplet()
-    }
-    Component.onCompleted: nmAppletItem = findNmApplet()
 
+    // Event-driven watcher: automatically finds the item the moment system tray items change
+    Connections {
+        target: SystemTray.items
+        function onValuesChanged() {
+            if (!root.nmAppletItem) root.findNmApplet()
+        }
+    }
+
+    Component.onCompleted: findNmApplet()
+
+    // ── Menu anchor ─────────────────────────────────────────
     QsMenuAnchor {
         id: menuAnchor
         menu: root.nmAppletItem ? root.nmAppletItem.menu : null
         anchor.item: root
     }
 
+    // ── Display ─────────────────────────────────────────────
     Text {
         id: label
         text: root.status
         color: root.status === "󰤭"
             ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
-            : root.hovered
+            : mouseArea.containsMouse
                 ? Colors.surfaceFg
                 : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.8)
         font.pixelSize: 15
@@ -55,14 +63,19 @@ Item {
     }
 
     MouseArea {
+        id: mouseArea
         anchors.fill: parent
         anchors.margins: -4
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onEntered: root.hovered = true
-        onExited: root.hovered = false
+
         onClicked: {
-            if (menuAnchor.menu) menuAnchor.open()
+            // Re-verify item exists and open safely via deferred call
+            if (!root.nmAppletItem) root.findNmApplet()
+            
+            if (menuAnchor.menu) {
+                Qt.callLater(() => menuAnchor.open())
+            }
         }
     }
 }

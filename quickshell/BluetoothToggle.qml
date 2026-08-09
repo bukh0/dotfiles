@@ -8,16 +8,19 @@ ColumnLayout {
     id: btRoot
     spacing: 6
 
+    // ── State ──────────────────────────────────────────────────
     property bool btOn: false
     property string connectedName: ""
     property bool expanded: false
     property var devices: []
-    property var previousConnected: null
-
-    // --- New: discovery state, mirrors WifiToggle's scan()/rescan()/scanning ---
-    property bool scanning: false
     property var discoveredDevices: []
 
+    property bool scanning: false
+
+    // Used for detecting connection changes
+    property var previousConnected: null
+
+    // ── Shared notification helper ─────────────────────────────
     Process {
         id: notifyProc
         running: false
@@ -29,77 +32,70 @@ ColumnLayout {
         notifyProc.running = true
     }
 
+    // ── Generic command runner (for power toggle etc.) ─────────
     Process {
         id: actionProc
         running: false
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const out = text.trim();
-                if (out.toLowerCase().includes("error") || out.toLowerCase().includes("failed")) {
-                    btRoot.notify("Bluetooth Warning", out);
-                }
-            }
-        }
-        stderr: StdioCollector {
-            onStreamFinished: {
-                if (text.trim().length > 0) btRoot.notify("Bluetooth Error", text.trim());
-            }
-        }
+        stdout: StdioCollector { onStreamFinished: btRoot._checkError(text) }
+        stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
         onRunningChanged: {
-            if (!running) btPoll.running = true;
+            if (!running) btPoll.running = true   // refresh full state
         }
     }
 
     function runCommand(cmdArray) {
-        if (actionProc.running) return;
-        actionProc.command = cmdArray;
-        actionProc.running = true;
+        if (actionProc.running) return
+        actionProc.command = cmdArray
+        actionProc.running = true
     }
 
+    // ── Main polling process ──────────────────────────────────
     Process {
         id: btPoll
-        command: ["sh", "-c", "env NO_COLOR=1 bluetoothctl show | grep -q 'Powered: yes' && echo 'enabled' || echo 'disabled'; echo '==='; env NO_COLOR=1 bluetoothctl devices Paired; echo '==='; env NO_COLOR=1 bluetoothctl devices Connected"]
+        command: ["sh", "-c",
+            "env NO_COLOR=1 bluetoothctl show | grep -q 'Powered: yes' && echo 'enabled' || echo 'disabled';" +
+            "echo '===';" +
+            "env NO_COLOR=1 bluetoothctl devices Paired;" +
+            "echo '===';" +
+            "env NO_COLOR=1 bluetoothctl devices Connected"
+        ]
         stdout: StdioCollector {
             onStreamFinished: {
                 const textOutput = text.replace(/\x1b\[[0-9;]*m/g, "").trim()
                 const sections = textOutput.split("===")
-                
+
                 btRoot.btOn = (sections[0].trim() === "enabled")
                 if (sections.length < 3) return
-                
+
                 const pairedLines = sections[1].trim().split("\n").filter(l => l.includes("Device "))
                 const connLines = sections[2].trim().split("\n").filter(l => l.includes("Device "))
-                
+
                 const currConnectedMacs = connLines.map(l => l.split(" ")[1]).filter(m => m)
-                let connectedNamesArr = []
-                
+                const connectedNamesArr = []
+
                 const newDevices = pairedLines.map(l => {
                     const parts = l.split(" ")
                     const mac = parts[1]
                     const name = parts.slice(2).join(" ").trim()
                     const isConn = currConnectedMacs.includes(mac)
-                    
                     if (isConn) connectedNamesArr.push(name)
-                    
-                    return { mac: mac, name: name, connected: isConn }
+                    return { mac, name, connected: isConn }
                 }).filter(d => d.mac)
-                
+
                 btRoot.connectedName = connectedNamesArr.join(", ")
                 btRoot.devices = newDevices
 
-                // Newly-paired devices (e.g. via the discovery flow below) need
-                // to drop out of the "discovered/unpaired" list once bluetoothctl
-                // reports them as paired, otherwise they'd show up twice.
+                // Clean up discovered list (remove newly paired devices)
                 if (btRoot.discoveredDevices.length > 0) {
                     const pairedMacs = newDevices.map(d => d.mac)
                     btRoot.discoveredDevices = btRoot.discoveredDevices.filter(d => !pairedMacs.includes(d.mac))
                 }
 
+                // Connection change notifications
                 if (btRoot.previousConnected !== null) {
                     const prevMacs = btRoot.previousConnected
                     const added = currConnectedMacs.filter(m => !prevMacs.includes(m))
                     const removed = prevMacs.filter(m => !currConnectedMacs.includes(m))
-
                     added.forEach(m => {
                         const d = newDevices.find(x => x.mac === m)
                         if (d) btRoot.notify("Bluetooth Connected", d.name)
@@ -111,21 +107,23 @@ ColumnLayout {
         }
     }
 
+    // ── Periodic refresh (every 5 s) ──────────────────────────
     Timer {
         interval: 5000
         running: true
         repeat: true
-        onTriggered: { if (!btPoll.running && !actionProc.running) btPoll.running = true }
-        Component.onCompleted: btPoll.running = true
+        onTriggered: {
+            if (!btPoll.running && !actionProc.running)
+                btPoll.running = true
+        }
     }
 
-    // --- New: cheap "list what's already known" query, run when the panel
-    // opens. Bluetooth equivalent of WifiToggle's scan() — does NOT put the
-    // radio into discovery mode, just asks bluetoothctl for every device it
-    // already knows about (paired or previously seen).
+    // ── Discovery helpers ──────────────────────────────────────
     Process {
         id: listAllPoll
-        command: ["sh", "-c", "env NO_COLOR=1 bluetoothctl devices Paired; echo '==='; env NO_COLOR=1 bluetoothctl devices"]
+        command: ["sh", "-c",
+            "env NO_COLOR=1 bluetoothctl devices Paired; echo '==='; env NO_COLOR=1 bluetoothctl devices"
+        ]
         stdout: StdioCollector {
             onStreamFinished: {
                 const textOutput = text.replace(/\x1b\[[0-9;]*m/g, "").trim()
@@ -136,7 +134,6 @@ ColumnLayout {
                 const allLines = sections[1].trim().split("\n").filter(l => l.includes("Device "))
 
                 const pairedMacs = pairedLines.map(l => l.split(" ")[1]).filter(m => m)
-
                 const seen = {}
                 const unpaired = []
                 for (const l of allLines) {
@@ -144,18 +141,15 @@ ColumnLayout {
                     const mac = parts[1]
                     const name = parts.slice(2).join(" ").trim()
                     if (!mac || seen[mac] || pairedMacs.includes(mac)) continue
-                    if (!name) continue // skip devices bluetoothctl hasn't resolved a name for
+                    if (!name) continue
                     seen[mac] = true
-                    unpaired.push({ mac: mac, name: name })
+                    unpaired.push({ mac, name })
                 }
                 btRoot.discoveredDevices = unpaired
             }
         }
     }
 
-    // --- New: actual discovery scan, mirrors WifiToggle's rescan(). Newer
-    // bluetoothctl supports a timeout flag that makes "scan on" return on
-    // its own instead of blocking forever.
     Process {
         id: btScanProc
         command: ["bluetoothctl", "--timeout", "6", "scan", "on"]
@@ -167,18 +161,26 @@ ColumnLayout {
         }
     }
 
-    // Cheap re-list on expand — same role as WifiToggle's scan().
     function listAll() {
         if (!listAllPoll.running) listAllPoll.running = true
     }
 
-    // Active discovery — same role as WifiToggle's rescan().
     function rescan() {
         if (btScanProc.running) return
         scanning = true
         btScanProc.running = true
     }
 
+    // ── Internal error checker (avoids duplicated code) ───────
+    function _checkError(rawText) {
+        const t = rawText.trim()
+        if (t.length === 0) return
+        if (t.toLowerCase().includes("error") || t.toLowerCase().includes("failed")) {
+            btRoot.notify("Bluetooth Warning", t)
+        }
+    }
+
+    // ── Icon mapping ───────────────────────────────────────────
     function deviceIcon(name) {
         const n = name.toLowerCase()
         if (n.includes("headphone") || n.includes("earphone") || n.includes("buds")) return "󰋋"
@@ -189,6 +191,7 @@ ColumnLayout {
         return "󰂯"
     }
 
+    // ── Header toggle ──────────────────────────────────────────
     Rectangle {
         Layout.fillWidth: true
         implicitHeight: 48
@@ -202,6 +205,7 @@ ColumnLayout {
             anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
             spacing: 8
 
+            // Power button
             Rectangle {
                 width: 32; height: 32; radius: 16
                 color: "transparent"
@@ -216,10 +220,11 @@ ColumnLayout {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        if (actionProc.running) return;
+                        if (actionProc.running) return
                         if (btRoot.btOn) {
                             btRoot.runCommand(["bluetoothctl", "power", "off"])
-                            btRoot.btOn = false; btRoot.expanded = false
+                            btRoot.btOn = false
+                            btRoot.expanded = false
                         } else {
                             btRoot.runCommand(["bluetoothctl", "power", "on"])
                             btRoot.btOn = true
@@ -228,11 +233,17 @@ ColumnLayout {
                 }
             }
 
+            // Expand / collapse area
             MouseArea {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: { if (btRoot.btOn) { btRoot.expanded = !btRoot.expanded; if (btRoot.expanded) btRoot.listAll() } }
+                onClicked: {
+                    if (btRoot.btOn) {
+                        btRoot.expanded = !btRoot.expanded
+                        if (btRoot.expanded) btRoot.listAll()
+                    }
+                }
 
                 RowLayout {
                     anchors.fill: parent
@@ -269,6 +280,7 @@ ColumnLayout {
         }
     }
 
+    // ── Expanded device list ───────────────────────────────────
     ColumnLayout {
         visible: btRoot.expanded && btRoot.btOn
         Layout.fillWidth: true
@@ -292,6 +304,7 @@ ColumnLayout {
             font.family: "JetBrainsMono Nerd Font"
         }
 
+        // Paired devices
         Repeater {
             model: btRoot.devices
             delegate: Rectangle {
@@ -299,12 +312,12 @@ ColumnLayout {
                 Layout.fillWidth: true
                 implicitHeight: 38
                 radius: 8
-                
+
                 property bool isProcessing: itemProc.running
                 property bool isConnecting: false
                 property bool isDisconnecting: false
-                
-                property bool showConnected: (modelData.connected || isConnecting) && !isDisconnecting
+
+                readonly property bool showConnected: modelData.connected && !isDisconnecting
 
                 color: showConnected
                     ? Qt.rgba(Colors.secondary.r, Colors.secondary.g, Colors.secondary.b, 0.2)
@@ -317,24 +330,13 @@ ColumnLayout {
                 Process {
                     id: itemProc
                     running: false
-                    stdout: StdioCollector {
-                        onStreamFinished: {
-                            const out = text.trim();
-                            if (out.toLowerCase().includes("error") || out.toLowerCase().includes("failed")) {
-                                btRoot.notify("Bluetooth Warning", out);
-                            }
-                        }
-                    }
-                    stderr: StdioCollector {
-                        onStreamFinished: {
-                            if (text.trim().length > 0) btRoot.notify("Bluetooth Error", text.trim());
-                        }
-                    }
+                    stdout: StdioCollector { onStreamFinished: btRoot._checkError(text) }
+                    stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
                     onRunningChanged: {
                         if (!running) {
-                            delegateRoot.isConnecting = false;
-                            delegateRoot.isDisconnecting = false;
-                            btPoll.running = true;
+                            delegateRoot.isConnecting = false
+                            delegateRoot.isDisconnecting = false
+                            btPoll.running = true
                         }
                     }
                 }
@@ -372,30 +374,25 @@ ColumnLayout {
                     hoverEnabled: true
                     cursorShape: delegateRoot.isProcessing ? Qt.WaitCursor : Qt.PointingHandCursor
                     onClicked: {
-                        if (delegateRoot.isProcessing) return;
-                        
-                        let disconnecting = modelData.connected;
-                        
+                        if (delegateRoot.isProcessing) return
+
+                        const disconnecting = modelData.connected
                         if (disconnecting) {
-                            delegateRoot.isDisconnecting = true;
-                            btRoot.connectedName = btRoot.connectedName.split(",").map(x=>x.trim()).filter(n=>n!==modelData.name).join(", ");
+                            delegateRoot.isDisconnecting = true
                         } else {
-                            delegateRoot.isConnecting = true;
-                            if (btRoot.connectedName === "") btRoot.connectedName = modelData.name;
-                            else if (!btRoot.connectedName.includes(modelData.name)) btRoot.connectedName += ", " + modelData.name;
+                            delegateRoot.isConnecting = true
                         }
-                        
+
                         itemProc.command = disconnecting
                             ? ["bluetoothctl", "disconnect", modelData.mac]
-                            : ["bluetoothctl", "connect", modelData.mac];
-                            
-                        itemProc.running = true;
+                            : ["bluetoothctl", "connect", modelData.mac]
+                        itemProc.running = true
                     }
                 }
             }
         }
 
-        // --- New: discovered-but-unpaired devices, tapping pairs + trusts + connects.
+        // Discovered (unpaired) devices
         Repeater {
             model: btRoot.discoveredDevices
             delegate: Rectangle {
@@ -409,28 +406,18 @@ ColumnLayout {
                 color: pairMa.containsMouse
                     ? Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
                     : Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.3)
+
                 Behavior on color { ColorAnimation { duration: 100 } }
 
                 Process {
                     id: pairProc
                     running: false
-                    stdout: StdioCollector {
-                        onStreamFinished: {
-                            const out = text.trim();
-                            if (out.toLowerCase().includes("error") || out.toLowerCase().includes("failed")) {
-                                btRoot.notify("Bluetooth Warning", out);
-                            }
-                        }
-                    }
-                    stderr: StdioCollector {
-                        onStreamFinished: {
-                            if (text.trim().length > 0) btRoot.notify("Bluetooth Error", text.trim());
-                        }
-                    }
+                    stdout: StdioCollector { onStreamFinished: btRoot._checkError(text) }
+                    stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
                     onRunningChanged: {
                         if (!running) {
-                            btPoll.running = true;
-                            listAllPoll.running = true;
+                            btPoll.running = true
+                            listAllPoll.running = true
                         }
                     }
                 }
@@ -479,16 +466,17 @@ ColumnLayout {
                     hoverEnabled: true
                     cursorShape: pairDelegateRoot.isProcessing ? Qt.WaitCursor : Qt.PointingHandCursor
                     onClicked: {
-                        if (pairDelegateRoot.isProcessing) return;
-                        const mac = modelData.mac;
+                        if (pairDelegateRoot.isProcessing) return
+                        const mac = modelData.mac
                         pairProc.command = ["sh", "-c",
                             "bluetoothctl pair " + mac + " && bluetoothctl trust " + mac + " && bluetoothctl connect " + mac]
-                        pairProc.running = true;
+                        pairProc.running = true
                     }
                 }
             }
         }
 
+        // Scan button
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 32

@@ -2,56 +2,95 @@ pragma Singleton
 import QtQuick
 import Quickshell.Io
 
-// Shared MPRIS player state. Previously Clock.qml and MusicWidget.qml each
-// ran their own independent `playerctl` poll every 2s — same data, two
-// subprocess spawns. This centralizes it so both just bind to one source.
 Item {
     id: root
 
+    // ── Public MPRIS state ────────────────────────────────────
     property string title: "Nothing playing"
     property string artist: ""
     property string album: ""
     property string status: "Stopped"
     property string artUrl: ""
-    property bool playing: status === "Playing"
+    readonly property bool playing: status === "Playing"
 
-    // Unit separator (0x1f) instead of "|" as the field delimiter — a
-    // track/artist name containing a literal "|" used to desync the fields.
+    // ── Art cache (prevents blank flashes on track change) ────
+    property string _lastArtUrl: ""
+
+    // ── Playerctl polling ─────────────────────────────────────
     Process {
         id: metaPoll
-        command: ["playerctl", "metadata", "--format", "{{title}}\u001f{{artist}}\u001f{{album}}\u001f{{status}}\u001f{{mpris:artUrl}}"]
+        command: ["playerctl", "metadata", "--format",
+                  "{{title}}\u001f{{artist}}\u001f{{album}}\u001f{{status}}\u001f{{mpris:artUrl}}"]
         stdout: StdioCollector {
+            onStreamFinished: root._parse(text)
+        }
+        stderr: StdioCollector {
             onStreamFinished: {
-                const parts = text.trim().split("\u001f")
-                if (parts.length >= 4 && parts[0] !== "") {
-                    root.title = parts[0] || "Nothing playing"
-                    root.artist = parts[1] || ""
-                    root.album = parts[2] || ""
-                    root.status = parts[3] || "Stopped"
-                    root.artUrl = parts[4] || ""
-                } else {
-                    // playerctl prints nothing when no player is running
-                    root.title = "Nothing playing"
-                    root.artist = ""
-                    root.album = ""
-                    root.status = "Stopped"
-                    root.artUrl = ""
-                }
+                const err = text.trim()
+                if (err.length > 0) console.warn("playerctl:", err)
             }
         }
     }
 
-    Timer {
-        interval: 2000
-        running: true
-        repeat: true
-        onTriggered: metaPoll.running = true
-        Component.onCompleted: metaPoll.running = true
+    function _parse(raw) {
+        const parts = raw.trim().split("\u001f")
+        if (parts.length >= 4 && parts[0] !== "") {
+            // Only update if values actually changed (reduces UI churn)
+            const t = parts[0] || "Nothing playing"
+            const a = parts[1] || ""
+            const al = parts[2] || ""
+            const s = parts[3] || "Stopped"
+            const art = parts[4] || ""
+
+            if (root.title !== t) root.title = t
+            if (root.artist !== a) root.artist = a
+            if (root.album !== al) root.album = al
+            if (root.status !== s) root.status = s
+
+            // Art URL: only update cache and property when necessary
+            if (art !== "") {
+                if (root._lastArtUrl !== art) root._lastArtUrl = art
+                if (root.artUrl !== art) root.artUrl = art
+            } else if (root.artUrl !== root._lastArtUrl) {
+                // If new art is empty, fall back to cache, but only if different
+                root.artUrl = root._lastArtUrl
+            }
+        } else {
+            // No player active – reset to idle
+            if (root.title !== "Nothing playing") root.title = "Nothing playing"
+            if (root.artist !== "") root.artist = ""
+            if (root.album !== "") root.album = ""
+            if (root.status !== "Stopped") root.status = "Stopped"
+            if (root.artUrl !== root._lastArtUrl) root.artUrl = root._lastArtUrl
+        }
     }
 
-    // Call right after a play/pause/next/previous press so the widget
-    // doesn't sit stale for up to 2s waiting on the next scheduled poll.
+    // ── Polling timer (runs only while application is active) ──
+    Timer {
+        id: pollTimer
+        interval: 2000
+        running: Qt.application.state === Qt.ApplicationActive
+        repeat: true
+        onTriggered: {
+            if (!metaPoll.running) metaPoll.running = true
+        }
+        Component.onCompleted: {
+            // Immediately fetch if app is active, without double‑spawning
+            if (Qt.application.state === Qt.ApplicationActive && !metaPoll.running)
+                metaPoll.running = true
+        }
+    }
+
+    // ── Manual refresh debounce (called after user actions) ────
+    Timer {
+        id: refreshDebounce
+        interval: 80
+        onTriggered: {
+            if (!metaPoll.running) metaPoll.running = true
+        }
+    }
+
     function refresh() {
-        Qt.callLater(() => metaPoll.running = true)
+        refreshDebounce.restart()
     }
 }

@@ -2,35 +2,31 @@ pragma Singleton
 import QtQuick
 import Quickshell.Io
 
-// Shared network state. Previously NetworkIndicator.qml and WifiToggle.qml
-// each ran their own independent `nmcli` poll — same data, two subprocess
-// chains on a timer. This centralizes status, scanning, and connect/disconnect
-// (with a password-retry path nmcli needs but the old code never provided)
-// in one place.
 Item {
     id: root
 
+    // ── Public state ─────────────────────────────────────────
     property bool wifiOn: false
     property string ssid: ""
-    property string connectionType: "none"   // "wifi" | "ethernet" | "none"
+    property string connectionType: "none"   // "wifi", "ethernet", "none"
     property var networks: []
     property bool scanning: false
 
-    // SSID that nmcli rejected for lacking a secret — the UI should prompt
-    // for a password for exactly this network.
+    // SSID that nmcli rejected for lacking a secret
     property string awaitingPasswordFor: ""
 
+    // ── Signals ──────────────────────────────────────────────
     signal connectionSettled()
-    // Any stderr output from a command that isn't the expected
-    // "needs a password" case — for UI toast notifications.
     signal commandError(string message)
 
-    property var cmdProc: Process {
+    // ── Generic command runner ───────────────────────────────
+    Process {
         id: cmdProc
         running: false
         stderr: StdioCollector {
             onStreamFinished: {
-                if (text.trim().length > 0) root.commandError(text.trim())
+                const msg = text.trim()
+                if (msg.length > 0) root.commandError(msg)
             }
         }
         onRunningChanged: {
@@ -47,38 +43,43 @@ Item {
         cmdProc.running = true
     }
 
-    // --- Status: wifi radio state, active SSID, and overall connection type ---
+    // ── Status poll (wifi state, ssid, connection type) ──────
     Process {
         id: statusPoll
         command: ["sh", "-c",
             "nmcli radio wifi && " +
-            // -f2- (not -f2): SSIDs can contain colons, and -f2 alone
-            // truncates at the first one.
             "nmcli -t -f ACTIVE,SSID dev wifi | grep '^yes' | cut -d: -f2- | head -1 && " +
-            // Anchored to end-of-line: unanchored "connected" also matches
-            // "disconnected" as a substring.
             "nmcli -t -f TYPE,STATE dev | grep ':connected$' | head -1 | cut -d: -f1"
         ]
         stdout: StdioCollector {
             onStreamFinished: {
                 const lines = text.trim().split("\n")
-                root.wifiOn = lines[0]?.trim() === "enabled"
-                root.ssid = lines[1]?.trim() || ""
+                root.wifiOn = (lines[0]?.trim() === "enabled")
+                root.ssid = (lines[1]?.trim() || "")
                 const t = lines[2]?.trim()
                 root.connectionType = t === "wifi" ? "wifi" : (t === "ethernet" ? "ethernet" : "none")
             }
         }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                const msg = text.trim()
+                if (msg.length > 0) root.commandError(msg)
+            }
+        }
     }
 
+    // ── Periodic refresh ─────────────────────────────────────
     Timer {
         interval: 5000
         running: true
         repeat: true
-        onTriggered: { if (!cmdProc.running) statusPoll.running = true }
+        onTriggered: {
+            if (!cmdProc.running) statusPoll.running = true
+        }
         Component.onCompleted: statusPoll.running = true
     }
 
-    // --- Scan for nearby networks (only needed while the panel is expanded) ---
+    // ── Scan for networks ────────────────────────────────────
     Process {
         id: scanPoll
         command: ["sh", "-c", "nmcli -t -f SSID,SIGNAL,SECURITY,ACTIVE dev wifi list | head -20"]
@@ -105,6 +106,12 @@ Item {
                 root.networks = parsed
             }
         }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                const msg = text.trim()
+                if (msg.length > 0) root.commandError(msg)
+            }
+        }
     }
 
     function scan() {
@@ -114,26 +121,10 @@ Item {
     }
 
     function toggleWifiRadio() {
-        if (wifiOn) {
-            runCommand(["nmcli", "radio", "wifi", "off"])
-        } else {
-            runCommand(["nmcli", "radio", "wifi", "on"])
-        }
-        // No optimistic flip here — statusPoll (triggered by cmdProc
-        // finishing) is what actually confirms the radio state.
+        runCommand(wifiOn ? ["nmcli", "radio", "wifi", "off"] : ["nmcli", "radio", "wifi", "on"])
     }
 
-    // --- Connect / disconnect, with a password fallback for secured networks ---
-    // nmcli fails quietly (no OS-level prompt) when a secured network isn't
-    // already a known connection profile. We watch stderr for that failure
-    // and ask the UI to show a password field instead of just leaving the
-    // toggle showing a connection that never actually happened.
-    //
-    // NOTE: the exact nmcli wording used below ("secrets were required", "no
-    // network with ssid") is a best-effort match against typical nmcli error
-    // text — check it against what your nmcli version actually prints
-    // (`nmcli dev wifi connect <ssid>` on a secured, unknown network from a
-    // terminal) and adjust the match if it doesn't trigger.
+    // ── Connect / disconnect ─────────────────────────────────
     Process {
         id: connectProc
         property string targetSsid: ""
@@ -145,8 +136,9 @@ Item {
                     t.includes("no network with ssid") ||
                     t.includes("password")) {
                     root.awaitingPasswordFor = connectProc.targetSsid
-                } else if (text.trim().length > 0) {
-                    root.commandError(text.trim())
+                } else {
+                    const msg = text.trim()
+                    if (msg.length > 0) root.commandError(msg)
                 }
             }
         }
@@ -169,7 +161,10 @@ Item {
     }
 
     function disconnectActive() {
-        runCommand(["sh", "-c", "nmcli dev disconnect \"$(nmcli -t -f DEVICE,TYPE dev | grep ':wifi$' | cut -d: -f1 | head -1)\""])
+        // Use a sub‑shell to avoid the double‑nmcli race when toggling
+        runCommand(["sh", "-c",
+            "nmcli dev disconnect \"$(nmcli -t -f DEVICE,TYPE dev | grep ':wifi$' | cut -d: -f1 | head -1)\""
+        ])
     }
 
     function cancelPasswordPrompt() {

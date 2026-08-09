@@ -5,9 +5,10 @@ import "."
 
 PanelWindow {
     id: controlPanel
-    property int barHeight: 42
+
+    // ── Configuration ─────────────────────────────────────────
+    readonly property int barHeight: 42
     property bool isOpen: false
-    property bool windowVisible: false
 
     property int hoverCloseDelay: 300
     property int fadeOutDuration: 200
@@ -18,7 +19,13 @@ PanelWindow {
     property int drawerTopMargin: 20
     property int drawerBottomMargin: 24
 
-    visible: windowVisible
+    // ── Visibility logic (clean binding, no one-shot overrides) ─
+    // The window stays visible as long as the panel is open, or while the
+    // fade-out animation is still running.
+    property bool _fadingOut: false
+
+    visible: isOpen || _fadingOut
+
     color: "transparent"
     anchors {
         top: true
@@ -26,63 +33,73 @@ PanelWindow {
         left: true
         right: true
     }
+
     mask: Region {
         x: 0
         y: controlPanel.barHeight
         width: controlPanel.width
         height: controlPanel.height - controlPanel.barHeight
     }
-    onIsOpenChanged: {
-        if (isOpen) {
-            hideTimer.stop()
-            windowVisible = true
-        } else {
-            hideTimer.restart()
-        }
-    }
+
+    // ── Timers ──────────────────────────────────────────────────
     Timer {
-        id: hideTimer
-        interval: controlPanel.fadeOutDuration
-        onTriggered: controlPanel.windowVisible = false
-    }
-    Timer {
-        id: closeTimer
+        id: closeDelayTimer
         interval: controlPanel.hoverCloseDelay
         onTriggered: controlPanel.isOpen = false
     }
+
+    Timer {
+        id: fadeOutTimer
+        interval: controlPanel.fadeOutDuration
+        onTriggered: _fadingOut = false
+    }
+
+    onIsOpenChanged: {
+        if (isOpen) {
+            _fadingOut = false
+            closeDelayTimer.stop()
+        } else {
+            // Start fade-out visual, but keep window visible
+            _fadingOut = true
+            fadeOutTimer.restart()
+        }
+    }
+
+    // ── Public API (called by the top bar or other components) ─
     function beginHoverOpen() {
-        closeTimer.stop()
+        closeDelayTimer.stop()
         isOpen = true
     }
 
     function scheduleHoverClose() {
-        closeTimer.restart()
+        if (!isOpen) return
+        closeDelayTimer.restart()
     }
 
     function cancelHoverClose() {
-        closeTimer.stop()
+        closeDelayTimer.stop()
     }
-    onVisibleChanged: {
-        if (visible) {
-            Qt.callLater(() => {
-                if (bgCloser) bgCloser.forceActiveFocus()
-            })
-        }
-    }
-    MouseArea {
-        id: bgCloser
+
+    // ── Background dismissal (click outside drawer / Escape) ─
+    FocusScope {
+        id: overlayScope
         anchors.fill: parent
-        hoverEnabled: true
-        focus: true
         enabled: controlPanel.isOpen
+
+        // Automatically grab keyboard focus when the panel appears
+        onEnabledChanged: {
+            if (enabled) overlayScope.focus = true
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: controlPanel.isOpen = false
+        }
+
         Keys.onEscapePressed: controlPanel.isOpen = false
-        onClicked: controlPanel.isOpen = false
     }
-    component Divider: Rectangle {
-        Layout.fillWidth: true
-        height: 1
-        color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
-    }
+
+    // ── Visual drawer ─────────────────────────────────────────
     Rectangle {
         id: drawerBg
         width: controlPanel.drawerWidth
@@ -91,7 +108,9 @@ PanelWindow {
         x: (parent.width - width) / 2
         y: controlPanel.isOpen ? controlPanel.openY : controlPanel.closedY
 
-        Behavior on y { NumberAnimation { duration: 250; easing.type: Easing.OutQuart } }
+        Behavior on y {
+            NumberAnimation { duration: 250; easing.type: Easing.OutQuart }
+        }
 
         radius: 16
         color: Qt.rgba(Colors.surfaceContainer.r, Colors.surfaceContainer.g, Colors.surfaceContainer.b, 0.97)
@@ -99,20 +118,22 @@ PanelWindow {
         border.width: 1
 
         opacity: controlPanel.isOpen ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: controlPanel.fadeOutDuration } }
-        TapHandler {
-            onTapped: {}
+        Behavior on opacity {
+            NumberAnimation { duration: controlPanel.fadeOutDuration }
         }
+
+        // Keep the drawer open while the mouse hovers over it
         HoverHandler {
             onHoveredChanged: {
                 if (hovered) {
-                    closeTimer.stop()
-                    controlPanel.isOpen = true
+                    controlPanel.beginHoverOpen()
                 } else {
                     controlPanel.scheduleHoverClose()
                 }
             }
         }
+
+        // ── Content ────────────────────────────────────────────
         ColumnLayout {
             id: contentCol
             anchors {
@@ -120,7 +141,6 @@ PanelWindow {
                 left: parent.left
                 right: parent.right
                 margins: controlPanel.drawerTopMargin
-                bottomMargin: controlPanel.drawerBottomMargin
             }
             spacing: 16
 
@@ -134,5 +154,12 @@ PanelWindow {
             WifiToggle {}
             BluetoothToggle {}
         }
+    }
+
+    // ── Reusable divider ──────────────────────────────────────
+    component Divider: Rectangle {
+        Layout.fillWidth: true
+        height: 1
+        color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
     }
 }

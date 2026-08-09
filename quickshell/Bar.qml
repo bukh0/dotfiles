@@ -7,9 +7,9 @@ import "."
 
 PanelWindow {
     id: root
-    
-    // Changed from Overlay to Top so fullscreen applications cover the bar
-    WlrLayershell.layer: WlrLayer.Top   
+
+    // Use Top layer so fullscreen windows cover the bar
+    WlrLayershell.layer: WlrLayer.Top
 
     anchors {
         top: true
@@ -17,17 +17,17 @@ PanelWindow {
         right: true
     }
 
-    height: 45
+    // ── Dimensions (implicitHeight instead of height) ────────
+    implicitHeight: 45
     color: "transparent"
+
     property int barHeight: 35
     property int pillRadius: 12
 
     property color pillBg: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.4)
     property color pillBorder: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
 
-    // ==========================================
-    // HYPRLAND SHORTCUT INTEGRATION
-    // ==========================================
+    // ── HYPRLAND SHORTCUT ──────────────────────────────────
     Process {
         id: toggleFullscreen
         command: ["hyprctl", "dispatch", "fullscreen"]
@@ -35,16 +35,17 @@ PanelWindow {
 
     Shortcut {
         sequence: "Meta+F"
-        onActivated: toggleFullscreen.running = true
+        onActivated: {
+            if (!toggleFullscreen.running) toggleFullscreen.running = true
+        }
     }
 
+    // ── Pill container ─────────────────────────────────────
     Item {
         anchors.fill: parent
         anchors.margins: 7
 
-        // ==========================================
-        // LEFT PILL — Workspaces
-        // ==========================================
+        // LEFT PILL – Workspaces
         Rectangle {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
@@ -54,6 +55,7 @@ PanelWindow {
             color: root.pillBg
             border.color: root.pillBorder
             border.width: 1
+
             RowLayout {
                 id: leftLayout
                 anchors.centerIn: parent
@@ -62,19 +64,15 @@ PanelWindow {
             }
         }
 
-        // ==========================================
-        // CENTER PILL — Clock & Control Panel
-        // ==========================================
+        // CENTER PILL – Clock & Control Panel trigger
         Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
             height: root.barHeight
-
-            // Increased the padding (+ 80) to stretch the central bar wider
             width: Math.max(centerLayout.implicitWidth + 80, 180)
-
             radius: root.pillRadius
             border.width: 1
+
             color: controlPanel.isOpen
                 ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.2)
                 : centerMa.containsMouse
@@ -83,13 +81,16 @@ PanelWindow {
             border.color: controlPanel.isOpen
                 ? Colors.primary
                 : root.pillBorder
+
             Behavior on color { ColorAnimation { duration: 150 } }
             Behavior on border.color { ColorAnimation { duration: 150 } }
+
             RowLayout {
                 id: centerLayout
                 anchors.centerIn: parent
                 Clock {}
             }
+
             MouseArea {
                 id: centerMa
                 anchors.fill: parent
@@ -101,9 +102,7 @@ PanelWindow {
             }
         }
 
-        // ==========================================
-        // RIGHT PILL — System Modules
-        // ==========================================
+        // RIGHT PILL – System modules
         Rectangle {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
@@ -113,6 +112,7 @@ PanelWindow {
             color: root.pillBg
             border.color: root.pillBorder
             border.width: 1
+
             RowLayout {
                 id: rightLayout
                 anchors.centerIn: parent
@@ -125,15 +125,15 @@ PanelWindow {
         }
     }
 
-    // ==========================================
-    // OVERLAYS (Attached directly to the Bar)
-    // ==========================================
+    // ── Overlays (attached directly) ────────────────────────
     ControlPanel {
         id: controlPanel
         openY: 10
         closedY: 26
-        barHeight: root.height
+        // barHeight is set once after creation (property is now writable)
+        Component.onCompleted: barHeight = root.implicitHeight
     }
+
     NotificationDrawer {
         id: notificationDrawer
         drawerY: 10
