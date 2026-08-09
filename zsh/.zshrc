@@ -113,8 +113,14 @@ alias ls="exa -l"
 alias exe="sudo chmod +x"
 alias i="sudo pacman -S"
 alias nv="nvim"
+alias t="tmux"
+alias ta="tmux attach || tmux new"
+alias tl="tmux ls"
+alias tk="tmux kill-session -t"
 
 
-export PATH=$PATH:/home/bukh0/.spicetify
+#export PATH=$PATH:/home/bukh0/.spicetify
 export PATH="$HOME/.local/bin:$PATH"
 export EDITOR=nvim
+export PRACS="$HOME/Documents/Pracs"
+export PROGRAMS="$HOME/Documents/Programs"

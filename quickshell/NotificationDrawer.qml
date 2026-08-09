@@ -1,18 +1,23 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
 import Quickshell
 import "."
 
 PanelWindow {
     id: root
 
+    // ── Configuration & State ────────────────────────────────
     property bool isOpen: NotificationDaemon.isDrawerOpen
-    property bool windowVisible: false
-    visible: windowVisible
+    property bool _fadingOut: false
+    
+    visible: isOpen || _fadingOut
     color: "transparent"
 
     property int fadeOutDuration: 200
     property int drawerY: 44
+    property string uiFont: "sans-serif"
+    property string iconFont: "JetBrainsMono Nerd Font"
 
     anchors {
         top: true
@@ -21,11 +26,14 @@ PanelWindow {
         right: true
     }
 
+    // ── Visibility Logic ─────────────────────────────────────
     onIsOpenChanged: {
         if (isOpen) {
+            _fadingOut = false
             hideTimer.stop()
-            windowVisible = true
+            if (visible) bgCloser.forceActiveFocus()
         } else {
+            _fadingOut = true
             hideTimer.restart()
         }
     }
@@ -33,31 +41,32 @@ PanelWindow {
     Timer {
         id: hideTimer
         interval: root.fadeOutDuration
-        onTriggered: root.windowVisible = false
+        onTriggered: root._fadingOut = false
     }
 
-    onVisibleChanged: {
-        if (visible) {
-            bgCloser.forceActiveFocus()
-        }
-    }
-
+    // ── Background Dismissal ─────────────────────────────────
     MouseArea {
         id: bgCloser
         anchors.fill: parent
         hoverEnabled: true
         focus: true
+        // Only intercept clicks when fully open, not when fading out
+        enabled: root.isOpen 
+        
         Keys.onEscapePressed: NotificationDaemon.isDrawerOpen = false
         onClicked: NotificationDaemon.isDrawerOpen = false
     }
 
+    // ── Drawer UI ────────────────────────────────────────────
     Rectangle {
         id: drawerBg
-        width: 360
+        width: 380 // Slightly wider for comfortable text wrapping
         height: 560
 
-        x: parent.width - width - 10
-        y: root.drawerY
+        x: parent.width - width - 12
+        // Add a subtle slide-down effect alongside the fade
+        y: root.isOpen ? root.drawerY : root.drawerY - 10 
+        Behavior on y { NumberAnimation { duration: root.fadeOutDuration; easing.type: Easing.OutCubic } }
 
         radius: 12
         color: Qt.rgba(Colors.surfaceContainer.r, Colors.surfaceContainer.g, Colors.surfaceContainer.b, 0.97)
@@ -65,8 +74,9 @@ PanelWindow {
         border.width: 1
 
         opacity: root.isOpen ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 200 } }
+        Behavior on opacity { NumberAnimation { duration: root.fadeOutDuration } }
 
+        // Prevent clicks on the drawer itself from closing the window
         MouseArea {
             anchors.fill: parent
             onClicked: mouse.accepted = true
@@ -88,23 +98,25 @@ PanelWindow {
             anchors.margins: 16
             spacing: 12
 
+            // ── Header ────────────────────────────────────────
             RowLayout {
                 Layout.fillWidth: true
 
                 Text {
                     text: "Notifications"
                     color: Colors.primary
-                    font.pixelSize: 13
+                    font.pixelSize: 14
                     font.weight: Font.Bold
-                    font.family: "JetBrainsMono Nerd Font"
+                    font.family: root.uiFont
                     Layout.fillWidth: true
                 }
 
                 Text {
                     text: "Clear All"
                     color: clearHover.hovered ? Colors.primary : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
-                    font.pixelSize: 11
-                    font.family: "JetBrainsMono Nerd Font"
+                    font.pixelSize: 12
+                    font.family: root.uiFont
+                    font.weight: Font.Medium
 
                     HoverHandler {
                         id: clearHover
@@ -116,6 +128,7 @@ PanelWindow {
                 }
             }
 
+            // ── Empty State ───────────────────────────────────
             Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -128,35 +141,59 @@ PanelWindow {
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: "󰂜"
-                        color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.3)
-                        font.pixelSize: 32
-                        font.family: "JetBrainsMono Nerd Font"
+                        color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.2)
+                        font.pixelSize: 42
+                        font.family: root.iconFont
                     }
 
                     Text {
                         Layout.alignment: Qt.AlignHCenter
-                        text: "No notifications"
-                        color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.3)
-                        font.pixelSize: 12
-                        font.family: "JetBrainsMono Nerd Font"
+                        text: "No new notifications"
+                        color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
+                        font.pixelSize: 13
+                        font.family: root.uiFont
                     }
                 }
             }
 
+            // ── Notification List ─────────────────────────────
             ListView {
+                id: notifList
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 visible: NotificationDaemon.notifications.length > 0
                 clip: true
-                spacing: 8
+                spacing: 10
                 model: NotificationDaemon.notifications
+                
+                // Keep memory usage low while preserving smooth scrolling
+                cacheBuffer: 300 
+
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                    width: 6
+                }
+
+                // Delegate Helper Function
+                function getIconSource(data) {
+                    if (data.image) {
+                        let img = data.image.toString();
+                        return img.startsWith("/") ? "file://" + img : img;
+                    }
+                    if (data.appIcon) {
+                        let icon = data.appIcon.toString();
+                        if (icon.startsWith("/")) return "file://" + icon;
+                        return Quickshell.iconPath(icon); 
+                    }
+                    return "";
+                }
 
                 delegate: Rectangle {
                     required property var modelData
                     required property int index
 
-                    width: ListView.view.width
-                    implicitHeight: notifContent.implicitHeight + 20
+                    width: ListView.view.width - (notifList.ScrollBar.vertical.visible ? 10 : 0) // Accommodate scrollbar
+                    implicitHeight: notifContent.implicitHeight + 24
                     radius: 10
                     color: Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
                     border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
@@ -170,18 +207,18 @@ PanelWindow {
                             right: parent.right
                             margins: 12
                         }
-                        spacing: 6
+                        spacing: 8
 
-                        // --- HEADER ---
+                        // --- DELEGATE HEADER ---
                         RowLayout {
                             Layout.fillWidth: true
 
                             Text {
                                 text: modelData.appName || "App"
                                 color: Colors.primary
-                                font.pixelSize: 10
+                                font.pixelSize: 11
                                 font.weight: Font.Bold
-                                font.family: "JetBrainsMono Nerd Font"
+                                font.family: root.uiFont
                                 Layout.fillWidth: true
                                 elide: Text.ElideRight
                             }
@@ -190,15 +227,15 @@ PanelWindow {
                                 text: modelData.time ? Qt.formatTime(modelData.time, "hh:mm") : ""
                                 color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
                                 font.pixelSize: 10
-                                font.family: "JetBrainsMono Nerd Font"
+                                font.family: root.uiFont
                                 Layout.rightMargin: 8
                             }
 
                             Text {
                                 text: "󰅖"
-                                color: closeHover.hovered ? Colors.primary : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
-                                font.pixelSize: 12
-                                font.family: "JetBrainsMono Nerd Font"
+                                color: closeHover.hovered ? Colors.error : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
+                                font.pixelSize: 14
+                                font.family: root.iconFont
 
                                 HoverHandler {
                                     id: closeHover
@@ -210,7 +247,7 @@ PanelWindow {
                             }
                         }
 
-                        // --- CONTENT (Image + Text) ---
+                        // --- DELEGATE CONTENT ---
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 12
@@ -218,42 +255,33 @@ PanelWindow {
 
                             // IMAGE PREVIEW
                             Image {
-                                source: {
-                                    if (modelData.image) {
-                                        let img = modelData.image.toString();
-                                        return img.startsWith("/") ? "file://" + img : img;
-                                    }
-                                    if (modelData.appIcon) {
-                                        let icon = modelData.appIcon.toString();
-                                        if (icon.startsWith("/")) return "file://" + icon;
-                                        return Quickshell.iconPath(icon); 
-                                    }
-                                    return "";
-                                }
+                                source: notifList.getIconSource(modelData)
                                 visible: source.toString() !== ""
-                                Layout.preferredWidth: 64
-                                Layout.preferredHeight: 64
+                                Layout.preferredWidth: 48 // Slightly smaller icon prevents weird layout shifts
+                                Layout.preferredHeight: 48
                                 Layout.alignment: Qt.AlignTop
                                 fillMode: Image.PreserveAspectCrop
                                 clip: true
-                                
                                 asynchronous: true
-                                sourceSize: Qt.size(128, 128) 
+                                sourceSize: Qt.size(96, 96) 
                             }
 
                             // TEXT (Summary + Body)
                             ColumnLayout {
                                 Layout.fillWidth: true
-                                spacing: 3
+                                spacing: 4
                                 Layout.alignment: Qt.AlignTop
 
                                 Text {
                                     text: modelData.summary || ""
                                     color: Colors.surfaceFg
-                                    font.pixelSize: 12
+                                    font.pixelSize: 13
                                     font.weight: Font.Medium
-                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.family: root.uiFont
                                     wrapMode: Text.Wrap
+                                    
+                                    // CRITICAL: Forces Text.Wrap to actually wrap inside a Layout
+                                    Layout.minimumWidth: 0 
                                     Layout.fillWidth: true
                                     visible: text !== ""
                                 }
@@ -261,9 +289,14 @@ PanelWindow {
                                 Text {
                                     text: modelData.body || ""
                                     color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.7)
-                                    font.pixelSize: 11
-                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 12
+                                    font.family: root.uiFont
                                     wrapMode: Text.Wrap
+                                    maximumLineCount: 4 // Prevent massive text walls
+                                    elide: Text.ElideRight
+                                    
+                                    // CRITICAL: Forces Text.Wrap to actually wrap inside a Layout
+                                    Layout.minimumWidth: 0 
                                     Layout.fillWidth: true
                                     visible: text !== ""
                                 }

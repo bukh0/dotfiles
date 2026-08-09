@@ -2,44 +2,66 @@ import QtQuick
 import QtQuick.Layouts
 import "."
 
-Item {
+Rectangle {
     id: root
 
     property int count: NotificationDaemon.notifications ? NotificationDaemon.notifications.length : 0
     property bool hasNotifs: count > 0
+    
+    // ── Fonts ──────────────────────────────────────────────
+    property string uiFont: "sans-serif"
+    property string iconFont: "JetBrainsMono Nerd Font"
 
-    implicitWidth: row.implicitWidth + 12
-    implicitHeight: row.implicitHeight
+    // ── Dimensions & Styling ───────────────────────────────
+    // Added padding for a comfortable button-like hit area
+    implicitWidth: row.implicitWidth + 16
+    implicitHeight: row.implicitHeight + 8
+    radius: 6
+
+    // Subtle background highlight on hover
+    color: hover.hovered ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.1) : "transparent"
+    Behavior on color { ColorAnimation { duration: 150 } }
 
     RowLayout {
         id: row
         anchors.centerIn: parent
-        spacing: 4
+        spacing: 6
 
         Text {
+            Layout.alignment: Qt.AlignVCenter
             text: root.hasNotifs ? "󰂚" : "󰂜"
             color: root.hasNotifs ? Colors.primary : Colors.surfaceFg
-            font.pixelSize: 15
-            font.family: "JetBrainsMono Nerd Font"
+            font.pixelSize: 16
+            font.family: root.iconFont
 
             Behavior on color { ColorAnimation { duration: 200 } }
         }
 
         Text {
+            Layout.alignment: Qt.AlignVCenter
             visible: root.hasNotifs
             text: root.count
             color: Colors.primary
-            font.pixelSize: 11
-            font.family: "JetBrainsMono Nerd Font"
+            font.pixelSize: 12
+            font.weight: Font.Bold
+            font.family: root.uiFont
         }
     }
 
-    MouseArea {
-        anchors.fill: parent
-        hoverEnabled: true
+    // ── Interaction Handlers ───────────────────────────────
+    HoverHandler {
+        id: hover
         cursorShape: Qt.PointingHandCursor
-        onEntered: NotificationDaemon.beginHoverOpen()
-        onExited: NotificationDaemon.scheduleHoverClose()
-        onClicked: NotificationDaemon.toggleDrawer()
+        onHoveredChanged: {
+            if (hovered) {
+                NotificationDaemon.beginHoverOpen()
+            } else {
+                NotificationDaemon.scheduleHoverClose()
+            }
+        }
+    }
+
+    TapHandler {
+        onTapped: NotificationDaemon.toggleDrawer()
     }
 }
