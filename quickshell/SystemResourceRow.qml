@@ -25,7 +25,7 @@ RowLayout {
     function formatSpeed(bytes) {
         if (bytes < 1024) return bytes + " B/s"
         if (bytes < 1048576) return (bytes / 1024).toFixed(0) + " Kb/s"
-        return (bytes / 1048576).toFixed(1) + " M/s"
+        return (bytes / 1048576).toFixed(1) + " Mb/s"
     }
 
     Process {

@@ -27,7 +27,8 @@ hl.bind(mod .. " + SHIFT + Q", hl.dsp.exec_cmd("uwsm stop"))
 
 -- Screenshot
 hl.bind(mod .." + CTRL + S", hl.dsp.exec_cmd('grim -g "$(slurp)" ~/Pictures/Screenshots/screenshot-$(date +%Y%m%d-%H%M%S).png'))
-hl.bind(mod .." + Print", hl.dsp.exec_cmd('grim -g "$(slurp)" ~/Pictures/Screenshots/screenshot-$(date +%Y%m%d-%H%M%S).png'))
+hl.bind(mod .." + CTRL + Print", hl.dsp.exec_cmd('FILE=~/Pictures/Screenshots/screenshot-$(date +%Y%m%d-%H%M%S).png; grim -g "$(slurp)" "$FILE" && notify-send -i "$FILE" "Screenshot Saved" "Region captured"'))
+hl.bind(mod .." + Print", hl.dsp.exec_cmd('FILE=~/Pictures/Screenshots/screenshot-$(date +%Y%m%d-%H%M%S).png; grim "$FILE" && notify-send -i "$FILE" "Screenshot Saved" "Fullscreen captured"'))
 
 -- Theming & Scripts
 hl.bind(mod .. " + B", hl.dsp.exec_cmd("~/.scripts/toggle.blur.sh"))
