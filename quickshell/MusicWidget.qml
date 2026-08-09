@@ -9,14 +9,20 @@ ColumnLayout {
     Layout.fillWidth: true
     spacing: 10
 
+    // ── Constants & configuration ──────────────────────────────
     readonly property string fontFamily: "JetBrainsMono Nerd Font"
     readonly property int artSize: 84
     readonly property int controlsHeight: 42
     readonly property int rowGap: 10
     readonly property int pageHeight: artSize + rowGap + controlsHeight
 
+    property int pollingInterval: 2000         // ms between automatic polls
+    property int scrollThreshold: 30           // pixels/delta for page change
+
+    // ── Data model ─────────────────────────────────────────────
     ListModel { id: playersListModel }
 
+    // ── Playerctl process (used once per poll) ─────────────────
     Process {
         id: metaPoll
         command: ["playerctl", "-a", "metadata", "--format", "{{playerName}}|{{title}}|{{artist}}|{{album}}|{{status}}|{{mpris:artUrl}}"]
@@ -25,89 +31,109 @@ ColumnLayout {
         }
     }
 
-    function applyPollResult(text) {
-        const trimmed = text.trim()
+    // ── Efficient model update logic ──────────────────────────
+    function applyPollResult(rawText) {
+        const trimmed = rawText.trim()
         const parsed = []
 
         if (trimmed !== "") {
             const lines = trimmed.split("\n")
             for (let i = 0; i < lines.length; i++) {
-                const parts = lines[i].split("|")
-                if (parts.length >= 4) {
-                    parsed.push({
-                        player: parts[0] || "",
-                        title: parts[1] || "Nothing playing",
-                        artist: parts[2] || "",
-                        album: parts[3] || "",
-                        status: parts[4] || "Stopped",
-                        artUrl: parts[5] || ""
-                    })
-                }
+                const line = lines[i]
+                const firstSep = line.indexOf("|")
+                const secondSep = line.indexOf("|", firstSep + 1)
+                const thirdSep = line.indexOf("|", secondSep + 1)
+                const fourthSep = line.indexOf("|", thirdSep + 1)
+                const fifthSep = line.indexOf("|", fourthSep + 1)
+
+                if (firstSep === -1) continue  // malformed line
+
+                const player = line.substring(0, firstSep).trim()
+                const title = line.substring(firstSep + 1, secondSep !== -1 ? secondSep : line.length).trim() || "Nothing playing"
+                const artist = secondSep !== -1 ? line.substring(secondSep + 1, thirdSep !== -1 ? thirdSep : line.length).trim() : ""
+                const album = thirdSep !== -1 ? line.substring(thirdSep + 1, fourthSep !== -1 ? fourthSep : line.length).trim() : ""
+                const status = fourthSep !== -1 ? line.substring(fourthSep + 1, fifthSep !== -1 ? fifthSep : line.length).trim() : "Stopped"
+                const artUrl = fifthSep !== -1 ? line.substring(fifthSep + 1).trim() : ""
+
+                parsed.push({ player, title, artist, album, status, artUrl })
             }
         }
 
-        for (let i = playersListModel.count - 1; i >= 0; i--) {
-            const existingName = playersListModel.get(i).player
-            const stillPresent = parsed.some(p => p.player === existingName)
-            if (!stillPresent) playersListModel.remove(i)
+        // Fast lookup: player name -> model index
+        const existingMap = new Map()
+        for (let i = 0; i < playersListModel.count; i++) {
+            existingMap.set(playersListModel.get(i).player, i)
         }
 
-        for (let i = 0; i < parsed.length; i++) {
-            const p = parsed[i]
-            let modelIndex = -1
-            for (let j = 0; j < playersListModel.count; j++) {
-                if (playersListModel.get(j).player === p.player) {
-                    modelIndex = j
-                    break
-                }
+        // Remove vanished players
+        const parsedNames = new Set(parsed.map(p => p.player))
+        for (const [name, idx] of existingMap.entries()) {
+            if (!parsedNames.has(name)) {
+                playersListModel.remove(idx, 1)
+                existingMap.delete(name)
             }
+        }
 
-            if (modelIndex === -1) {
+        // Add new / update existing
+        for (const p of parsed) {
+            if (existingMap.has(p.player)) {
+                const idx = existingMap.get(p.player)
+                const cur = playersListModel.get(idx)
+                if (cur.title !== p.title) playersListModel.setProperty(idx, "title", p.title)
+                if (cur.artist !== p.artist) playersListModel.setProperty(idx, "artist", p.artist)
+                if (cur.album !== p.album) playersListModel.setProperty(idx, "album", p.album)
+                if (cur.status !== p.status) playersListModel.setProperty(idx, "status", p.status)
+                if (cur.artUrl !== p.artUrl) playersListModel.setProperty(idx, "artUrl", p.artUrl)
+            } else {
                 playersListModel.append(p)
-                continue
             }
-
-            const existing = playersListModel.get(modelIndex)
-            if (existing.title !== p.title) playersListModel.setProperty(modelIndex, "title", p.title)
-            if (existing.artist !== p.artist) playersListModel.setProperty(modelIndex, "artist", p.artist)
-            if (existing.album !== p.album) playersListModel.setProperty(modelIndex, "album", p.album)
-            if (existing.status !== p.status) playersListModel.setProperty(modelIndex, "status", p.status)
-            if (existing.artUrl !== p.artUrl) playersListModel.setProperty(modelIndex, "artUrl", p.artUrl)
         }
 
+        // Keep pager in bounds
         if (pager.currentIndex >= playersListModel.count) {
             pager.currentIndex = Math.max(0, playersListModel.count - 1)
         }
     }
 
+    // ── Polling control ────────────────────────────────────────
     function pollNow() {
         if (!metaPoll.running) metaPoll.running = true
     }
 
     Timer {
-        id: refreshDelay
-        interval: 150
+        id: debounceTimer
+        interval: 120
         onTriggered: root.pollNow()
     }
 
     function scheduleRefresh() {
-        refreshDelay.restart()
+        debounceTimer.restart()
     }
 
     Timer {
-        interval: 2000
-        running: root.visible
+        id: autoPollTimer
+        interval: root.pollingInterval
+        running: root.visible && Qt.application.state === Qt.ApplicationActive
         repeat: true
         onTriggered: root.pollNow()
     }
 
     onVisibleChanged: {
-        if (visible) root.pollNow()
+        if (visible) {
+            scheduleRefresh()
+            autoPollTimer.restart()
+        } else {
+            autoPollTimer.stop()
+        }
     }
 
     Component.onCompleted: root.pollNow()
+    Component.onDestruction: {
+        autoPollTimer.stop()
+        debounceTimer.stop()
+    }
 
-    // --- Fallback: no players ---
+    // ── Empty state placeholder ────────────────────────────────
     Item {
         Layout.fillWidth: true
         implicitHeight: root.artSize
@@ -116,8 +142,7 @@ ColumnLayout {
         Rectangle {
             anchors.left: parent.left
             anchors.top: parent.top
-            width: root.artSize
-            height: root.artSize
+            width: root.artSize; height: root.artSize
             radius: 10
             color: Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
 
@@ -143,7 +168,7 @@ ColumnLayout {
         }
     }
 
-    // --- Manual horizontal pager — one player card per page ---
+    // ── Pager with individual player cards ─────────────────────
     Item {
         id: pager
         Layout.fillWidth: true
@@ -158,9 +183,10 @@ ColumnLayout {
             currentIndex = Math.max(0, Math.min(pageCount - 1, index))
         }
 
+        // Movable row of pages (using parent width to avoid uninitialized width glitches)
         Row {
             id: pagesRow
-            x: -pager.currentIndex * pager.width
+            x: -pager.currentIndex * root.width
             height: pager.height
             Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
 
@@ -175,19 +201,21 @@ ColumnLayout {
                     required property string status
                     required property string artUrl
 
-                    width: pager.width
+                    width: root.width
                     height: pager.height
 
                     ColumnLayout {
                         anchors.fill: parent
                         spacing: root.rowGap
 
+                        // Player info row
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 14
 
+                            // Album art with placeholder and memory optimization
                             Rectangle {
-                                id: art
+                                id: artBox
                                 Layout.preferredWidth: root.artSize
                                 Layout.preferredHeight: root.artSize
                                 Layout.alignment: Qt.AlignTop
@@ -195,24 +223,26 @@ ColumnLayout {
                                 color: Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
                                 clip: true
 
-                                Image {
-                                    anchors.fill: parent
-                                    source: artUrl
-                                    fillMode: Image.PreserveAspectCrop
-                                    visible: artUrl !== ""
-                                    asynchronous: true
-                                    cache: true
-                                    // Optimization: Prevents high-res covers from inflating memory usage
-                                    sourceSize: Qt.size(root.artSize * 2, root.artSize * 2)
-                                }
-
                                 Text {
                                     anchors.centerIn: parent
-                                    visible: artUrl === ""
+                                    visible: artImage.status !== Image.Ready
                                     text: "󰎆"
                                     color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
                                     font.pixelSize: 30
                                     font.family: root.fontFamily
+                                }
+
+                                Image {
+                                    id: artImage
+                                    anchors.fill: parent
+                                    source: artUrl
+                                    fillMode: Image.PreserveAspectCrop
+                                    asynchronous: true
+                                    cache: true
+                                    sourceSize: Qt.size(root.artSize * 2, root.artSize * 2)
+
+                                    Behavior on opacity { NumberAnimation { duration: 200 } }
+                                    opacity: status === Image.Ready ? 1 : 0
                                 }
                             }
 
@@ -243,8 +273,8 @@ ColumnLayout {
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: player
-                                    color: Colors.primary
+                                    text: player + " · " + (status === "Playing" ? "▶ playing" : status === "Paused" ? "❚❚ paused" : status)
+                                    color: status === "Playing" ? Colors.primary : Colors.surfaceFg
                                     font.pixelSize: 10
                                     font.family: root.fontFamily
                                     font.weight: Font.Bold
@@ -254,6 +284,7 @@ ColumnLayout {
                             }
                         }
 
+                        // Playback controls
                         RowLayout {
                             Layout.alignment: Qt.AlignHCenter
                             spacing: 12
@@ -287,47 +318,47 @@ ColumnLayout {
             }
         }
 
-        // --- Universal WheelHandler (Supports both Horizontal and Vertical Scrolling) ---
+        // ── Scroll handling (mouse wheel & touchpad) ──────────
         WheelHandler {
-            id: wheelHandler
             target: null
             acceptedDevices: PointerDevice.TouchPad | PointerDevice.Mouse
-            property real accumPx: 0
+            property real accumulated: 0
 
             onWheel: (event) => {
                 if (pageLockout.running) return
 
-                // Intelligently check both horizontal and vertical inputs
-                let delta = Math.abs(event.pixelDelta.x) > 0 ? event.pixelDelta.x : 0
-                if (delta === 0) delta = Math.abs(event.angleDelta.x) > 0 ? event.angleDelta.x / 3 : 0
-                // Fallback to vertical scrolling if no horizontal input is present
+                let delta = event.angleDelta.y || event.angleDelta.x
                 if (delta === 0) {
-                    delta = Math.abs(event.pixelDelta.y) > 0 ? event.pixelDelta.y : event.angleDelta.y / 3
+                    delta = event.pixelDelta.y || event.pixelDelta.x
+                    if (delta === 0) return
                 }
-                if (delta === 0) return
 
-                accumPx += delta
-                const threshold = 40 
+                accumulated += delta / 8
+                const threshold = root.scrollThreshold
 
-                if (accumPx <= -threshold && pager.currentIndex < pager.pageCount - 1) {
-                    pager.goTo(pager.currentIndex + 1)
-                    accumPx = 0
-                    pageLockout.restart()
-                } else if (accumPx >= threshold && pager.currentIndex > 0) {
+                while (accumulated >= threshold && pager.currentIndex > 0) {
                     pager.goTo(pager.currentIndex - 1)
-                    accumPx = 0
+                    accumulated -= threshold
                     pageLockout.restart()
                 }
+                while (accumulated <= -threshold && pager.currentIndex < pager.pageCount - 1) {
+                    pager.goTo(pager.currentIndex + 1)
+                    accumulated += threshold
+                    pageLockout.restart()
+                }
+
+                if (Math.abs(accumulated) > threshold * 2) accumulated = 0
+                event.accepted = true
             }
         }
 
         Timer {
             id: pageLockout
-            interval: 250
+            interval: 200
         }
     }
 
-    // --- Page dots ---
+    // ── Page indicator dots ────────────────────────────────────
     RowLayout {
         Layout.alignment: Qt.AlignHCenter
         visible: playersListModel.count > 1
