@@ -41,7 +41,6 @@ RowLayout {
 
     // ── Helpers ────────────────────────────────────────────
     function formatSpeed(bytes) {
-        // Shortened suffixes to save horizontal space in the panel
         if (bytes < 1024) return bytes.toFixed(0) + " B/s"
         if (bytes < 1048576) return (bytes / 1024).toFixed(0) + " K/s"
         return (bytes / 1048576).toFixed(1) + " M/s"
@@ -55,7 +54,6 @@ RowLayout {
             onStreamFinished: { root.cpuModel = text.trim() }
         }
     }
-    Component.onCompleted: cpuInfoProc.running = true
 
     // ── Unified poll (awk) ─────────────────────────────────
     Process {
@@ -169,12 +167,17 @@ RowLayout {
         }
     }
 
+    // Single merged Component hook
+    Component.onCompleted: {
+        cpuInfoProc.running = true
+        statsPoll.running = true
+    }
+
     Timer {
         interval: 2000
-        running: Qt.application.state === Qt.ApplicationActive
+        running: true
         repeat: true
         onTriggered: { if (!statsPoll.running) statsPoll.running = true }
-        Component.onCompleted: { if (Qt.application.state === Qt.ApplicationActive && !statsPoll.running) statsPoll.running = true }
     }
 
     // ── Reusable Stat (Scalable) ──────────────────────────
@@ -185,7 +188,6 @@ RowLayout {
         property string tooltipText: ""
         property color textColor: Colors.surfaceFg
 
-        // CRITICAL FIX: Allows children to shrink and elide instead of breaking layout bounds
         Layout.minimumWidth: 0
         Layout.fillWidth: true
         
@@ -201,7 +203,6 @@ RowLayout {
             color: statRoot.textColor
             font.pixelSize: 12; font.family: root.uiFont; font.weight: Font.Bold
             
-            // CRITICAL FIX: Ensure the text safely truncates if the drawer gets too crowded
             Layout.fillWidth: true
             elide: Text.ElideRight
         }
@@ -233,7 +234,6 @@ RowLayout {
     
     Stat { 
         icon: "󰆼"
-        // Dropped inline swap string to save horizontal space (it's still in the ToolTip)
         value: root.ramPercent
         tooltipText: root.tooltipRam
         textColor: Colors.surfaceFg 

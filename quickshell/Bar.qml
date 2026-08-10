@@ -130,8 +130,9 @@ PanelWindow {
         id: controlPanel
         openY: 10
         closedY: 26
-        // barHeight is set once after creation (property is now writable)
-        Component.onCompleted: barHeight = root.implicitHeight
+        
+        // Fixed: Use QML property binding instead of Component.onCompleted
+        barHeight: root.implicitHeight
     }
 
     NotificationDrawer {

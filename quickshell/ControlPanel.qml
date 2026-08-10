@@ -7,11 +7,13 @@ PanelWindow {
     id: controlPanel
 
     // ── Configuration ─────────────────────────────────────────
-    readonly property int barHeight: 42
+    // FIXED: Removed 'readonly' so Bar.qml can dynamically bind to this
+    property int barHeight: 42
     property bool isOpen: false
 
     property int hoverCloseDelay: 300
     property int fadeOutDuration: 200
+    property int slideDuration: 250
     property int openY: 46
     property int closedY: 26
 
@@ -50,7 +52,9 @@ PanelWindow {
 
     Timer {
         id: fadeOutTimer
-        interval: controlPanel.fadeOutDuration
+        // Must not be shorter than the slide-down animation, or the window
+        // hides mid-motion and the close looks like it snaps/cuts off.
+        interval: Math.max(controlPanel.slideDuration, controlPanel.fadeOutDuration)
         onTriggered: _fadingOut = false
     }
 
@@ -58,6 +62,7 @@ PanelWindow {
         if (isOpen) {
             _fadingOut = false
             closeDelayTimer.stop()
+            fadeOutTimer.stop()
         } else {
             // Start fade-out visual, but keep window visible
             _fadingOut = true
@@ -86,9 +91,15 @@ PanelWindow {
         anchors.fill: parent
         enabled: controlPanel.isOpen
 
-        // Automatically grab keyboard focus when the panel appears
+        // Deferred: on Wayland/layer-shell, requesting focus in the same
+        // frame the window becomes visible/enabled can silently fail to
+        // take. Give it a beat instead of grabbing synchronously.
         onEnabledChanged: {
-            if (enabled) overlayScope.focus = true
+            if (enabled) {
+                Qt.callLater(() => {
+                    if (overlayScope.enabled) overlayScope.forceActiveFocus()
+                })
+            }
         }
 
         MouseArea {
@@ -109,7 +120,7 @@ PanelWindow {
         y: controlPanel.isOpen ? controlPanel.openY : controlPanel.closedY
 
         Behavior on y {
-            NumberAnimation { duration: 250; easing.type: Easing.OutQuart }
+            NumberAnimation { duration: controlPanel.slideDuration; easing.type: Easing.OutQuart }
         }
 
         radius: 16
@@ -120,6 +131,12 @@ PanelWindow {
         opacity: controlPanel.isOpen ? 1 : 0
         Behavior on opacity {
             NumberAnimation { duration: controlPanel.fadeOutDuration }
+        }
+
+        // Eats taps that land on the drawer's own background so they don't
+        // fall through to overlayScope's MouseArea and close the panel.
+        TapHandler {
+            onTapped: {}
         }
 
         // Keep the drawer open while the mouse hovers over it
