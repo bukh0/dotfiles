@@ -11,7 +11,6 @@ QtObject {
 
     signal newNotification(var data)
 
-    // Using a property for Timer since QtObject doesn't support default visual children
     property Timer closeTimer: Timer {
         interval: root.hoverCloseDelay
         onTriggered: root.isDrawerOpen = false
@@ -36,52 +35,56 @@ QtObject {
     }
 
     function clearAll() {
-        // 1. Copy the current list so we can iterate safely
-        let toClose = root.notifications.slice()
+        const toClose = root.notifications.slice()
+        root.notifications = [] 
         
-        // 2. Instantly empty the UI array to prevent sequential stuttering
-        root.notifications = []
-        
-        // 3. Close them in the DBus backend
         toClose.forEach(n => {
             if (typeof n.close === "function") {
-                try { n.close() } catch(e) {}
+                try { n.close() } catch(e) { console.warn(e) }
             }
         })
     }
 
     function closeNotification(idx) {
-        let n = root.notifications[idx]
-        if (n && typeof n.close === "function") {
-            // Simply call close(). Do not manually edit the array here.
-            // The `notif.closed` signal will fire automatically and handle the array cleanup.
-            try { n.close() } catch(e) {}
+        const n = root.notifications[idx]
+        if (n) {
+            // FIX: Instantly remove from the UI array to guarantee responsiveness
+            const updated = root.notifications.slice()
+            updated.splice(idx, 1)
+            root.notifications = updated
+
+            // Tell the system backend to close it
+            if (typeof n.close === "function") {
+                try { 
+                    n.close() 
+                } catch(e) {
+                    console.warn("Failed to close notification at index", idx, ":", e)
+                }
+            }
         }
     }
 
     property NotificationServer server: NotificationServer {
         onNotification: notif => {
-            let data = {
+            const data = {
                 summary: notif.summary || "",
                 body: notif.body || "",
                 appName: notif.appName || "App",
                 time: new Date(),
                 appIcon: notif.appIcon || "",
                 image: notif.image || "",
-                close: function() {
+                close: () => {
                     try { notif.close() } catch(e) {}
                 }
             }
 
-            // Insert new notification at the beginning of the list
             root.notifications = [data, ...root.notifications]
             root.newNotification(data)
 
-            // SINGLE SOURCE OF TRUTH: 
-            // Whether closed by the UI, by the system timeout, or by the app itself,
-            // this signal always fires to cleanly remove it from the array.
             notif.closed.connect(() => {
-                root.notifications = root.notifications.filter(n => n !== data)
+                if (root.notifications.includes(data)) {
+                    root.notifications = root.notifications.filter(n => n !== data)
+                }
             })
         }
     }

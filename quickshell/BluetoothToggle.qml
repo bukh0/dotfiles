@@ -211,23 +211,21 @@ ColumnLayout {
                 color: "transparent"
                 Text {
                     anchors.centerIn: parent
-                    text: "󰂯"
+                    text: actionProc.running ? "󰔟" : "󰂯"
                     color: btRoot.btOn ? Colors.secondary : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
                     font.pixelSize: 18
                     font.family: "JetBrainsMono Nerd Font"
                 }
                 MouseArea {
                     anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
+                    cursorShape: actionProc.running ? Qt.WaitCursor : Qt.PointingHandCursor
                     onClicked: {
                         if (actionProc.running) return
                         if (btRoot.btOn) {
-                            btRoot.runCommand(["bluetoothctl", "power", "off"])
-                            btRoot.btOn = false
                             btRoot.expanded = false
+                            btRoot.runCommand(["bluetoothctl", "power", "off"])
                         } else {
                             btRoot.runCommand(["bluetoothctl", "power", "on"])
-                            btRoot.btOn = true
                         }
                     }
                 }

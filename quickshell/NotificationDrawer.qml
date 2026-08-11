@@ -9,15 +9,15 @@ PanelWindow {
 
     // ── Configuration & State ────────────────────────────────
     property bool isOpen: NotificationDaemon.isDrawerOpen
-    property bool _fadingOut: false
-    
-    visible: isOpen || _fadingOut
-    color: "transparent"
-
     property int fadeOutDuration: 200
     property int drawerY: 44
     property string uiFont: "sans-serif"
     property string iconFont: "JetBrainsMono Nerd Font"
+
+    // Declarative visibility: Window is visible if commanded open, 
+    // OR if it is currently in the middle of fading out.
+    visible: isOpen || drawerBg.opacity > 0
+    color: "transparent"
 
     anchors {
         top: true
@@ -26,22 +26,10 @@ PanelWindow {
         right: true
     }
 
-    // ── Visibility Logic ─────────────────────────────────────
     onIsOpenChanged: {
         if (isOpen) {
-            _fadingOut = false
-            hideTimer.stop()
-            if (visible) bgCloser.forceActiveFocus()
-        } else {
-            _fadingOut = true
-            hideTimer.restart()
+            bgCloser.forceActiveFocus()
         }
-    }
-
-    Timer {
-        id: hideTimer
-        interval: root.fadeOutDuration
-        onTriggered: root._fadingOut = false
     }
 
     // ── Background Dismissal ─────────────────────────────────
@@ -53,33 +41,42 @@ PanelWindow {
         // Only intercept clicks when fully open, not when fading out
         enabled: root.isOpen 
         
-        Keys.onEscapePressed: NotificationDaemon.isDrawerOpen = false
-        onClicked: NotificationDaemon.isDrawerOpen = false
+        Keys.onEscapePressed: (event) => { 
+            NotificationDaemon.isDrawerOpen = false 
+            event.accepted = true
+        }
+        onClicked: (mouse) => { 
+            NotificationDaemon.isDrawerOpen = false 
+        }
     }
 
     // ── Drawer UI ────────────────────────────────────────────
     Rectangle {
         id: drawerBg
-        width: 380 // Slightly wider for comfortable text wrapping
+        width: 380 
         height: 560
 
         x: parent.width - width - 12
-        // Add a subtle slide-down effect alongside the fade
         y: root.isOpen ? root.drawerY : root.drawerY - 10 
-        Behavior on y { NumberAnimation { duration: root.fadeOutDuration; easing.type: Easing.OutCubic } }
+        
+        Behavior on y { 
+            NumberAnimation { duration: root.fadeOutDuration; easing.type: Easing.OutCubic } 
+        }
 
         radius: 12
         color: Qt.rgba(Colors.surfaceContainer.r, Colors.surfaceContainer.g, Colors.surfaceContainer.b, 0.97)
         border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
         border.width: 1
 
-        opacity: root.isOpen ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: root.fadeOutDuration } }
+        opacity: root.isOpen ? 1.0 : 0.0
+        Behavior on opacity { 
+            NumberAnimation { duration: root.fadeOutDuration } 
+        }
 
         // Prevent clicks on the drawer itself from closing the window
         MouseArea {
             anchors.fill: parent
-            onClicked: mouse.accepted = true
+            onClicked: (mouse) => { mouse.accepted = true }
         }
 
         HoverHandler {
@@ -166,22 +163,40 @@ PanelWindow {
                 spacing: 10
                 model: NotificationDaemon.notifications
                 
-                // Keep memory usage low while preserving smooth scrolling
+                // Reserve space for the scrollbar to prevent UI reflow
+                rightMargin: ScrollBar.vertical.visible ? 8 : 0
                 cacheBuffer: 300 
+
+                // Smooth Animations for list changes
+                add: Transition {
+                    NumberAnimation { property: "opacity"; from: 0; to: 1.0; duration: 250 }
+                    NumberAnimation { property: "x"; from: 30; to: 0; duration: 250; easing.type: Easing.OutCubic }
+                }
+                remove: Transition {
+                    NumberAnimation { property: "opacity"; to: 0; duration: 200 }
+                    NumberAnimation { property: "scale"; to: 0.9; duration: 200 }
+                }
+                displaced: Transition {
+                    NumberAnimation { properties: "x,y"; duration: 200; easing.type: Easing.OutQuad }
+                }
 
                 ScrollBar.vertical: ScrollBar {
                     policy: ScrollBar.AsNeeded
                     width: 6
+                    contentItem: Rectangle {
+                        implicitWidth: 6
+                        radius: 3
+                        color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.3)
+                    }
                 }
 
-                // Delegate Helper Function
                 function getIconSource(data) {
                     if (data.image) {
-                        let img = data.image.toString();
+                        const img = data.image.toString();
                         return img.startsWith("/") ? "file://" + img : img;
                     }
                     if (data.appIcon) {
-                        let icon = data.appIcon.toString();
+                        const icon = data.appIcon.toString();
                         if (icon.startsWith("/")) return "file://" + icon;
                         return Quickshell.iconPath(icon); 
                     }
@@ -192,7 +207,7 @@ PanelWindow {
                     required property var modelData
                     required property int index
 
-                    width: ListView.view.width - (notifList.ScrollBar.vertical.visible ? 10 : 0) // Accommodate scrollbar
+                    width: ListView.view.width - ListView.view.rightMargin
                     implicitHeight: notifContent.implicitHeight + 24
                     radius: 10
                     color: Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
@@ -231,18 +246,35 @@ PanelWindow {
                                 Layout.rightMargin: 8
                             }
 
-                            Text {
-                                text: "󰅖"
-                                color: closeHover.hovered ? Colors.error : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
-                                font.pixelSize: 14
-                                font.family: root.iconFont
+                            // FIX: Better Close Button with a proper 24x24 Hitbox
+                            Rectangle {
+                                Layout.alignment: Qt.AlignVCenter
+                                width: 24
+                                height: 24
+                                radius: 12
+                                color: closeHover.hovered ? Qt.rgba(Colors.error.r, Colors.error.g, Colors.error.b, 0.15) : "transparent"
+                                
+                                Behavior on color { ColorAnimation { duration: 150 } }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰅖"
+                                    color: closeHover.hovered ? Colors.error : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
+                                    font.pixelSize: 14
+                                    font.family: root.iconFont
+                                    
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                }
 
                                 HoverHandler {
                                     id: closeHover
                                     cursorShape: Qt.PointingHandCursor
                                 }
+                                
                                 TapHandler {
-                                    onTapped: NotificationDaemon.closeNotification(index)
+                                    onTapped: {
+                                        NotificationDaemon.closeNotification(index)
+                                    }
                                 }
                             }
                         }
@@ -257,10 +289,10 @@ PanelWindow {
                             Image {
                                 source: notifList.getIconSource(modelData)
                                 visible: source.toString() !== ""
-                                Layout.preferredWidth: 48 // Slightly smaller icon prevents weird layout shifts
+                                Layout.preferredWidth: 48 
                                 Layout.preferredHeight: 48
                                 Layout.alignment: Qt.AlignTop
-                                fillMode: Image.PreserveAspectCrop
+                                fillMode: Image.PreserveAspectFit 
                                 clip: true
                                 asynchronous: true
                                 sourceSize: Qt.size(96, 96) 
@@ -280,7 +312,6 @@ PanelWindow {
                                     font.family: root.uiFont
                                     wrapMode: Text.Wrap
                                     
-                                    // CRITICAL: Forces Text.Wrap to actually wrap inside a Layout
                                     Layout.minimumWidth: 0 
                                     Layout.fillWidth: true
                                     visible: text !== ""
@@ -288,14 +319,14 @@ PanelWindow {
 
                                 Text {
                                     text: modelData.body || ""
+                                    textFormat: Text.StyledText 
                                     color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.7)
                                     font.pixelSize: 12
                                     font.family: root.uiFont
                                     wrapMode: Text.Wrap
-                                    maximumLineCount: 4 // Prevent massive text walls
+                                    maximumLineCount: 4 
                                     elide: Text.ElideRight
                                     
-                                    // CRITICAL: Forces Text.Wrap to actually wrap inside a Layout
                                     Layout.minimumWidth: 0 
                                     Layout.fillWidth: true
                                     visible: text !== ""
