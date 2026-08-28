@@ -18,5 +18,5 @@ input_path = '/home/bukh0/.config/matugen/templates/hyprland-colors.lua'
 output_path = '/home/bukh0/.config/hypr/themes/matugen/colours.lua'
 
 [templates.quickshell]
-input_path = '~/.config/matugen/templates/quickshell-colors.qml'
-output_path = '~/.config/quickshell/Colors.qml'
+input_path = '/home/bukh0/.config/matugen/templates/quickshell-colors.qml'
+output_path = '/home/bukh0/.config/quickshell/Colors.qml'
