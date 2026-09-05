@@ -111,6 +111,7 @@ source $ZSH/oh-my-zsh.sh
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 alias ls="exa"
 alias ll="exa -l"
+alias lla="exa -la"
 alias exe="sudo chmod +x"
 alias i="sudo pacman -S"
 alias nv="nvim"
@@ -118,6 +119,7 @@ alias t="tmux"
 alias ta="tmux attach || tmux new"
 alias tl="tmux ls"
 alias tk="tmux kill-session -t"
+alias nvc="NVIM_APPNAME=nvim_nvchad nvim"
 
 
 #export PATH=$PATH:/home/bukh0/.spicetify
