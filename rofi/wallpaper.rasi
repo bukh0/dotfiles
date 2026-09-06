@@ -1,41 +1,79 @@
 /**
  * ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
- * ┃      WALLPAPER PICKER — GRID CONFIG                              ┃
+ * ┃      GLASSY WALLPAPER SELECTOR (3x3 GRID)                        ┃
  * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  */
 
-@import "colors.rasi"
-
 configuration {
-    show-icons:                  true;
-}
+    show-icons:             true;
+    font:                   "JetBrainsMono Nerd Font 11";
+    
+    /* ── Mouse bindings for easy clicking ── */
+    hover-select:           true;
+    me-select-entry:        "MouseSecondary";
+    me-accept-entry:        "MousePrimary";
 
-* {
-    background-color:            transparent;
-    text-color:                  @on-surface;
+    /* ── Clear defaults to prevent conflicts ── */
+    kb-remove-char-back:    "BackSpace,Shift+BackSpace"; 
+    kb-accept-entry:        "Return,KP_Enter";           
+    kb-remove-to-eol:       "Control+shift+e";           
+    kb-mode-complete:       "";                          
+    kb-remove-to-sol:       "";                          
+    kb-remove-char-forward: "";                          
+    kb-secondary-copy:      "";                          
+
+    /* ── Neovim-Style Navigation (Alt/Ctrl + hjkl) ── */
+    kb-row-left:            "Alt+h,Control+h";
+    kb-row-down:            "Alt+j,Control+j,Down";
+    kb-row-up:              "Alt+k,Control+k,Up";
+    kb-row-right:           "Alt+l,Control+l";
+
+    /* ── Scrolling and Canceling ── */
+    kb-page-next:           "Page_Down,Control+d";
+    kb-page-prev:           "Page_Up,Control+u";
+    kb-cancel:              "Escape,Control+c,Control+bracketleft";
 }
 
 /**
  * ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
- * ┃      WINDOW LAYOUT — centered grid, not a sidebar                ┃
+ * ┃      GLASSY COLOR PRESETS (HEX + ALPHA)                          ┃
+ * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+ */
+* {
+    bg-glass:             #0f0f14f2; 
+    bg-layer:             #ffffff08; 
+    bg-selected:          #89b4fa66; 
+    border-accent:        #89b4fa88; 
+    
+    text-def:             #cdd6f4;
+    text-dim:             #a6adc8;
+    text-active:          #ffffff;
+
+    background-color:     transparent;
+    text-color:           @text-def;
+}
+
+/**
+ * ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+ * ┃      WINDOW LAYOUT                                               ┃
  * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  */
 window {
-    anchor:                      center;
-    location:                    center;
-    width:                       50%;
-    height:                      92%;
+    anchor:               center;
+    location:             center;
+    width:                60%; /* Widened slightly for larger thumbnails */
+    /* Height removed so the window tightly auto-wraps the 3x3 grid */
 
-    background-color:            @surface;
-    border:                      1px;
-    border-radius:               24px;
-    border-color:                @outline;
+    background-color:     @bg-glass;
+    border:               1px solid;
+    border-color:         @border-accent;
+    border-radius:        24px;
 }
 
 mainbox {
-    spacing:                     10px;
-    padding:                     16px;
-    children:                    [ "inputbar", "listview" ];
+    spacing:              10px;
+    padding:              16px;
+    children:             [ "inputbar", "listview" ];
 }
 
 /**
@@ -44,37 +82,43 @@ mainbox {
  * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  */
 inputbar {
-    padding:                     8px 12px;
-    background-color:            @surface-container-high;
-    border-radius:               10px;
-    children:                    [ "entry" ];
+    padding:              12px;
+    background-color:     @bg-layer;
+    border-radius:        12px;
+    children:             [ "entry" ];
 }
 
 entry {
-    placeholder:                 "Search wallpapers...";
-    placeholder-color:           @on-surface-variant;
+    placeholder:          "Search wallpapers...";
+    placeholder-color:    @text-dim;
+    background-color:     inherit;
+    text-color:           @text-def;
+    cursor:               text;
+    vertical-align:       0.5;
 }
 
 /**
  * ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
- * ┃      GRID — 3 columns x 5 rows                                   ┃
+ * ┃      GRID — 3 columns x 3 rows                                   ┃
  * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  */
 listview {
-    columns:                     3;
-    lines:                       5;
-    spacing:                     8px;
-    cycle:                       true;
-    fixed-height:                false;
-    scrollbar:                   true;
+    columns:              3;
+    lines:                3;
+    spacing:              16px; /* Slightly increased breathing room */
+    cycle:                true;
+    fixed-height:         true; /* Forces strictly 3 rows */
+    scrollbar:            true;
+    padding:              12px 0px 0px 0px;
 }
 
 scrollbar {
-    width:                       4px;
-    border-radius:               4px;
-    handle-color:                @outline;
-    handle-width:                4px;
-    padding:                     0px 0px 0px 6px;
+    width:                4px;
+    border-radius:        4px;
+    handle-color:         @border-accent;
+    handle-width:         4px;
+    padding:              0px 0px 0px 6px;
+    background-color:     transparent;
 }
 
 /**
@@ -83,39 +127,41 @@ scrollbar {
  * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  */
 element {
-    orientation:                 vertical;
-    padding:                     5px;
-    border-radius:               12px;
-    border:                      2px;
-    border-color:                transparent;
+    orientation:          vertical;
+    padding:              12px;
+    border-radius:        16px;
+    border:               1px solid;
+    border-color:         transparent;
+    spacing:              10px;
+    cursor:               pointer;
 }
 
-element normal.normal {
-    background-color:            @surface-container;
-}
-
-element alternate.normal {
-    background-color:            @surface-container;
+element normal.normal, element alternate.normal {
+    background-color:     @bg-layer;
 }
 
 element selected {
-    background-color:            @surface-container-highest;
-    border-color:                @primary;
+    background-color:     @bg-selected;
+    border-color:         @border-accent;
 }
 
 element-icon {
-    size:                        130px;
-    border-radius:               8px;
-    horizontal-align:            0.5;
-    vertical-align:              0.5;
+    size:                 240px; /* Massive increase for better preview fidelity */
+    border-radius:        10px;
+    horizontal-align:     0.5;
+    vertical-align:       0.5;
+    cursor:               inherit;
 }
 
 element-text {
-    horizontal-align:            0.5;
-    font:                        "JetBrainsMono Nerd Font 8";
-    padding:                     4px 4px 0px 4px;
+    horizontal-align:     0.5;
+    font:                 "JetBrainsMono Nerd Font 9";
+    padding:              4px 4px 0px 4px;
+    cursor:               inherit;
+    text-color:           inherit;
 }
 
 element selected element-text {
-    text-color:                  @primary;
+    text-color:           @text-active;
+    highlight:            bold underline;
 }

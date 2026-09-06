@@ -1,10 +1,5 @@
 /**
- * ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
- * ┃                                                                  ┃
- * ┃      ZUSQII  -  H Y P R L A N D  C O N F I G                     ┃
- * ┃                                                                  ┃
- * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
- */
+*/
 
 configuration {
     terminal: "kitty";
@@ -12,13 +7,32 @@ configuration {
     icon-theme:         "Papirus-Dark";
     font:               "JetBrainsMono Nerd Font 11";
 
-    display-drun:       " Apps";
-    display-run:        " Run";
-    display-clipboard:  "󰅌 Clip";
+    display-drun:       "  Apps";
+    display-run:        "  Run";
+    display-clipboard:  "󰅌  Clip";
     
-    kb-cancel:              "Escape";
-    kb-remove-char-back:    "BackSpace,Shift+BackSpace";
-    kb-accept-entry:        "Return,KP_Enter";
+    /* ── Neovim-Style Navigation (Alt/Ctrl + hjkl) ───────────────── */
+    /* 1. Clear Rofi defaults that block hjkl and scrolling */
+    kb-remove-char-back:    "BackSpace,Shift+BackSpace"; 
+    kb-accept-entry:        "Return,KP_Enter";           
+    kb-remove-to-eol:       "Control+shift+e";           
+    kb-mode-complete:       "";                          
+    kb-remove-to-sol:       "";                          
+    kb-remove-char-forward: "";                          /* Frees Ctrl+d */
+    kb-secondary-copy:      "";                          /* Frees Ctrl+c */
+
+    /* 2. Bind row movement (Holding Alt bypasses text input) */
+    kb-row-left:            "Alt+h,Control+h";
+    kb-row-down:            "Alt+j,Down,Control+j";
+    kb-row-up:              "Alt+k,Up,Control+k";
+    kb-row-right:           "Alt+l,Control+l";
+
+    /* 3. Neovim-style half-page scrolling */
+    kb-page-next:           "Page_Down,Control+d";
+    kb-page-prev:           "Page_Up,Control+u";
+    
+    /* ── Standard Keybindings ────────────────────────────────────── */
+    kb-cancel:              "Escape,Control+c,Control+bracketleft";
     
     kb-custom-1:            "Alt+u";
     kb-custom-2:            "Alt+y";
@@ -28,45 +42,30 @@ configuration {
     click-to-exit:          true;
 }
 
-@import "colors.rasi"
-
 /**
  * ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
- * ┃      GLOBAL VARIABLES & SETTINGS                                 ┃
+ * ┃      GLASSY COLOR PRESETS (HEX + ALPHA)                          ┃
  * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  */
 * {
-    var-win-bg:           @surface;
-    var-input-bg:         @surface-container-high;
-    var-urgent-bg:        @error-container;
-    var-active-bg:        @primary;
-    var-message-bg:       @surface-container;
+    /* 95% solid base - much less transparent */
+    bg-glass:             #0f0f14f2; 
+    /* Slightly lighter transparent layers for inputs/tabs */
+    bg-layer:             #ffffff08; 
+    /* Translucent neon blue accent */
+    bg-selected:          #89b4fa66; 
+    /* Brighter solid blue for borders */
+    border-accent:        #89b4fa88; 
+    /* Urgent red */
+    bg-urgent:            #f38ba866; 
     
-    var-text-def:         @on-surface;
-    var-text-dim:         @on-surface-variant;
-    var-text-urgent:      @on-error-container;
-    var-text-active:      @on-primary;
+    text-def:             #cdd6f4;
+    text-dim:             #a6adc8;
+    text-active:          #ffffff;
+    text-urgent:          #f38ba8;
 
-    var-border:           @outline;
-
-    background-color:     @var-win-bg;
-    text-color:           @var-text-def;
-    border-color:         @var-border;
-
-    normal-background:            transparent; 
-    normal-foreground:            @var-text-def;
-    alternate-normal-background:  transparent;
-    alternate-normal-foreground:  @var-text-def;
-
-    selected-normal-background:   @var-active-bg;
-    selected-normal-foreground:   @var-text-active;
-    active-background:            @var-active-bg;
-    active-foreground:            @var-text-active;
-
-    urgent-background:            @var-urgent-bg;
-    urgent-foreground:            @var-text-urgent;
-    selected-urgent-background:   @var-urgent-bg;
-    selected-urgent-foreground:   @var-text-urgent;
+    background-color:     transparent; /* Keep global bg transparent */
+    text-color:           @text-def;
 }
 
 /**
@@ -79,9 +78,10 @@ window {
     anchor:             center;
     width:              25%;
     
-    background-color:   @var-win-bg;
-    border:             2px;
-    border-radius:      12px;
+    background-color:   @bg-glass;
+    border:             1px solid;
+    border-color:       @border-accent;
+    border-radius:      16px;
     padding:            20px;
 }
 
@@ -102,24 +102,25 @@ inputbar {
     children:           [ prompt, entry ];
     spacing:            10px;
     padding:            12px;
-    border-radius:      8px;
-    background-color:   @var-input-bg;
-    text-color:         @var-text-def;
+    border-radius:      12px;
+    background-color:   @bg-layer;
+    text-color:         @text-def;
 }
 
 prompt {
     enabled:            true;
     background-color:   inherit;
-    text-color:         @var-text-dim;
+    text-color:         @text-active;
     font:               "JetBrainsMono Nerd Font Bold 11";
 }
 
 entry {
     placeholder:        "Search...";
-    placeholder-color:  @var-text-dim;
+    placeholder-color:  @text-dim;
     background-color:   inherit;
-    text-color:         @var-text-def;
+    text-color:         @text-def;
     cursor:             text;
+    vertical-align:     0.5;
 }
 
 /**
@@ -134,10 +135,10 @@ message {
 }
 
 textbox {
-    background-color:   @var-message-bg;
-    text-color:         @var-text-dim;
+    background-color:   @bg-layer;
+    text-color:         @text-dim;
     padding:            8px 12px;
-    border-radius:      6px;
+    border-radius:      8px;
     markup:             true;
     font:               "JetBrainsMono Nerd Font 9";
     horizontal-align:   0.5;
@@ -160,18 +161,18 @@ listview {
     padding:            0;
 }
 
-//previous
 element {
     padding:            8px 12px;
-    border-radius:      8px;
+    border-radius:      12px;
     cursor:             pointer;
-    spacing:            6px;
+    spacing:            10px;
     border:             0;
     height:             2.5em;
+    children:           [ element-icon, element-text ];
 }
 
 element-icon {
-    size:               1.2em;
+    size:               1.4em;
     vertical-align:     0.5;
     background-color:   transparent;
     text-color:         inherit;
@@ -192,48 +193,31 @@ element-text {
  * ┃      STATE SPECIFIC STYLING                                      ┃
  * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  */
-element normal.normal {
-    background-color: @normal-background;
-    text-color:       @normal-foreground;
-}
-element alternate.normal {
-    background-color: @alternate-normal-background;
-    text-color:       @alternate-normal-foreground;
+element normal.normal, element alternate.normal {
+    background-color:   transparent;
+    text-color:         @text-def;
 }
 
-element selected.normal {
-    background-color: @selected-normal-background;
-    text-color:       @selected-normal-foreground;
+element selected.normal, element selected.active {
+    background-color:   @bg-selected;
+    text-color:         @text-active;
+    border:             1px solid;
+    border-color:       @border-accent;
 }
-element selected.active {
-    background-color: @selected-normal-background;
-    text-color:       @selected-normal-foreground;
-}
+
 element selected.urgent {
-    background-color: @selected-urgent-background;
-    text-color:       @selected-urgent-foreground;
+    background-color:   @bg-urgent;
+    text-color:         @text-urgent;
+    border:             1px solid;
+    border-color:       @text-urgent;
 }
 
-element normal.active {
-    background-color: @var-active-bg;
-    text-color:       @var-text-active;
-    border:           2px;
-    border-color:     @var-active-bg;
-    border-radius:    8px;
-}
-element alternate.active {
-    background-color: @var-active-bg;
-    text-color:       @var-text-active;
-    border:           2px;
-    border-color:     @var-active-bg;
-    border-radius:    8px;
+element normal.active, element alternate.active {
+    background-color:   @bg-layer;
+    text-color:         @text-active;
 }
 
-element normal.urgent {
-    background-color: @urgent-background;
-    text-color:       @urgent-foreground;
-}
-element alternate.urgent {
-    background-color: @urgent-background;
-    text-color:       @urgent-foreground;
+element normal.urgent, element alternate.urgent {
+    background-color:   @bg-layer;
+    text-color:         @text-urgent;
 }

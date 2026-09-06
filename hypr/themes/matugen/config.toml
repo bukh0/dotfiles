@@ -1,0 +1,22 @@
+[config]
+scheme-tonal-spot = true
+
+[templates.kitty]
+input_path = '/home/bukh0/.config/hypr/themes/matugen/templates/kitty.conf'
+output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/kitty.conf'
+
+[templates.rofi]
+input_path = '/home/bukh0/.config/hypr/themes/matugen/templates/rofi.rasi'
+output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/rofi.rasi'
+
+[templates.waybar]
+input_path = '/home/bukh0/.config/hypr/themes/matugen/templates/waybar.css'
+output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/waybar.css'
+
+[templates.hyprland]
+input_path = '/home/bukh0/.config/hypr/themes/matugen/templates/hyprland-colors.lua'
+output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/hyprland-colors.lua'
+
+[templates.quickshell]
+input_path = '/home/bukh0/.config/hypr/themes/matugen/templates/quickshell-colors.qml'
+output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/quickshell-colors.qml'
