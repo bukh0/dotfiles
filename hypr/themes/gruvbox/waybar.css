@@ -1,0 +1,13 @@
+@define-color primary #fe8019;
+@define-color on_primary #1d2021;
+@define-color secondary #83a598;
+@define-color on_secondary #1d2021;
+@define-color tertiary #8ec07c;
+@define-color on_tertiary #1d2021;
+@define-color surface #282828;
+@define-color on_surface #ebdbb2;
+@define-color surface_container #3c3836;
+@define-color surface_container_high #504945;
+@define-color error #fb4934;
+@define-color on_error #1d2021;
+@define-color outline #928374;

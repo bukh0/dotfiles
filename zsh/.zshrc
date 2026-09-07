@@ -125,5 +125,5 @@ alias nvc="NVIM_APPNAME=nvim_nvchad nvim"
 #export PATH=$PATH:/home/bukh0/.spicetify
 export PATH="$HOME/.local/bin:$PATH"
 export EDITOR=nvim
-export PRACS="$HOME/Documents/Pracs"
-export PROGRAMS="$HOME/Documents/Programs"
+export Pracs="$HOME/Documents/Pracs"
+export Programs="$HOME/Documents/Programs"

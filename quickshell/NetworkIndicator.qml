@@ -20,7 +20,7 @@ Item {
     property var nmAppletItem: null
 
     function findNmApplet() {
-        for (const item of SystemTray.items.values) {
+        for (const item of Object.values(SystemTray.items)) {
             const id = (item.id || "").toLowerCase()
             if (id.includes("nm-applet") || id.includes("networkmanager")) {
                 nmAppletItem = item

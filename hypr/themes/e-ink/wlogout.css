@@ -1,0 +1,7 @@
+@define-color background-col #e8e4d8;
+@define-color on-surface-col #2b2b28;
+@define-color surface-col #e8e4d8;
+@define-color primary-col #3a3a35;
+@define-color background-transparent alpha(@background-col, 0.9);
+@define-color surface-transparent alpha(@surface-col, 0.7);
+@define-color primary-transparent alpha(@primary-col, 0.6);

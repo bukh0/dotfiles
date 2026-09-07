@@ -1,0 +1,7 @@
+@define-color background-col {{colors.background.default.hex}};
+@define-color on-surface-col {{colors.on_surface.default.hex}};
+@define-color surface-col {{colors.surface.default.hex}};
+@define-color primary-col {{colors.primary.default.hex}};
+@define-color background-transparent alpha(@background-col, 0.85);
+@define-color surface-transparent alpha(@surface-col, 0.55);
+@define-color primary-transparent alpha(@primary-col, 0.75);

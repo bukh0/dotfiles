@@ -1,36 +1,36 @@
 /* /home/zusqii/.config/wlogout/style.css */
 
-@import url("/home/bukh0/.config/matugen/generated/wlogout.css");
+@import url("/home/bukh0/.config/wlogout/colors.css");
 
 * {
-    background-image: none;
-    box-shadow: none;
-    font-family: "JetBrains Mono Nerd Font";
+  background-image: none;
+  box-shadow: none;
+  font-family: "JetBrains Mono Nerd Font";
 }
 
 window {
-    background-color: @background-transparent;
-    color: @on-surface-col;
+  background-color: @background-transparent;
+  color: @on-surface-col;
 }
 
 button {
-    border-radius: 36px;
-    border: 3px solid transparent;
-    background-color: @surface-transparent;
-    color: @on-surface-col;
-    margin: 10px;
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 20%;
-    transition: all 0.3s cubic-bezier(.55, 0.0, .28, 1.682);
+  border-radius: 36px;
+  border: 3px solid transparent;
+  background-color: @surface-transparent;
+  color: @on-surface-col;
+  margin: 10px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 20%;
+  transition: all 0.3s cubic-bezier(.55, 0.0, .28, 1.682);
 }
 
 button:hover {
-    background-color: @primary-transparent;
-    color: @background-col;
-    border: 3px solid @primary-col;
-    background-size: 50%;
-    box-shadow: 0 0 10px 3px rgba(0,0,0,.4);
+  background-color: @primary-transparent;
+  color: @background-col;
+  border: 3px solid @primary-col;
+  background-size: 50%;
+  box-shadow: 0 0 10px 3px rgba(0,0,0,.4);
 }
 
 /* --- Icons --- */

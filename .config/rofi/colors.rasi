@@ -1,1 +1,13 @@
-/home/bukh0/.config/hypr/themes/matugen/generated/rofi.rasi
+* {
+    surface:                #1a1b26;
+    on-surface:              #c0caf5;
+    surface-container:       #16161e;
+    surface-container-high:  #292e42;
+    surface-container-highest: #3b4261;
+    on-surface-variant:      #a9b1d6;
+    primary:                 #7aa2f7;
+    on-primary:              #16161e;
+    outline:                 #565f89;
+    error-container:         #db4b4b;
+    on-error-container:      #c0caf5;
+}

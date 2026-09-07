@@ -47,9 +47,9 @@ Item {
     Process {
         id: statusPoll
         command: ["sh", "-c",
-            "nmcli radio wifi && " +
-            "nmcli -t -f ACTIVE,SSID dev wifi | grep '^yes' | cut -d: -f2- | head -1 && " +
-            "nmcli -t -f TYPE,STATE dev | grep ':connected$' | head -1 | cut -d: -f1"
+            "nmcli radio wifi ; " +
+            "nmcli -t -f ACTIVE,SSID dev wifi | grep '^yes' | cut -d: -f2- | head -1 || echo '' ; " +
+            "nmcli -t -f TYPE,STATE dev | grep ':connected$' | head -1 | cut -d: -f1 || echo ''"
         ]
         stdout: StdioCollector {
             onStreamFinished: {

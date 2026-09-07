@@ -16,6 +16,8 @@ ColumnLayout {
     property var discoveredDevices: []
 
     property bool scanning: false
+    property string targetMac: ""
+    property bool actionInFlight: false
 
     // Used for detecting connection changes
     property var previousConnected: null
@@ -65,6 +67,16 @@ ColumnLayout {
                 const sections = textOutput.split("===")
 
                 btRoot.btOn = (sections[0].trim() === "enabled")
+                
+                // NEW: If Bluetooth is off, wipe the state silently and abort
+                if (!btRoot.btOn) {
+                    btRoot.previousConnected = []
+                    btRoot.devices = []
+                    btRoot.connectedName = ""
+                    btRoot.discoveredDevices = []
+                    return
+                }
+
                 if (sections.length < 3) return
 
                 const pairedLines = sections[1].trim().split("\n").filter(l => l.includes("Device "))
@@ -113,7 +125,7 @@ ColumnLayout {
         running: true
         repeat: true
         onTriggered: {
-            if (!btPoll.running && !actionProc.running)
+            if (!btPoll.running && !actionProc.running && !btRoot.actionInFlight)
                 btPoll.running = true
         }
     }
@@ -189,6 +201,36 @@ ColumnLayout {
         if (n.includes("phone")) return "󰏲"
         if (n.includes("speaker")) return "󰓃"
         return "󰂯"
+    }
+    
+    // ── Connection Actions ─────────────────────────────────────
+    Process {
+        id: rootConnectProc
+        running: false
+        stdout: StdioCollector { onStreamFinished: btRoot._checkError(text) }
+        stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
+        onRunningChanged: {
+            if (!running) {
+                btRoot.actionInFlight = false
+                btRoot.targetMac = ""
+                btPoll.running = true
+            }
+        }
+    }
+
+    Process {
+        id: rootPairProc
+        running: false
+        stdout: StdioCollector { onStreamFinished: btRoot._checkError(text) }
+        stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
+        onRunningChanged: {
+            if (!running) {
+                btRoot.actionInFlight = false
+                btRoot.targetMac = ""
+                btPoll.running = true
+                listAllPoll.running = true
+            }
+        }
     }
 
     // ── Header toggle ──────────────────────────────────────────
@@ -311,7 +353,7 @@ ColumnLayout {
                 implicitHeight: 38
                 radius: 8
 
-                property bool isProcessing: itemProc.running
+                property bool isProcessing: btRoot.actionInFlight && btRoot.targetMac === modelData.mac
                 property bool isConnecting: false
                 property bool isDisconnecting: false
 
@@ -324,20 +366,6 @@ ColumnLayout {
                     : Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.5)
 
                 Behavior on color { ColorAnimation { duration: 100 } }
-
-                Process {
-                    id: itemProc
-                    running: false
-                    stdout: StdioCollector { onStreamFinished: btRoot._checkError(text) }
-                    stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
-                    onRunningChanged: {
-                        if (!running) {
-                            delegateRoot.isConnecting = false
-                            delegateRoot.isDisconnecting = false
-                            btPoll.running = true
-                        }
-                    }
-                }
 
                 RowLayout {
                     anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
@@ -372,7 +400,7 @@ ColumnLayout {
                     hoverEnabled: true
                     cursorShape: delegateRoot.isProcessing ? Qt.WaitCursor : Qt.PointingHandCursor
                     onClicked: {
-                        if (delegateRoot.isProcessing) return
+                        if (btRoot.actionInFlight) return
 
                         const disconnecting = modelData.connected
                         if (disconnecting) {
@@ -380,11 +408,14 @@ ColumnLayout {
                         } else {
                             delegateRoot.isConnecting = true
                         }
+                        
+                        btRoot.actionInFlight = true
+                        btRoot.targetMac = modelData.mac
 
-                        itemProc.command = disconnecting
+                        rootConnectProc.command = disconnecting
                             ? ["bluetoothctl", "disconnect", modelData.mac]
                             : ["bluetoothctl", "connect", modelData.mac]
-                        itemProc.running = true
+                        rootConnectProc.running = true
                     }
                 }
             }
@@ -399,26 +430,13 @@ ColumnLayout {
                 implicitHeight: 38
                 radius: 8
 
-                property bool isProcessing: pairProc.running
+                property bool isProcessing: btRoot.actionInFlight && btRoot.targetMac === modelData.mac
 
                 color: pairMa.containsMouse
                     ? Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
                     : Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.3)
 
                 Behavior on color { ColorAnimation { duration: 100 } }
-
-                Process {
-                    id: pairProc
-                    running: false
-                    stdout: StdioCollector { onStreamFinished: btRoot._checkError(text) }
-                    stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
-                    onRunningChanged: {
-                        if (!running) {
-                            btPoll.running = true
-                            listAllPoll.running = true
-                        }
-                    }
-                }
 
                 RowLayout {
                     anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
@@ -464,11 +482,13 @@ ColumnLayout {
                     hoverEnabled: true
                     cursorShape: pairDelegateRoot.isProcessing ? Qt.WaitCursor : Qt.PointingHandCursor
                     onClicked: {
-                        if (pairDelegateRoot.isProcessing) return
+                        if (btRoot.actionInFlight) return
                         const mac = modelData.mac
-                        pairProc.command = ["sh", "-c",
+                        btRoot.actionInFlight = true
+                        btRoot.targetMac = mac
+                        rootPairProc.command = ["sh", "-c",
                             "bluetoothctl pair " + mac + " && bluetoothctl trust " + mac + " && bluetoothctl connect " + mac]
-                        pairProc.running = true
+                        rootPairProc.running = true
                     }
                 }
             }

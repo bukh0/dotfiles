@@ -1,0 +1,9 @@
+:root {
+  --background-primary: #1a1b26;
+  --background-secondary: #16161e;
+  --background-tertiary: #292e42;
+  --text-normal: #c0caf5;
+  --text-muted: #a9b1d6;
+  --interactive-accent: #7aa2f7;
+  --header-primary: #c0caf5;
+}

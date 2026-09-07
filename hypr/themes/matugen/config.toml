@@ -2,21 +2,37 @@
 scheme-tonal-spot = true
 
 [templates.kitty]
-input_path = '/home/bukh0/.config/hypr/themes/matugen/templates/kitty.conf'
+input_path  = '/home/bukh0/.config/hypr/themes/matugen/templates/kitty.conf'
 output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/kitty.conf'
 
 [templates.rofi]
-input_path = '/home/bukh0/.config/hypr/themes/matugen/templates/rofi.rasi'
+input_path  = '/home/bukh0/.config/hypr/themes/matugen/templates/rofi.rasi'
 output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/rofi.rasi'
 
 [templates.waybar]
-input_path = '/home/bukh0/.config/hypr/themes/matugen/templates/waybar.css'
+input_path  = '/home/bukh0/.config/hypr/themes/matugen/templates/waybar.css'
 output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/waybar.css'
 
-[templates.hyprland]
-input_path = '/home/bukh0/.config/hypr/themes/matugen/templates/hyprland-colors.lua'
-output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/hyprland-colors.lua'
+[templates.gtk3]
+input_path  = '/home/bukh0/.config/hypr/themes/matugen/templates/gtk-colors.css'
+output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/gtk.css'
+
+[templates.swaync]
+input_path  = '/home/bukh0/.config/hypr/themes/matugen/templates/swaync.css'
+output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/swaync.css'
+
+[templates.hyprlock]
+input_path  = '/home/bukh0/.config/hypr/themes/matugen/templates/hyprlock.conf'
+output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/hyprlock.conf'
+
+[templates.wlogout]
+input_path  = '/home/bukh0/.config/hypr/themes/matugen/templates/wlogout.css'
+output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/wlogout.css'
+
+[templates.vesktop]
+input_path  = '/home/bukh0/.config/hypr/themes/matugen/templates/midnight-discord.css'
+output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/midnight-discord.css'
 
 [templates.quickshell]
-input_path = '/home/bukh0/.config/hypr/themes/matugen/templates/quickshell-colors.qml'
+input_path  = '/home/bukh0/.config/hypr/themes/matugen/templates/quickshell-colors.qml'
 output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/quickshell-colors.qml'
