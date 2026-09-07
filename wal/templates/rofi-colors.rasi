@@ -1,0 +1,14 @@
+* {{
+    surface:                      {background};
+    surface-container:            {color0};
+    surface-container-high:       {color8};
+    surface-container-highest:    {color8};
+    on-surface:                   {foreground};
+    on-surface-variant:           {color7};
+    primary:                      {color4};
+    on-primary:                   {color0};
+    outline:                      {color8};
+    error-container:              {color1};
+    on-error-container:           {color0};
+    color4:                       {color12};
+}}

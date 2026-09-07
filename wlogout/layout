@@ -1,0 +1,36 @@
+{
+    "label" : "lock",
+    "action" : "hyprlock",
+    "text" : "Lock (l)",
+    "keybind" : "l"
+}
+{
+    "label" : "reboot",
+    "action" : "systemctl reboot",
+    "text" : "Reboot (r)",
+    "keybind" : "r"
+}
+{
+    "label" : "shutdown",
+    "action" : "systemctl poweroff",
+    "text" : "Shutdown (s)",
+    "keybind" : "s"
+}
+{
+    "label" : "logout",
+    "action" : "hyprctl dispatch exit",
+    "text" : "Exit (e)",
+    "keybind" : "e"
+}
+{
+    "label" : "suspend",
+    "action" : "hyprlock-suspend",
+    "text" : "Suspend (u)",
+    "keybind" : "u"
+}
+{
+    "label" : "reboot-uefi",
+    "action" : "systemctl reboot --firmware-setup",
+    "text" : "Reboot to UEFI (h)",
+    "keybind" : "h"
+}

@@ -24,7 +24,14 @@ declare -A SYNC_MAP=(
   ["$HOME/.zshrc"]="$DOTFILES/zsh/.zshrc"
   ["$CONFIG/swaync"]="$DOTFILES/swaync"
   ["$CONFIG/matugen"]="$DOTFILES/matugen"
-#  ["$WALLPAPERS"]="$DOTFILES/Wallpapers"
+
+  # --- Newly added theme architecture paths ---
+  ["$HOME/.scripts"]="$DOTFILES/scripts"
+  ["$CONFIG/wal"]="$DOTFILES/wal"
+  ["$CONFIG/wlogout"]="$DOTFILES/wlogout"
+  ["$CONFIG/vesktop/themes"]="$DOTFILES/vesktop/themes"
+
+  #  ["$WALLPAPERS"]="$DOTFILES/Wallpapers"
 )
 
 # dwm: source lives at ~/dwm (own git repo, config.h baked into the binary
@@ -57,6 +64,7 @@ for src in "${!SYNC_MAP[@]}"; do
         --exclude '*.o' \
         --exclude 'dwm' \
         --exclude 'slstatus' \
+        --exclude '__pycache__' \
         "$src/" "$dest/"
     else
       cp -f "$src" "$dest"
