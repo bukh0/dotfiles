@@ -7,19 +7,14 @@ hl.env("QT_QPA_PLATFORM", "wayland")
 
 -- Theming Variables
 hl.env("GTK_THEME", "adw-gtk3-dark:dark")
-hl.env("XCURSOR_THEME", "Bibata-Modern-Classic")
+hl.env("XCURSOR_THEME", "Adwaita") 
 hl.env("XCURSOR_SIZE", "24")
 hl.env("HYPRCURSOR_SIZE", "24")
 
--- Hardware Configuration (The Fix)
+-- Hardware Configuration (Consolidated)
 hl.config({
     cursor = {
-        no_hardware_cursors = false
-    }
-})
-hl.config({
-    cursor = {
-        no_hardware_cursors = true,
+        no_hardware_cursors = false, 
         no_break_fs_vrr = true,
         warp_on_change_workspace = false
     }

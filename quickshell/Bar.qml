@@ -18,27 +18,25 @@ PanelWindow {
     }
 
     // ── Dimensions ────────
-    implicitHeight: 45
-    color: "transparent"
-
     property int barHeight: 35
     property int pillRadius: 12
+    property int pillPaddingH: 24        // 12px horizontal padding per side
+    property int centerPillMinWidth: 180
+    property int centerPillExtraWidth: 80
+
+    // implicitHeight must fit barHeight + top/bottom margins (7 + 7),
+    // otherwise pills overflow their container and get clipped.
+    implicitHeight: barHeight + 14
+    color: "transparent"
 
     property color pillBg: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.99)
     property color pillBorder: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
 
-    // ── HYPRLAND SHORTCUT ──────────────────────────────────
-    Process {
-        id: toggleFullscreen
-        command: ["hyprctl", "dispatch", "fullscreen"]
-    }
-
-    Shortcut {
-        sequence: "Meta+F"
-        onActivated: {
-            if (!toggleFullscreen.running) toggleFullscreen.running = true
-        }
-    }
+    // NOTE: the old Meta+F Shortcut block was removed — QML Shortcut only
+    // fires if this layer-shell surface has keyboard focus, which a bar
+    // shouldn't grab (it'd steal focus from whatever's active). Bind
+    // fullscreen toggling natively in Hyprland instead:
+    //   hl.bind({ mod = "SUPER", key = "F", dispatcher = hl.dsp.fullscreen })
 
     // ── Pill container ─────────────────────────────────────
     Item {
@@ -50,10 +48,8 @@ PanelWindow {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             height: root.barHeight
-            
-            // Standardized to 24 (12px padding per side) for consistency
-            width: leftLayout.implicitWidth + 24
-            
+            width: leftLayout.implicitWidth + root.pillPaddingH
+
             radius: root.pillRadius
             color: root.pillBg
             border.color: root.pillBorder
@@ -63,25 +59,24 @@ PanelWindow {
                 id: leftLayout
                 anchors.centerIn: parent
                 spacing: 0
-                
+
                 Workspaces { screen: root.screen }
 
                 // --- Active Window Title ---
                 Text {
                     id: activeWindowTitle
-                    
-                    color: Colors.onSurface || "#ffffff" 
+
+                    color: Colors.onSurface || "#ffffff"
                     font.pixelSize: 13
                     font.weight: Font.Medium
-                    
+
                     // The Native Wayland hook
                     text: ToplevelManager.activeToplevel ? ToplevelManager.activeToplevel.title : ""
-                    
-                    // THE FIX: Completely removes the element from layout when empty
+
+                    // Completely removes the element from layout when empty
                     visible: text !== ""
-                    
-                    // Since it hides when empty, we can just use a clean static margin here
-                    Layout.leftMargin: 12 
+
+                    Layout.leftMargin: 12
                     Layout.maximumWidth: 350
                     elide: Text.ElideRight
                 }
@@ -90,15 +85,21 @@ PanelWindow {
 
         // CENTER PILL – Clock & Control Panel trigger
         Rectangle {
+            id: centerPill
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
             height: root.barHeight
-            
+
             // Stable pill sizing so the clock doesn't jitter when time changes
-            width: Math.max(centerLayout.implicitWidth + 80, 180)
-            
+            width: Math.max(centerLayout.implicitWidth + root.centerPillExtraWidth, root.centerPillMinWidth)
+
             radius: root.pillRadius
             border.width: 1
+
+            // Tracks whether the panel was opened via click, as opposed to
+            // hover — so a hover-exit can't slam shut a panel the user
+            // deliberately pinned open.
+            property bool pinnedOpen: false
 
             color: controlPanel.isOpen
                 ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.2)
@@ -123,9 +124,12 @@ PanelWindow {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onEntered: controlPanel.beginHoverOpen()
-                onExited: controlPanel.scheduleHoverClose()
-                onClicked: controlPanel.isOpen = !controlPanel.isOpen
+                onEntered: if (!centerPill.pinnedOpen) controlPanel.beginHoverOpen()
+                onExited: if (!centerPill.pinnedOpen) controlPanel.scheduleHoverClose()
+                onClicked: {
+                    centerPill.pinnedOpen = !centerPill.pinnedOpen
+                    controlPanel.isOpen = centerPill.pinnedOpen
+                }
             }
         }
 
@@ -134,10 +138,8 @@ PanelWindow {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             height: root.barHeight
-            
-            // 24 (12px padding per side)
-            width: rightLayout.implicitWidth + 24
-            
+            width: rightLayout.implicitWidth + root.pillPaddingH
+
             radius: root.pillRadius
             color: root.pillBg
             border.color: root.pillBorder
@@ -160,8 +162,10 @@ PanelWindow {
         id: controlPanel
         openY: 10
         closedY: 26
-        
-        barHeight: root.implicitHeight
+
+        // Was root.implicitHeight (45, the whole window) — should reference
+        // the actual visible pill height so the panel anchors correctly.
+        barHeight: root.barHeight
     }
 
     NotificationDrawer {
