@@ -6,11 +6,24 @@ import imagehash
 from PIL import Image
 
 WALLPAPER_DIR = os.path.expanduser("~/Pictures/Wallpapers")
-THEMES = ["catppuccin-mocha", "gruvbox", "tokyonight", "everforest", "material", "e-ink", "e-ink-dark"]
+THEMES = ["catppuccin-mocha", "gruvbox", "tokyonight", "everforest", "material",
+          "e-ink", "e-ink-dark", "uncategorized"]
 
-# Define your upper limits. Images at or above this resolution will NOT be upscaled.
+# Upper resolution limits. Images at or above this will NOT be upscaled.
 MAX_WIDTH = 1920
 MAX_HEIGHT = 1080
+
+# --- Classification tuning ---
+BG_WEIGHT = 0.65
+ACCENT_WEIGHT = 0.35
+ACCENT_CHROMA_FLOOR = 8.0
+EINK_CHROMA_THRESHOLD = 10.0       # Tightened average grayscale detection
+EINK_MAX_CHROMA_CEILING = 22.0     # Hard limit to reject colorful outliers
+REJECT_THRESHOLD = 45.0
+MATCH_TOLERANCE = 0.12
+
+ORIGINALS_BACKUP_DIR = os.path.join(WALLPAPER_DIR, ".originals_backup")
+
 
 def rgb_to_lab(rgb):
     r, g, b = [x / 255.0 for x in rgb]
@@ -22,25 +35,36 @@ def rgb_to_lab(rgb):
     y = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 1.00000
     z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883
 
-    fx = x ** (1/3) if x > 0.008856 else (7.787 * x) + (16 / 116)
-    fy = y ** (1/3) if y > 0.008856 else (7.787 * y) + (16 / 116)
-    fz = z ** (1/3) if z > 0.008856 else (7.787 * z) + (16 / 116)
+    fx = x ** (1 / 3) if x > 0.008856 else (7.787 * x) + (16 / 116)
+    fy = y ** (1 / 3) if y > 0.008856 else (7.787 * y) + (16 / 116)
+    fz = z ** (1 / 3) if z > 0.008856 else (7.787 * z) + (16 / 116)
 
     L = (116 * fy) - 16
     a = 500 * (fx - fy)
     b_val = 200 * (fy - fz)
     return (L, a, b_val)
 
-def delta_e(lab1, lab2):
-    return math.sqrt((lab1[0] - lab2[0])**2 + (lab1[1] - lab2[1])**2 + (lab1[2] - lab2[2])**2)
 
-THEME_LAB = {
-    "tokyonight": [rgb_to_lab((122, 162, 247)), rgb_to_lab((157, 124, 216)), rgb_to_lab((26, 27, 38))],
-    "everforest": [rgb_to_lab((167, 192, 128)), rgb_to_lab((131, 192, 146)), rgb_to_lab((45, 53, 59))],
-    "gruvbox":    [rgb_to_lab((254, 128, 25)),  rgb_to_lab((215, 153, 33)),  rgb_to_lab((40, 40, 40))],
-    "catppuccin-mocha": [rgb_to_lab((203, 166, 247)), rgb_to_lab((137, 180, 250)), rgb_to_lab((30, 30, 46))],
-    "material":   [rgb_to_lab((187, 134, 252)), rgb_to_lab((3, 218, 198)),   rgb_to_lab((18, 18, 18))]
+def delta_e(lab1, lab2):
+    return math.sqrt((lab1[0] - lab2[0]) ** 2 + (lab1[1] - lab2[1]) ** 2 + (lab1[2] - lab2[2]) ** 2)
+
+
+THEME_ANCHORS_RGB = {
+    "tokyonight":       {"bg": (26, 27, 38),   "accents": [(122, 162, 247), (157, 124, 216)]},
+    "everforest":       {"bg": (45, 53, 59),   "accents": [(167, 192, 128), (131, 192, 146)]},
+    "gruvbox":          {"bg": (40, 40, 40),   "accents": [(254, 128, 25),  (215, 153, 33)]},
+    "catppuccin-mocha": {"bg": (30, 30, 46),   "accents": [(203, 166, 247), (137, 180, 250)]},
+    "material":         {"bg": (18, 18, 18),   "accents": [(187, 134, 252), (3, 218, 198)]},
 }
+
+THEME_ANCHORS_LAB = {
+    theme: {
+        "bg": rgb_to_lab(data["bg"]),
+        "accents": [rgb_to_lab(c) for c in data["accents"]],
+    }
+    for theme, data in THEME_ANCHORS_RGB.items()
+}
+
 
 def smart_upscale(image_path, scale=2.0):
     try:
@@ -51,14 +75,27 @@ def smart_upscale(image_path, scale=2.0):
 
             new_width = int(width * scale)
             new_height = int(height * scale)
+
+            os.makedirs(ORIGINALS_BACKUP_DIR, exist_ok=True)
+            backup_path = os.path.join(ORIGINALS_BACKUP_DIR, os.path.basename(image_path))
+            if not os.path.exists(backup_path):
+                shutil.copy2(image_path, backup_path)
+
             upscaled = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-            upscaled.save(image_path, quality=95)
+            
+            # Prevent pillow warnings by dropping quality kwarg for PNGs
+            if img.format == 'PNG':
+                upscaled.save(image_path)
+            else:
+                upscaled.save(image_path, quality=95)
+                
             return (os.path.basename(image_path), width, height, new_width, new_height)
     except Exception as e:
         print(f"  Error upscaling {os.path.basename(image_path)}: {e}")
         return None
 
-def extract_palette(image_path, num_colors=6):
+
+def extract_palette(image_path, num_colors=8):
     try:
         with Image.open(image_path) as img:
             img = img.resize((160, 160)).convert("P", palette=Image.ADAPTIVE, colors=num_colors)
@@ -77,39 +114,64 @@ def extract_palette(image_path, num_colors=6):
     except Exception:
         return None
 
+
 def classify_image(image_path):
     palette = extract_palette(image_path)
     if not palette:
         return None
 
     avg_chroma = 0.0
-    avg_lightness = 0.0
+    max_chroma = 0.0
+    highest_weight = 0.0
+    dom_lightness = 0.0
+
     for rgb, weight in palette:
         L, a, b = rgb_to_lab(rgb)
-        chroma = math.sqrt(a**2 + b**2)
+        chroma = math.sqrt(a ** 2 + b ** 2)
+        
         avg_chroma += chroma * weight
-        avg_lightness += L * weight
+        
+        if chroma > max_chroma:
+            max_chroma = chroma
+            
+        if weight > highest_weight:
+            highest_weight = weight
+            dom_lightness = L
 
-    if avg_chroma < 12.0:
-        return "e-ink" if avg_lightness > 50.0 else "e-ink-dark"
+    # Re-applied tight e-ink logic
+    if avg_chroma < EINK_CHROMA_THRESHOLD and max_chroma < EINK_MAX_CHROMA_CEILING:
+        return "e-ink" if dom_lightness > 50.0 else "e-ink-dark"
 
-    theme_scores = {theme: 0.0 for theme in THEME_LAB}
-    for rgb, weight in palette:
-        L, a, b = rgb_to_lab(rgb)
-        chroma = math.sqrt(a**2 + b**2)
-        pixel_weight = weight * (1.0 + (chroma / 25.0))
+    dom_rgb, _ = max(palette, key=lambda p: p[1])
+    dom_lab = rgb_to_lab(dom_rgb)
 
-        for theme, target_labs in THEME_LAB.items():
-            min_dist = min(delta_e((L, a, b), t_lab) for t_lab in target_labs)
-            theme_scores[theme] += min_dist * pixel_weight
+    scores = {}
+    for theme, anchors in THEME_ANCHORS_LAB.items():
+        bg_delta = delta_e(dom_lab, anchors["bg"])
 
-    return min(theme_scores, key=theme_scores.get)
+        accent_delta_total = 0.0
+        accent_weight_total = 0.0
+        for rgb, weight in palette:
+            L, a, b = rgb_to_lab(rgb)
+            chroma = math.sqrt(a ** 2 + b ** 2)
+            if chroma < ACCENT_CHROMA_FLOOR:
+                continue
+            w = weight * chroma
+            min_d = min(delta_e((L, a, b), t) for t in anchors["accents"])
+            accent_delta_total += min_d * w
+            accent_weight_total += w
+
+        accent_delta = (accent_delta_total / accent_weight_total) if accent_weight_total > 0 else bg_delta
+        scores[theme] = BG_WEIGHT * bg_delta + ACCENT_WEIGHT * accent_delta
+
+    return scores
+
 
 def remove_duplicates(files):
     print("\nPhase 1: Scanning for visual duplicates...")
     hashes = {}
     deleted_files = set()
-    
+
     for f in files:
         path = os.path.join(WALLPAPER_DIR, f)
         try:
@@ -130,27 +192,32 @@ def remove_duplicates(files):
                         return (img.width * img.height, os.path.getsize(p))
                 except Exception:
                     return (0, 0)
-            
+
             paths.sort(key=get_quality)
-            best_image = paths.pop() 
-            
+            best_image = paths.pop()
+
             for duplicate in paths:
                 print(f"  Deleted duplicate: {os.path.basename(duplicate)} -> Kept: {os.path.basename(best_image)}")
                 os.remove(duplicate)
                 deleted_files.add(os.path.basename(duplicate))
-                
+
     return [f for f in files if f not in deleted_files]
+
 
 def main():
     for theme in THEMES:
         os.makedirs(os.path.join(WALLPAPER_DIR, theme), exist_ok=True)
 
     valid_exts = ('.jpg', '.jpeg', '.png', '.webp')
-    files = [f for f in os.listdir(WALLPAPER_DIR) 
+    
+    # Capture only top-level files, avoiding the generated theme directories
+    files = [f for f in os.listdir(WALLPAPER_DIR)
              if f.lower().endswith(valid_exts) and os.path.isfile(os.path.join(WALLPAPER_DIR, f))]
 
-    # Step 1: Upscale low-res master images & track them
-    print("Checking and upscaling low-resolution master images...")
+    # Run deduplication BEFORE upscaling to save processing time
+    files = remove_duplicates(files)
+
+    print("\nPhase 2: Checking and upscaling low-resolution master images...")
     upscaled_log = []
     for f in files:
         file_path = os.path.join(WALLPAPER_DIR, f)
@@ -161,30 +228,41 @@ def main():
     if upscaled_log:
         print(f"\n--- Upscaling Summary ({len(upscaled_log)} images upscaled) ---")
         for name, ow, oh, nw, nh in upscaled_log:
-            print(f"  [+] {name}: {ow}x{oh}  --->  {nw}x{nh}")
+            print(f"  [+] {name}: {ow}x{oh}  --->  {nw}x{nh}  (original backed up)")
         print("-" * 50)
     else:
         print("  No images required upscaling (all met the resolution threshold).")
 
-    # Step 2: Run deduplication
-    files = remove_duplicates(files)
-
-    # Step 3: Categorize and copy into theme directories
-    print(f"\nPhase 2: Categorizing {len(files)} wallpapers with CIELAB perception...")
+    print(f"\nPhase 3: Categorizing {len(files)} wallpapers with CIELAB perception...")
     copied_count = 0
-    
+
     for f in files:
         file_path = os.path.join(WALLPAPER_DIR, f)
-        assigned_theme = classify_image(file_path)
+        result = classify_image(file_path)
 
-        if assigned_theme:
-            dest_path = os.path.join(WALLPAPER_DIR, assigned_theme, f)
+        if result is None:
+            continue
+
+        if isinstance(result, str):
+            targets = [(result, 0.0)]
+        else:
+            best_score = min(result.values())
+            if best_score > REJECT_THRESHOLD:
+                targets = [("uncategorized", best_score)]
+            else:
+                cutoff = best_score * (1 + MATCH_TOLERANCE)
+                targets = [(t, s) for t, s in result.items() if s <= cutoff]
+
+        for theme, score in targets:
+            dest_path = os.path.join(WALLPAPER_DIR, theme, f)
             if not os.path.exists(dest_path):
                 shutil.copy2(file_path, dest_path)
-                print(f"  Copied -> [{assigned_theme}] {f}")
+                tag = f" (ΔE {score:.1f})" if score else ""
+                print(f"  Copied -> [{theme}] {f}{tag}")
                 copied_count += 1
 
-    print(f"\nOperation complete. Processed and sorted {copied_count} wallpapers.")
+    print(f"\nOperation complete. Processed and sorted {copied_count} wallpaper placements.")
+
 
 if __name__ == "__main__":
     main()

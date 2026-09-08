@@ -1,7 +1,7 @@
-@define-color background-col #1e1e2e;
-@define-color on-surface-col #cdd6f4;
-@define-color surface-col #1e1e2e;
-@define-color primary-col #cba6f7;
-@define-color background-transparent alpha(@background-col, 0.85);
-@define-color surface-transparent alpha(@surface-col, 0.55);
-@define-color primary-transparent alpha(@primary-col, 0.75);
+@define-color background-col #000000;
+@define-color on-surface-col #e8e4d8;
+@define-color surface-col #000000;
+@define-color primary-col #e8e4d8;
+@define-color background-transparent alpha(@background-col, 0.95);
+@define-color surface-transparent alpha(@surface-col, 0.8);
+@define-color primary-transparent alpha(@primary-col, 0.7);

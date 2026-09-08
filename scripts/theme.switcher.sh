@@ -28,7 +28,6 @@ Matugen | pywal)
   FULL_PATH="$WALL_DIR/$SELECTED"
   ;;
 *)
-  # Route static presets to your centralized Pictures/Wallpapers directory
   WALL_DIR="$HOME/Pictures/Wallpapers/$CHOICE"
   if [[ -d "$WALL_DIR" ]]; then
     FULL_PATH=$(find "$WALL_DIR" -maxdepth 1 -type f \( -iname \*.jpg -o -iname \*.png -o -iname \*.jpeg \) | shuf -n 1)
@@ -40,41 +39,26 @@ esac
 
 [[ -n "$FULL_PATH" && -f "$FULL_PATH" ]] && swww img "$FULL_PATH" --transition-type center --transition-fps 60
 
-update_spotify() {
-  local scheme=$1
-  if pgrep -x "spotify" >/dev/null; then
-    local spicetify_bin
-    spicetify_bin=$(command -v spicetify || echo "$HOME/.spicetify/spicetify")
-    if [[ -x "$spicetify_bin" ]]; then
-      "$spicetify_bin" config current_theme Sleek color_scheme "$scheme"
-      "$spicetify_bin" apply -q
-    fi
-  fi
-}
-
 case "$CHOICE" in
 Matugen)
   matugen image "$FULL_PATH" -c "$THEME_DIR/matugen/config.toml" --prefer=saturation
   SRC_DIR="$THEME_DIR/matugen/generated"
-  update_spotify "Matugen" &
   ;;
 pywal)
-  wal -i "$FULL_PATH" -n -q
+  # --- THE FIX ---
+  # Added --backend colorthief to bypass the slow ImageMagick extraction
+  wal --backend colorthief -i "$FULL_PATH" -n -q
   python3 "$HOME/.scripts/pywal-generate.py"
   SRC_DIR="$THEME_DIR/pywal/generated"
+  
+  mkdir -p "$SRC_DIR"
+  
   ln -sf "$HOME/.cache/wal/colors-rofi-dark.rasi" "$SRC_DIR/rofi.rasi"
   ln -sf "$HOME/.cache/wal/colors-kitty.conf" "$SRC_DIR/kitty.conf"
   ln -sf "$HOME/.cache/wal/gtk.css" "$SRC_DIR/gtk.css"
-  update_spotify "ultra-dark" &
   ;;
 *)
   SRC_DIR="$THEME_DIR/$CHOICE"
-  case "$CHOICE" in
-  gruvbox) update_spotify "gruvbox" & ;;
-  catppuccin | catppuccin-mocha) update_spotify "mocha" & ;;
-  everforest) update_spotify "everforest" & ;;
-  *) update_spotify "ultra-dark" & ;;
-  esac
   ;;
 esac
 
@@ -103,7 +87,6 @@ done
 
 atomic_copy "$SRC_DIR/quickshell-colors.qml" "$HOME/.config/quickshell/Colors.qml"
 
-wait
 sleep 0.1
 
 pgrep -x "kitty" >/dev/null && killall -SIGUSR1 kitty
