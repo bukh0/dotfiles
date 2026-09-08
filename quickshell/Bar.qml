@@ -17,7 +17,7 @@ PanelWindow {
         right: true
     }
 
-    // ── Dimensions (implicitHeight instead of height) ────────
+    // ── Dimensions ────────
     implicitHeight: 45
     color: "transparent"
 
@@ -45,12 +45,15 @@ PanelWindow {
         anchors.fill: parent
         anchors.margins: 7
 
-        // LEFT PILL – Workspaces
+        // LEFT PILL – Workspaces & Window Title
         Rectangle {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             height: root.barHeight
-            width: leftLayout.implicitWidth + 20
+            
+            // Standardized to 24 (12px padding per side) for consistency
+            width: leftLayout.implicitWidth + 24
+            
             radius: root.pillRadius
             color: root.pillBg
             border.color: root.pillBorder
@@ -60,7 +63,28 @@ PanelWindow {
                 id: leftLayout
                 anchors.centerIn: parent
                 spacing: 0
+                
                 Workspaces { screen: root.screen }
+
+                // --- Active Window Title ---
+                Text {
+                    id: activeWindowTitle
+                    
+                    color: Colors.onSurface || "#ffffff" 
+                    font.pixelSize: 13
+                    font.weight: Font.Medium
+                    
+                    // The Native Wayland hook
+                    text: ToplevelManager.activeToplevel ? ToplevelManager.activeToplevel.title : ""
+                    
+                    // THE FIX: Completely removes the element from layout when empty
+                    visible: text !== ""
+                    
+                    // Since it hides when empty, we can just use a clean static margin here
+                    Layout.leftMargin: 12 
+                    Layout.maximumWidth: 350
+                    elide: Text.ElideRight
+                }
             }
         }
 
@@ -69,7 +93,10 @@ PanelWindow {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
             height: root.barHeight
+            
+            // Stable pill sizing so the clock doesn't jitter when time changes
             width: Math.max(centerLayout.implicitWidth + 80, 180)
+            
             radius: root.pillRadius
             border.width: 1
 
@@ -107,7 +134,10 @@ PanelWindow {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             height: root.barHeight
+            
+            // 24 (12px padding per side)
             width: rightLayout.implicitWidth + 24
+            
             radius: root.pillRadius
             color: root.pillBg
             border.color: root.pillBorder
@@ -131,7 +161,6 @@ PanelWindow {
         openY: 10
         closedY: 26
         
-        // Fixed: Use QML property binding instead of Component.onCompleted
         barHeight: root.implicitHeight
     }
 
