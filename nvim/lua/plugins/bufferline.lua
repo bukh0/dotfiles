@@ -56,12 +56,11 @@ return {
         hover = {
           enabled = true,
           delay = 200,
-          -- 'reveal = {"close"}' is removed so the 'x' button is always visible
         },
+        
         sort_by = "id",
       })
 
-      -- Function to slam our hardcoded colors directly into Neovim
       local function apply_hardcoded_highlights()
         local groups = {
           Fill = { fg = c.dim, bg = c.bg },
@@ -84,6 +83,14 @@ return {
           Modified = { fg = c.yellow, bg = c.bg },
           ModifiedVisible = { fg = c.yellow, bg = c.bg },
           ModifiedSelected = { fg = c.yellow, bg = c.bg },
+          
+          Separator = { fg = c.bg, bg = c.bg },
+          SeparatorVisible = { fg = c.bg, bg = c.bg },
+          SeparatorSelected = { fg = c.bg, bg = c.bg },
+          OffsetSeparator = { fg = c.bg, bg = c.bg },
+          
+          IndicatorSelected = { fg = c.bg, bg = c.bg },
+          IndicatorVisible = { fg = c.bg, bg = c.bg },
           
           Diagnostic = { fg = c.dim, bg = c.bg, italic = false },
           DiagnosticVisible = { fg = c.fg, bg = c.bg, italic = false },
@@ -114,8 +121,7 @@ return {
       -- Nullify bufferline's internal highlighting to stop it from interfering
       opts.highlights = {}
 
-      -- Neovim clears all highlights whenever a new theme loads.
-      -- Re-apply our hardcoded colors automatically if that happens.
+      -- Re-apply hardcoded colors automatically if a new theme loads and clears highlights
       vim.api.nvim_create_autocmd("ColorScheme", {
         callback = apply_hardcoded_highlights,
       })
