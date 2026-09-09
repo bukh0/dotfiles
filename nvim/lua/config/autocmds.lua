@@ -14,3 +14,8 @@ vim.api.nvim_create_user_command("Ws", function()
 end, { desc = "Format (clangd) and save" })
 
 vim.cmd("cnoreabbrev ws Ws")
+
+-- Apply transparent UI highlights and keep them updated on theme changes
+require("utils.theme").on_colorscheme(function()
+  -- Add any extra custom post-theme logic here if needed
+end)
