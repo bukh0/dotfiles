@@ -11,18 +11,34 @@ local function hl(name, attr)
   return string.format("#%06x", h[attr])
 end
 
+-- Hardcoded last-resort colors for any slot a colorscheme leaves undefined
+-- (e.g. minimal/light themes that don't set an explicit Normal background).
+-- Without these, a nil bg/fg passed to nvim_set_hl means "don't override
+-- this group," which causes inconsistent per-cell compositing in tablines —
+-- exactly the patchy background-color issue seen across theme switches.
+local function fallback_base()
+  return vim.o.background == "light" and "#f2f2f2" or "#1e1e2e"
+end
+
+local function fallback_fg()
+  return vim.o.background == "light" and "#2e2e2e" or "#cdd6f4"
+end
+
 function M.colors()
+  local base = hl("Normal", "bg") or fallback_base()
+  local fg = hl("Normal") or hl("Statement") or fallback_fg()
+
   return {
     bg = "NONE",
-    fg = hl("Normal") or hl("Statement"),
-    dim = hl("Comment"),
-    base = hl("Normal", "bg"),
-    accent = hl("Function") or hl("Special") or hl("Identifier"),
-    blue = hl("DiagnosticInfo") or hl("Function"),
-    green = hl("DiagnosticOk") or hl("String"),
-    yellow = hl("DiagnosticWarn"),
-    red = hl("DiagnosticError"),
-    peach = hl("Constant") or hl("Number"),
+    fg = fg,
+    dim = hl("Comment") or fg,
+    base = base,
+    accent = hl("Function") or hl("Special") or hl("Identifier") or fg,
+    blue = hl("DiagnosticInfo") or hl("Function") or fg,
+    green = hl("DiagnosticOk") or hl("String") or fg,
+    yellow = hl("DiagnosticWarn") or fg,
+    red = hl("DiagnosticError") or fg,
+    peach = hl("Constant") or hl("Number") or fg,
   }
 end
 
