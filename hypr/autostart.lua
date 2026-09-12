@@ -12,3 +12,8 @@ hl.on("hyprland.start", function()
 --    hl.exec_cmd("swaync")
     hl.exec_cmd("quickshell &")
 end)
+
+hl.on("hyprland.start", function()
+  hl.exec_cmd("pidof cliphist || wl-paste --watch cliphist store &")
+end)
+hl.exec_cmd("pidof cliphist || (wl-paste --type text --watch cliphist store & wl-paste --type image --watch cliphist store &)")

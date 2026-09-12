@@ -3,3 +3,5 @@
 -- Add any additional options here
 vim.opt.undofile = true
 vim.g.autoformat = false
+vim.opt.wrap = true
+vim.opt.linebreak = true

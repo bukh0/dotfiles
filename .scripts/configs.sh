@@ -4,9 +4,9 @@ HYPR_DIR="$HOME/.config/hypr"
 ANIM_DIR="$HOME/.config/hypr/animations"
 WAYBAR_DIR="$HOME/.config/waybar"
 ROFI_CONF="$HOME/.config/rofi/config.rasi"
-NVIM_DIR="$HOME/.config/nvim/lua"
+NVIM_DIR="$HOME/.config/nvim"
 
-MAIN_OPTIONS="1. Hyprland\n2. Waybar\n3. Animations\n4. NvChad"
+MAIN_OPTIONS="1. Hyprland\n2. Waybar\n3. Animations\n4. Nvim"
 
 CHOICE=$(echo -e "$MAIN_OPTIONS" | rofi -dmenu -i -p "󱊟 " -config "$ROFI_CONF")
 
@@ -40,9 +40,9 @@ case "$CHOICE" in
         fi
         ;;
 
-    *NvChad)
+    *Nvim)
         # Finds all .lua files in your nvim directory to easily edit plugins, mappings, or chadrc
-        FILE=$(find "$NVIM_DIR" -type f -name "*.lua" | sed "s|$NVIM_DIR/||" | rofi -dmenu -i -p " NvChad Configs" -config "$ROFI_CONF")
+        FILE=$(find "$NVIM_DIR" -type f -name "*.lua" | sed "s|$NVIM_DIR/||" | rofi -dmenu -i -p " Nvim Configs" -config "$ROFI_CONF")
         [[ -n "$FILE" ]] && kitty -e nvim "$NVIM_DIR/$FILE"
         ;;
 esac

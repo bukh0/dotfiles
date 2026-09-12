@@ -14,6 +14,7 @@ hl.bind(mod .. " + A", hl.dsp.exec_cmd(message))
 hl.bind(mod .. " + P", hl.dsp.exec_cmd("spotify"))
 hl.bind(mod .. " + Y", hl.dsp.exec_cmd("kitty -e yazi"))
 hl.bind(mod .. " + period", hl.dsp.exec_cmd("bemoji -t"))
+hl.bind(mod .. " + C", hl.dsp.exec_cmd("~/.scripts/clipboard-menu.sh"))
 
 -- Window Management
 hl.bind(mod .. " + Q", hl.dsp.window.close())
