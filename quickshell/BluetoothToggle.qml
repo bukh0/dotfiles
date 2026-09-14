@@ -68,7 +68,7 @@ ColumnLayout {
 
                 btRoot.btOn = (sections[0].trim() === "enabled")
                 
-                // NEW: If Bluetooth is off, wipe the state silently and abort
+                // If Bluetooth is off, wipe the state silently and abort
                 if (!btRoot.btOn) {
                     btRoot.previousConnected = []
                     btRoot.devices = []
@@ -119,9 +119,39 @@ ColumnLayout {
         }
     }
 
-    // ── Periodic refresh (every 5 s) ──────────────────────────
+    // ── Event-driven refresh ───────────────────────────────────
     Timer {
-        interval: 5000
+        id: monitorDebounce
+        interval: 300
+        onTriggered: btPoll.running = true
+    }
+
+    Process {
+        id: btMonitor
+        command: ["sh", "-c", "env NO_COLOR=1 bluetoothctl"]
+        running: true
+        stdout: SplitParser {
+            onRead: (line) => {
+                if (!line.includes("[CHG]")) return
+                if (!(line.includes("Connected:") || line.includes("Powered:") || line.includes("Paired:"))) return
+                if (btPoll.running || actionProc.running || btRoot.actionInFlight) return
+                monitorDebounce.restart()
+            }
+        }
+        onRunningChanged: {
+            if (!running) btMonitorRestart.start()
+        }
+    }
+
+    Timer {
+        id: btMonitorRestart
+        interval: 2000
+        onTriggered: btMonitor.running = true
+    }
+
+    // ── Fallback poll ────────────────────────────────────────
+    Timer {
+        interval: 20000
         running: true
         repeat: true
         onTriggered: {
@@ -183,7 +213,7 @@ ColumnLayout {
         btScanProc.running = true
     }
 
-    // ── Internal error checker (avoids duplicated code) ───────
+    // ── Internal error checker ─────────────────────────
     function _checkError(rawText) {
         const t = rawText.trim()
         if (t.length === 0) return

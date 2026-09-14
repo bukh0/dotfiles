@@ -11,7 +11,7 @@ Item {
 
     // ── Connection icon ─────────────────────────────────────
     readonly property string status: {
-        if (NetworkService.connectionType === "wifi") return "󰤨"
+        if (NetworkService.connectionType === "wifi") return NetworkService.signalIcon(NetworkService.signalStrength)
         if (NetworkService.connectionType === "ethernet") return "󰈀"
         return "󰤭"
     }
@@ -72,7 +72,7 @@ Item {
         onClicked: {
             // Re-verify item exists and open safely via deferred call
             if (!root.nmAppletItem) root.findNmApplet()
-            
+
             if (menuAnchor.menu) {
                 Qt.callLater(() => menuAnchor.open())
             }

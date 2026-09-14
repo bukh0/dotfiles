@@ -11,6 +11,7 @@ Item {
     property string connectionType: "none"   // "wifi", "ethernet", "none"
     property var networks: []
     property bool scanning: false
+    property int signalStrength: 0
 
     // SSID that nmcli rejected for lacking a secret
     property string awaitingPasswordFor: ""
@@ -18,6 +19,14 @@ Item {
     // ── Signals ──────────────────────────────────────────────
     signal connectionSettled()
     signal commandError(string message)
+
+    // ── Shared icon-tier helper (used by WifiToggle + NetworkIndicator) ──
+    function signalIcon(sig) {
+        if (sig >= 75) return "󰤨"
+        if (sig >= 50) return "󰤥"
+        if (sig >= 25) return "󰤢"
+        return "󰤟"
+    }
 
     // ── Generic command runner ───────────────────────────────
     Process {
@@ -43,19 +52,26 @@ Item {
         cmdProc.running = true
     }
 
-    // ── Status poll (wifi state, ssid, connection type) ──────
+    // ── Status poll (wifi state, ssid, signal, connection type) ──
     Process {
         id: statusPoll
         command: ["sh", "-c",
             "nmcli radio wifi ; " +
-            "nmcli -t -f ACTIVE,SSID dev wifi | grep '^yes' | cut -d: -f2- | head -1 || echo '' ; " +
+            "nmcli -t -f ACTIVE,SSID,SIGNAL dev wifi | grep '^yes' | cut -d: -f2- | head -1 || echo '' ; " +
             "nmcli -t -f TYPE,STATE dev | grep ':connected$' | head -1 | cut -d: -f1 || echo ''"
         ]
         stdout: StdioCollector {
             onStreamFinished: {
                 const lines = text.trim().split("\n")
                 root.wifiOn = (lines[0]?.trim() === "enabled")
-                root.ssid = (lines[1]?.trim() || "")
+
+                // Field 2+ is "SSID:SIGNAL" joined by ':' — split from the
+                // right so an SSID that itself contains ':' isn't mangled.
+                const ssidSignal = (lines[1]?.trim() || "")
+                const idx = ssidSignal.lastIndexOf(":")
+                root.ssid = idx >= 0 ? ssidSignal.slice(0, idx) : ssidSignal
+                root.signalStrength = idx >= 0 ? (parseInt(ssidSignal.slice(idx + 1)) || 0) : 0
+
                 const t = lines[2]?.trim()
                 root.connectionType = t === "wifi" ? "wifi" : (t === "ethernet" ? "ethernet" : "none")
             }
@@ -68,9 +84,44 @@ Item {
         }
     }
 
-    // ── Periodic refresh ─────────────────────────────────────
+    // ── Event-driven refresh ─────────────────────────────────
+    // nmcli monitor blocks and prints a line the instant NetworkManager's
+    // state changes (radio toggle, connect, disconnect, IP change) — this
+    // replaces polling as the primary trigger, so the bar updates in
+    // ~150ms instead of waiting on a timer tick.
     Timer {
-        interval: 5000
+        id: monitorDebounce
+        interval: 150
+        // nmcli monitor often fires several lines for one real event
+        // (device state change + connection activated, etc.) — debounce
+        // so one event doesn't trigger multiple polls back to back.
+        onTriggered: statusPoll.running = true
+    }
+
+    Process {
+        id: nmMonitor
+        command: ["nmcli", "monitor"]
+        running: true
+        stdout: SplitParser {
+            onRead: (line) => {
+                // Don't fight our own in-flight commands — they already
+                // trigger a statusPoll via onRunningChanged when they finish.
+                if (cmdProc.running || connectProc.running) return
+                monitorDebounce.restart()
+            }
+        }
+        // NOTE: this process is meant to live for the whole session.
+        // Don't running=false/true-cycle it the way cmdProc is cycled —
+        // restarting it drops nmcli monitor's stream and you'll silently
+        // miss events until the next fallback poll.
+    }
+
+    // ── Fallback poll ─────────────────────────────────────────
+    // Safety net only — catches things nmcli monitor won't emit an event
+    // for, like RSSI drifting on an already-active connection. Interval is
+    // long since this is a backstop, not the primary update path.
+    Timer {
+        interval: 10000
         running: true
         repeat: true
         onTriggered: {

@@ -63,13 +63,6 @@ ColumnLayout {
         NetworkService.runCommand(["nmcli", "dev", "wifi", "rescan"])
     }
 
-    function signalIcon(sig) {
-        if (sig >= 75) return "󰤨"
-        if (sig >= 50) return "󰤥"
-        if (sig >= 25) return "󰤢"
-        return "󰤟"
-    }
-
     // ── Wi‑Fi header ───────────────────────────────────────────
     Rectangle {
         Layout.fillWidth: true
@@ -208,7 +201,7 @@ ColumnLayout {
                     spacing: 8
 
                     Text {
-                        text: wifiRoot.signalIcon(modelData.signal)
+                        text: NetworkService.signalIcon(modelData.signal)
                         color: delegateRoot.showActive ? Colors.primary : Colors.surfaceFg
                         font.pixelSize: 14
                         font.family: wifiRoot.fontFamily

@@ -23,6 +23,8 @@ RowLayout {
     property string cpuTemp: "--°C"
     property bool   cpuHot: false
 
+    property string tempSourcePath: ""
+
     // ── Configuration ──────────────────────────────────────
     property int    tempWarningThreshold: 75
 
@@ -55,13 +57,27 @@ RowLayout {
         }
     }
 
+    // ── Resolve which file actually has the CPU temp, once ──────
+    Process {
+        id: tempSourceDiscover
+        command: ["sh", "-c",
+            "for i in 0 1 2 3 4 5 6 7 8 9; do f=/sys/class/thermal/thermal_zone$i/temp; " +
+            "[ -r \"$f\" ] && { echo \"$f\"; exit; }; done; " +
+            "ls /sys/class/hwmon/hwmon*/temp1_input 2>/dev/null | head -1"
+        ]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: { root.tempSourcePath = text.trim().split("\n")[0] || "" }
+        }
+    }
+
     // ── Unified poll (awk) ─────────────────────────────────
     Process {
         id: statsPoll
         command: [
             "awk",
             `
-            BEGIN { home = ENVIRON["HOME"]; temp = "N/A" }
+            BEGIN { home = ENVIRON["HOME"]; tempFile = "${root.tempSourcePath}"; temp = "N/A" }
             /^MemTotal:/     { mt = $2 }
             /^MemAvailable:/ { ma = $2 }
             /^SwapTotal:/    { st = $2 }
@@ -73,15 +89,9 @@ RowLayout {
                 }
                 close("/proc/net/dev")
 
-                for (i = 0; i <= 9; i++) {
-                    tfile = "/sys/class/thermal/thermal_zone" i "/temp"
-                    if ((getline t < tfile) > 0) { temp = int(t/1000); close(tfile); break }
-                    close(tfile)
-                }
-                if (temp == "N/A") {
-                    cmd = "cat /sys/class/hwmon/hwmon*/temp1_input 2>/dev/null | head -1"
-                    if ((cmd | getline t) > 0) temp = int(t/1000)
-                    close(cmd)
+                if (tempFile != "" && (getline t < tempFile) > 0) {
+                    temp = int(t/1000)
+                    close(tempFile)
                 }
 
                 pf = home "/.cache/perf-mode"
@@ -174,7 +184,7 @@ RowLayout {
     }
 
     Timer {
-        interval: 2000
+        interval: 3000
         running: true
         repeat: true
         onTriggered: { if (!statsPoll.running) statsPoll.running = true }

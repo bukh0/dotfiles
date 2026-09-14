@@ -9,6 +9,7 @@ Item {
 
     property int capacity: 100
     property string status: "Unknown"
+    property string battPath: ""
 
     readonly property var icons: ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
 
@@ -30,11 +31,44 @@ Item {
         return Colors.surfaceFg
     }
 
+    // ── Resolve the battery's sysfs path once (BAT0 vs BAT1 etc.) ──
+    Process {
+        id: battDiscover
+        command: ["sh", "-c", "ls -d /sys/class/power_supply/BAT* 2>/dev/null | head -1"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const p = text.trim()
+                if (p) root.battPath = p
+            }
+        }
+    }
+
+    function _parseUevent(content) {
+        const lines = content.split("\n")
+        for (const line of lines) {
+            if (line.startsWith("POWER_SUPPLY_CAPACITY="))
+                root.capacity = parseInt(line.split("=")[1]) || root.capacity
+            else if (line.startsWith("POWER_SUPPLY_STATUS="))
+                root.status = line.split("=")[1].trim() || root.status
+        }
+    }
+
+    // ── Event-driven: the kernel emits a uevent (and thus an inotify
+    // hit on this file) whenever capacity or charge status changes.
+    FileView {
+        id: uevent
+        path: root.battPath !== "" ? root.battPath + "/uevent" : ""
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: root._parseUevent(text())
+    }
+
+    // ── Fallback poll ────────────────────────────────────────
+    // Backstop only, in case a driver doesn't emit uevents reliably.
     Process {
         id: battPoll
-        // Changed && to ; just in case the capacity read fails on weird hardware
-        command: ["sh", "-c", "cat /sys/class/power_supply/BAT*/capacity 2>/dev/null | head -1 ; cat /sys/class/power_supply/BAT*/status 2>/dev/null | head -1"]
-        running: true
+        command: ["sh", "-c", "cat " + root.battPath + "/capacity 2>/dev/null ; cat " + root.battPath + "/status 2>/dev/null"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const lines = text.trim().split("\n")
@@ -47,8 +81,8 @@ Item {
     }
 
     Timer {
-        interval: 15000
-        running: true
+        interval: 30000
+        running: root.battPath !== ""
         repeat: true
         onTriggered: battPoll.running = true
     }
@@ -58,7 +92,6 @@ Item {
         loops: Animation.Infinite
         NumberAnimation { target: label; property: "opacity"; to: 0.3; duration: 500 }
         NumberAnimation { target: label; property: "opacity"; to: 1.0; duration: 500 }
-        // Reset opacity when plugged in to prevent getting stuck at 0.3
         onStopped: label.opacity = 1.0 
     }
 
@@ -69,7 +102,6 @@ Item {
         font.pixelSize: 13
         font.family: "JetBrainsMono Nerd Font"
         font.weight: Font.Bold
-
         Behavior on color { ColorAnimation { duration: 200 } }
     }
 }
