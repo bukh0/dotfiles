@@ -46,31 +46,41 @@ local function build_groups()
     diagnostic_visible = { fg = c.dim, bg = bg },
     diagnostic_selected = { fg = c.fg, bg = bg },
 
-    -- Bold on ALL variants so diagnostics read clearly on dimmed tabs
-    error = { fg = c.red, bg = bg, bold = true },
-    error_visible = { fg = c.red, bg = bg, bold = true },
-    error_selected = { fg = c.red, bg = bg, bold = true },
+    -- Filename text (mirrors standard buffer colours)
+    error = { fg = c.dim, bg = bg },
+    error_visible = { fg = c.dim, bg = bg },
+    error_selected = { fg = c.fg, bg = bg, bold = true },
+    -- Diagnostic indicator/icon (keeps the red colour)
     error_diagnostic = { fg = c.red, bg = bg, bold = true },
     error_diagnostic_visible = { fg = c.red, bg = bg, bold = true },
     error_diagnostic_selected = { fg = c.red, bg = bg, bold = true },
 
-    warning = { fg = c.yellow, bg = bg, bold = true },
-    warning_visible = { fg = c.yellow, bg = bg, bold = true },
-    warning_selected = { fg = c.yellow, bg = bg, bold = true },
+    -- Filename text
+    warning = { fg = c.dim, bg = bg },
+    warning_visible = { fg = c.dim, bg = bg },
+    warning_selected = { fg = c.fg, bg = bg, bold = true },
+    -- Diagnostic indicator/icon
     warning_diagnostic = { fg = c.yellow, bg = bg, bold = true },
     warning_diagnostic_visible = { fg = c.yellow, bg = bg, bold = true },
     warning_diagnostic_selected = { fg = c.yellow, bg = bg, bold = true },
 
-    info = { fg = c.blue, bg = bg },
-    info_visible = { fg = c.blue, bg = bg },
-    info_selected = { fg = c.blue, bg = bg, bold = true },
+    -- Filename text
+    info = { fg = c.dim, bg = bg },
+    info_visible = { fg = c.dim, bg = bg },
+    info_selected = { fg = c.fg, bg = bg, bold = true },
+    -- Diagnostic indicator/icon
     info_diagnostic = { fg = c.blue, bg = bg },
     info_diagnostic_visible = { fg = c.blue, bg = bg },
     info_diagnostic_selected = { fg = c.blue, bg = bg },
 
+    -- Filename text
     hint = { fg = c.dim, bg = bg },
     hint_visible = { fg = c.dim, bg = bg },
-    hint_selected = { fg = c.dim, bg = bg, bold = true },
+    hint_selected = { fg = c.fg, bg = bg, bold = true },
+    -- Diagnostic indicator/icon
+    hint_diagnostic = { fg = c.dim, bg = bg },
+    hint_diagnostic_visible = { fg = c.dim, bg = bg },
+    hint_diagnostic_selected = { fg = c.dim, bg = bg, bold = true },
   }
 end
 
@@ -124,15 +134,22 @@ return {
         diagnostics_update_in_insert = false,
 
         diagnostics_indicator = function(count, level, diagnostics_dict, _)
-          -- Added actual Nerd Font icons here instead of blank spaces
-          local icons = { error = " ", warning = " ", info = " ", hint = "󰌵 " }
+          local icons = { error = "", warning = "󰀪", info = "", hint = "󰌵" }
+          local order = { "error", "warning", "info", "hint" }
           local parts = {}
-          for name, n in pairs(diagnostics_dict) do
-            if icons[name] and n > 0 then
-              table.insert(parts, icons[name] .. n)
+          
+          for _, name in ipairs(order) do
+            local n = diagnostics_dict[name]
+            if n and n > 0 then
+              table.insert(parts, icons[name])
             end
           end
-          return table.concat(parts, " ")
+          
+          if #parts == 0 then
+            return ""
+          end
+          
+          return " " .. table.concat(parts, " ")
         end,
 
         color_icons = true,
@@ -141,7 +158,7 @@ return {
         show_close_icon = false,
         show_tab_indicators = false,
 
-        separator_style = "padded_slant",
+        separator_style = "thin",
         enforce_regular_tabs = false,
         always_show_bufferline = false,
         sort_by = "insert_after_current",
