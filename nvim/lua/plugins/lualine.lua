@@ -13,6 +13,9 @@ return {
         -- own defaults, which you've confirmed already render as sharp triangles
       })
 
+      -- Explicitly tell Lualine to stay out of the top tab bar so Cokeline can take over
+      opts.tabline = {}
+
       opts.sections = {
         lualine_a = { "mode" },
         lualine_b = { "branch", "diff", "diagnostics" },

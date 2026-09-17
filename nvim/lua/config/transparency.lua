@@ -1,21 +1,42 @@
 local theme = require("utils.theme")
 
-local function toggle_transparency()
-  theme.set_transparent(not theme.transparent)
-  print(theme.transparent and "Transparency enabled" or "Transparency disabled")
-end
-
 local M = {}
 
-function M.setup()
-  if theme.transparent then
-    vim.schedule(function()
-      theme.apply_ui_highlights()
-    end)
-  end
+local function toggle()
+  theme.set_transparent(not theme.transparent)
+  vim.notify(
+    theme.transparent and "Transparency enabled" or "Transparency disabled",
+    vim.log.levels.INFO,
+    { title = "Transparency" }
+  )
 end
 
-vim.api.nvim_create_user_command("ToggleTransparency", toggle_transparency, {})
-vim.keymap.set("n", "<leader>ut", toggle_transparency, { desc = "Toggle background transparency" })
+function M.setup()
+  if M._done then
+    return
+  end
+  M._done = true
+
+  vim.api.nvim_create_user_command("ToggleTransparency", toggle, {
+    desc = "Toggle background transparency",
+  })
+
+  local ok, Snacks = pcall(require, "snacks")
+  if ok and Snacks.toggle then
+    Snacks.toggle({
+      name = "Transparency",
+      get = function() return theme.transparent end,
+      set = function(state) theme.set_transparent(state) end,
+    }):map("<leader>ut")
+  else
+    vim.keymap.set("n", "<leader>ut", toggle, { desc = "Toggle background transparency" })
+  end
+
+  -- utils.theme.on_colorscheme already calls apply_ui_highlights after every
+  -- (debounced) theme change — no separate ColorScheme autocmd needed here.
+  if theme.transparent then
+    vim.schedule(theme.apply_ui_highlights)
+  end
+end
 
 return M
