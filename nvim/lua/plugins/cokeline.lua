@@ -14,16 +14,22 @@ return {
       local cokeline = require("cokeline")
       local theme = require("utils.theme")
 
+      -- Components run on every redraw, for every buffer. Rebuilding the
+      -- palette (nvim_get_hl calls) inside get_color() on each of those
+      -- calls is wasted work — cache it, refresh only on ColorScheme.
+      local palette = theme.colors() or {}
       local function get_color(key)
-        local c = theme.colors()
-        return c and c[key] or "NONE"
+        return palette[key] or "NONE"
       end
 
-      -- Ensure transparency persists even if your dynamic theme switches
-      theme.on_colorscheme(function()
+      local function refresh_transparency()
         vim.api.nvim_set_hl(0, "TabLineFill", { bg = "NONE", ctermbg = "NONE" })
         vim.api.nvim_set_hl(0, "TabLine", { bg = "NONE", ctermbg = "NONE" })
-      end)
+        palette = theme.colors() or {}
+      end
+
+      -- Ensure transparency + palette persist across colorscheme switches
+      theme.on_colorscheme(refresh_transparency)
 
       -- buffer.devicon is nil for buffers with no icon match; guard both fields
       -- so an unmatched filetype doesn't error instead of just showing no icon.
@@ -37,6 +43,13 @@ return {
         show_if_buffers_are_at_least = 2,
         fill_hl = "TabLineFill",
 
+        buffers = {
+          -- keep terminals/quickfix/help off the bar
+          filter_valid = function(buffer)
+            return vim.bo[buffer.number].buftype == ""
+          end,
+        },
+
         default_hl = {
           fg = function(buffer)
             return buffer.is_focused and get_color("fg") or get_color("dim")
@@ -45,11 +58,6 @@ return {
         },
 
         -- Offset the top bar when the Snacks explorer is open.
-        -- Snacks' sidebar preset wraps its input/list/preview windows (all
-        -- floats) inside one real split — filetype snacks_layout_box — and
-        -- that split is what cokeline can actually measure. Confirmed by
-        -- inspecting the window list directly: it's the only entry with
-        -- float=false, col=0 while the explorer is open.
         sidebar = {
           filetype = {
             "snacks_layout_box",
@@ -85,15 +93,26 @@ return {
             end,
           },
           -- Diagnostics
+          -- `or 0` guards against errors/warnings being nil before the LSP
+          -- client for that buffer has attached — without it this throws
+          -- "attempt to compare number with nil" on early redraws.
           {
             text = function(buffer)
-              if buffer.diagnostics.errors > 0 then return "  " end
-              if buffer.diagnostics.warnings > 0 then return " 󰀪 " end
+              local errors = buffer.diagnostics.errors or 0
+              local warnings = buffer.diagnostics.warnings or 0
+              if errors > 0 then
+                return " 󰅚 " .. errors
+              end
+              if warnings > 0 then
+                return " 󰀪 " .. warnings
+              end
               return ""
             end,
             fg = function(buffer)
-              if buffer.diagnostics.errors > 0 then return get_color("red") end
-              if buffer.diagnostics.warnings > 0 then return get_color("yellow") end
+              local errors = buffer.diagnostics.errors or 0
+              local warnings = buffer.diagnostics.warnings or 0
+              if errors > 0 then return get_color("red") end
+              if warnings > 0 then return get_color("yellow") end
               return get_color("dim")
             end,
           },
@@ -114,6 +133,28 @@ return {
           },
           { text = "  " },
         },
+      })
+
+      -- Bufferline's default LazyVim keymaps die with it disabled.
+      -- <leader>bo (close other buffers) recreated here for cokeline.
+      vim.keymap.set("n", "<leader>bo", function()
+        local current = vim.api.nvim_get_current_buf()
+        for _, buf in ipairs(require("cokeline.buffers").get_visible()) do
+          if buf.number ~= current then
+            buf:delete()
+          end
+        end
+      end, { desc = "Delete other buffers" })
+
+      -- vim.diagnostic events don't trigger a tabline redraw on their own —
+      -- force one so error/warning counts update the instant the LSP reports
+      -- them, rather than waiting for the next unrelated redraw.
+      vim.api.nvim_create_autocmd("DiagnosticChanged", {
+        callback = function()
+          vim.schedule(function()
+            vim.cmd("redrawtabline")
+          end)
+        end,
       })
     end,
     keys = {
