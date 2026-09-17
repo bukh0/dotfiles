@@ -1,7 +1,5 @@
 import QtQuick
-import Quickshell
 import Quickshell.Io
-import Quickshell.Services.SystemTray
 import "."
 
 Item {
@@ -9,40 +7,21 @@ Item {
     width: label.implicitWidth
     height: label.implicitHeight
 
+    // ── Connection icon ─────────────────────────────────────
     readonly property string status: {
         if (NetworkService.connectionType === "wifi") return NetworkService.signalIcon(NetworkService.signalStrength)
         if (NetworkService.connectionType === "ethernet") return "󰈀"
         return "󰤭"
     }
 
-    property var nmAppletItem: null
-
-    function findNmApplet() {
-        // SystemTray.items is a Quickshell ObjectModel — Object.values()
-        // does not iterate it. Use .values, same as Hyprland.workspaces.
-        for (const item of SystemTray.items.values) {
-            const id = (item.id || "").toLowerCase()
-            if (id.includes("nm-applet") || id.includes("networkmanager")) {
-                nmAppletItem = item
-                return
-            }
-        }
-        nmAppletItem = null
-    }
-
-    Connections {
-        target: SystemTray.items
-        function onValuesChanged() {
-            if (!root.nmAppletItem) root.findNmApplet()
-        }
-    }
-
-    Component.onCompleted: findNmApplet()
-
-    QsMenuAnchor {
-        id: menuAnchor
-        menu: root.nmAppletItem ? root.nmAppletItem.menu : null
-        anchor.item: root
+    // Matches waybar's network module: clicking just launches
+    // nm-connection-editor as its own top-level window. No SNI tray item,
+    // no DBusMenu, no layer-shell popup — which is exactly why waybar's
+    // version never showed the slide/reposition animation Quickshell's
+    // QsMenuAnchor-based popup did.
+    Process {
+        id: editorProc
+        command: ["nm-connection-editor"]
     }
 
     Text {
@@ -67,10 +46,7 @@ Item {
         cursorShape: Qt.PointingHandCursor
 
         onClicked: {
-            if (!root.nmAppletItem) root.findNmApplet()
-            if (menuAnchor.menu) {
-                Qt.callLater(() => menuAnchor.open())
-            }
+            if (!editorProc.running) editorProc.running = true
         }
     }
 }

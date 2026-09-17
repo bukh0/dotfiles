@@ -7,6 +7,11 @@ Rectangle {
     id: rootPill
     default property alias content: layout.data
 
+    // Lets callers recompute width using their own formula (e.g. Bar.qml's
+    // center pill, which wants extra padding beyond the default so it
+    // doesn't jitter as the clock text changes length).
+    readonly property alias contentImplicitWidth: layout.implicitWidth
+
     property bool isActive: false
     property bool isHovered: false
     property int pillHeight: 32

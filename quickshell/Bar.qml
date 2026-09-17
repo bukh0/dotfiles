@@ -88,6 +88,11 @@ PanelWindow {
                 pillHeight: root.barHeight
                 isActive: controlPanel.isOpen
                 isHovered: centerMa.containsMouse
+                // Overrides Pill's default implicitWidth-based sizing to
+                // match the bar's original center-pill formula: a floor
+                // width plus extra breathing room so the pill doesn't
+                // resize/jitter as the clock text's width changes.
+                width: Math.max(contentImplicitWidth + root.centerPillExtraWidth, root.centerPillMinWidth)
 
                 Clock {}
             }
