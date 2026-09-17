@@ -22,8 +22,6 @@ RowLayout {
             width: visible ? 18 : 0
             height: visible ? 18 : 0
 
-            Component.onCompleted: console.log("[tray-debug]", modelData.id, "|", modelData.title)
-
             Image {
                 anchors.fill: parent
                 source: modelData.icon

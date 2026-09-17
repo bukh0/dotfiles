@@ -226,12 +226,7 @@ RowLayout {
     }
 
     // ── Divider ────────────────────────────────────────────
-    component Divider: Rectangle {
-        Layout.preferredWidth: 1
-        Layout.preferredHeight: 12
-        Layout.alignment: Qt.AlignVCenter
-        color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
-    }
+    // (was a private inline `component Divider`, now VDivider.qml)
 
     // ── Layout ─────────────────────────────────────────────
     Stat { 
@@ -240,7 +235,7 @@ RowLayout {
         tooltipText: root.tooltipCpu
         textColor: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.8) 
     }
-    Divider {}
+    VDivider {}
     
     Stat { 
         icon: "󰆼"
@@ -248,7 +243,7 @@ RowLayout {
         tooltipText: root.tooltipRam
         textColor: Colors.surfaceFg 
     }
-    Divider {}
+    VDivider {}
     
     Stat { 
         icon: "󰔏"
@@ -256,7 +251,7 @@ RowLayout {
         tooltipText: root.tooltipTemp
         textColor: root.cpuHot ? "#ff8c00" : Colors.surfaceFg 
     }
-    Divider {}
+    VDivider {}
     
     Stat { 
         icon: "󰁅"

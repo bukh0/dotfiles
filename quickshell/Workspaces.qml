@@ -10,15 +10,19 @@ RowLayout {
     property var screen
     spacing: 4
 
-    // ── Centralised workspace list (reused in bindings and functions) ──
     readonly property var workspaceList: Hyprland.workspaces.values
 
-    // ── Workspace IDs ─────────────────────────────────────────
     readonly property var persistentIds: [1, 2, 3]
+
+    // This bar's own monitor — not whichever monitor currently has focus.
+    // Without this, every bar instance on a multi-monitor setup showed
+    // the active workspace of the focused monitor, not its own.
+    readonly property var monitor: Hyprland.monitorFor(root.screen)
+    readonly property int activeWsId: root.monitor?.activeWorkspace?.id ?? -1
 
     readonly property var extraIds: {
         const ids = []
-        const focusedWsId = Hyprland.focusedMonitor?.activeWorkspace?.id ?? -1
+        const focusedWsId = root.activeWsId
         const workspaces = root.workspaceList
         for (let i = 0; i < workspaces.length; ++i) {
             const ws = workspaces[i]
@@ -31,10 +35,6 @@ RowLayout {
 
     readonly property var allIds: persistentIds.concat(extraIds)
 
-    // ── Cached active workspace ID ─────────────────────────────
-    readonly property int activeWsId: Hyprland.focusedMonitor?.activeWorkspace?.id ?? -1
-
-    // Lightweight lookup – only called on click
     function getWorkspaceById(id) {
         const workspaces = root.workspaceList
         for (let i = 0; i < workspaces.length; ++i) {
@@ -47,7 +47,6 @@ RowLayout {
         id: switchProc
     }
 
-    // ── Indicators ─────────────────────────────────────────────
     Repeater {
         model: root.allIds
 

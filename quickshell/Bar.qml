@@ -8,7 +8,6 @@ import "."
 PanelWindow {
     id: root
 
-    // Use Top layer so fullscreen windows cover the bar
     WlrLayershell.layer: WlrLayer.Top
 
     anchors {
@@ -17,28 +16,23 @@ PanelWindow {
         right: true
     }
 
-    // ── Dimensions ────────
     property int barHeight: 35
     property int pillRadius: 12
-    property int pillPaddingH: 24        // 12px horizontal padding per side
+    property int pillPaddingH: 24
     property int centerPillMinWidth: 180
     property int centerPillExtraWidth: 80
 
-    // implicitHeight must fit barHeight + top/bottom margins (7 + 7),
-    // otherwise pills overflow their container and get clipped.
     implicitHeight: barHeight + 14
     color: "transparent"
 
     property color pillBg: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.99)
     property color pillBorder: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
 
-    // NOTE: the old Meta+F Shortcut block was removed — QML Shortcut only
-    // fires if this layer-shell surface has keyboard focus, which a bar
-    // shouldn't grab (it'd steal focus from whatever's active). Bind
-    // fullscreen toggling natively in Hyprland instead:
+    // Fullscreen toggling is bound natively in Hyprland instead of a QML
+    // Shortcut here, since a Shortcut only fires if this layer-shell
+    // surface has keyboard focus — which a bar shouldn't grab:
     //   hl.bind({ mod = "SUPER", key = "F", dispatcher = hl.dsp.fullscreen })
 
-    // ── Pill container ─────────────────────────────────────
     Item {
         anchors.fill: parent
         anchors.margins: 7
@@ -62,20 +56,13 @@ PanelWindow {
 
                 Workspaces { screen: root.screen }
 
-                // --- Active Window Title ---
                 Text {
                     id: activeWindowTitle
-
-                    color: Colors.onSurface || "#ffffff"
+                    color: Colors.surfaceFg
                     font.pixelSize: 13
                     font.weight: Font.Medium
-
-                    // The Native Wayland hook
                     text: ToplevelManager.activeToplevel ? ToplevelManager.activeToplevel.title : ""
-
-                    // Completely removes the element from layout when empty
                     visible: text !== ""
-
                     Layout.leftMargin: 12
                     Layout.maximumWidth: 350
                     elide: Text.ElideRight
@@ -84,38 +71,24 @@ PanelWindow {
         }
 
         // CENTER PILL – Clock & Control Panel trigger
-        Rectangle {
-            id: centerPill
+        Item {
+            id: centerPillWrap
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
-            height: root.barHeight
-
-            // Stable pill sizing so the clock doesn't jitter when time changes
-            width: Math.max(centerLayout.implicitWidth + root.centerPillExtraWidth, root.centerPillMinWidth)
-
-            radius: root.pillRadius
-            border.width: 1
+            width: centerPill.width
+            height: centerPill.height
 
             // Tracks whether the panel was opened via click, as opposed to
             // hover — so a hover-exit can't slam shut a panel the user
             // deliberately pinned open.
             property bool pinnedOpen: false
 
-            color: controlPanel.isOpen
-                ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.2)
-                : centerMa.containsMouse
-                ? Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.6)
-                : root.pillBg
-            border.color: controlPanel.isOpen
-                ? Colors.primary
-                : root.pillBorder
+            Pill {
+                id: centerPill
+                pillHeight: root.barHeight
+                isActive: controlPanel.isOpen
+                isHovered: centerMa.containsMouse
 
-            Behavior on color { ColorAnimation { duration: 150 } }
-            Behavior on border.color { ColorAnimation { duration: 150 } }
-
-            RowLayout {
-                id: centerLayout
-                anchors.centerIn: parent
                 Clock {}
             }
 
@@ -124,11 +97,11 @@ PanelWindow {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onEntered: if (!centerPill.pinnedOpen) controlPanel.beginHoverOpen()
-                onExited: if (!centerPill.pinnedOpen) controlPanel.scheduleHoverClose()
+                onEntered: if (!centerPillWrap.pinnedOpen) controlPanel.beginHoverOpen()
+                onExited: if (!centerPillWrap.pinnedOpen) controlPanel.scheduleHoverClose()
                 onClicked: {
-                    centerPill.pinnedOpen = !centerPill.pinnedOpen
-                    controlPanel.isOpen = centerPill.pinnedOpen
+                    centerPillWrap.pinnedOpen = !centerPillWrap.pinnedOpen
+                    controlPanel.isOpen = centerPillWrap.pinnedOpen
                 }
             }
         }
@@ -157,14 +130,10 @@ PanelWindow {
         }
     }
 
-    // ── Overlays (attached directly) ────────────────────────
     ControlPanel {
         id: controlPanel
         openY: 10
         closedY: 26
-
-        // Was root.implicitHeight (45, the whole window) — should reference
-        // the actual visible pill height so the panel anchors correctly.
         barHeight: root.barHeight
     }
 

@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import "."
@@ -8,10 +9,8 @@ ColumnLayout {
     id: wifiRoot
     spacing: 6
 
-    // ── Shared font family (avoids repetition) ─────────────────
     readonly property string fontFamily: "JetBrainsMono Nerd Font"
 
-    // ── Data from shared NetworkService singleton ──────────────
     readonly property bool wifiOn: NetworkService.wifiOn
     readonly property string ssid: NetworkService.ssid
     readonly property var networks: NetworkService.networks
@@ -20,11 +19,12 @@ ColumnLayout {
     property bool expanded: false
     property bool rescanPending: false
     property bool actionInFlight: false
-
-    // Used by network delegates to know which SSID is being targeted
     property string targetSsid: ""
 
-    // ── Simple notification helper (same as Bluetooth) ────────
+    onExpandedChanged: {
+        if (!expanded) NetworkService.cancelPasswordPrompt()
+    }
+
     Process {
         id: notifyProc
         running: false
@@ -36,7 +36,6 @@ ColumnLayout {
         notifyProc.running = true
     }
 
-    // ── React to external service events ───────────────────────
     Connections {
         target: NetworkService
         function onConnectionSettled() {
@@ -51,7 +50,6 @@ ColumnLayout {
         }
     }
 
-    // ── Convenience functions ──────────────────────────────────
     function scan() {
         NetworkService.scan()
     }
@@ -77,7 +75,6 @@ ColumnLayout {
             anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
             spacing: 8
 
-            // Toggle button
             Rectangle {
                 width: 32; height: 32; radius: 16
                 color: "transparent"
@@ -100,7 +97,6 @@ ColumnLayout {
                 }
             }
 
-            // Expandable area
             MouseArea {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -167,14 +163,14 @@ ColumnLayout {
             delegate: Rectangle {
                 id: delegateRoot
                 Layout.fillWidth: true
-                implicitHeight: 38
+                implicitHeight: contentCol.implicitHeight + 16
                 radius: 8
 
                 property bool isProcessing: wifiRoot.actionInFlight && wifiRoot.targetSsid === modelData.ssid
                 property bool isConnecting: false
                 property bool isDisconnecting: false
+                readonly property bool needsPassword: NetworkService.awaitingPasswordFor === modelData.ssid
 
-                // Show as active only when actually connected and not disconnecting
                 readonly property bool showActive: modelData.active && !isDisconnecting
 
                 color: showActive
@@ -185,7 +181,6 @@ ColumnLayout {
 
                 Behavior on color { ColorAnimation { duration: 100 } }
 
-                // Reset local flags when connection attempt settles
                 Connections {
                     target: NetworkService
                     function onConnectionSettled() {
@@ -196,58 +191,116 @@ ColumnLayout {
                     }
                 }
 
-                RowLayout {
-                    anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
-                    spacing: 8
+                ColumnLayout {
+                    id: contentCol
+                    anchors { top: parent.top; left: parent.left; right: parent.right; margins: 8 }
+                    spacing: 6
 
-                    Text {
-                        text: NetworkService.signalIcon(modelData.signal)
-                        color: delegateRoot.showActive ? Colors.primary : Colors.surfaceFg
-                        font.pixelSize: 14
-                        font.family: wifiRoot.fontFamily
-                    }
-                    Text {
-                        text: modelData.ssid
-                        color: delegateRoot.showActive ? Colors.primary : Colors.surfaceFg
-                        font.pixelSize: 12
-                        font.family: wifiRoot.fontFamily
+                    Item {
+                        id: headerItem
                         Layout.fillWidth: true
-                        elide: Text.ElideRight
-                    }
-                    Text {
-                        visible: modelData.security && !delegateRoot.showActive && !delegateRoot.isProcessing
-                        text: "󰌾"
-                        color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
-                        font.pixelSize: 11
-                        font.family: wifiRoot.fontFamily
-                    }
-                    Text {
-                        visible: delegateRoot.showActive || delegateRoot.isProcessing
-                        text: delegateRoot.isProcessing ? "󰔟" : "󰄬"
-                        color: delegateRoot.isProcessing ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6) : Colors.primary
-                        font.pixelSize: 12
-                        font.family: wifiRoot.fontFamily
-                    }
-                }
+                        implicitHeight: headerLayout.implicitHeight
 
-                MouseArea {
-                    id: networkMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: delegateRoot.isProcessing ? Qt.WaitCursor : Qt.PointingHandCursor
-                    onClicked: {
-                        if (wifiRoot.actionInFlight) return
+                        RowLayout {
+                            id: headerLayout
+                            anchors.fill: parent
+                            spacing: 8
 
-                        const disconnecting = modelData.active
-                        wifiRoot.actionInFlight = true
-                        wifiRoot.targetSsid = modelData.ssid
+                            Text {
+                                text: NetworkService.signalIcon(modelData.signal)
+                                color: delegateRoot.showActive ? Colors.primary : Colors.surfaceFg
+                                font.pixelSize: 14
+                                font.family: wifiRoot.fontFamily
+                            }
+                            Text {
+                                text: modelData.ssid
+                                color: delegateRoot.showActive ? Colors.primary : Colors.surfaceFg
+                                font.pixelSize: 12
+                                font.family: wifiRoot.fontFamily
+                                Layout.fillWidth: true
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                visible: modelData.security && !delegateRoot.showActive && !delegateRoot.isProcessing
+                                text: "󰌾"
+                                color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
+                                font.pixelSize: 11
+                                font.family: wifiRoot.fontFamily
+                            }
+                            Text {
+                                visible: delegateRoot.showActive || delegateRoot.isProcessing
+                                text: delegateRoot.isProcessing ? "󰔟" : "󰄬"
+                                color: delegateRoot.isProcessing ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6) : Colors.primary
+                                font.pixelSize: 12
+                                font.family: wifiRoot.fontFamily
+                            }
+                        }
 
-                        if (disconnecting) {
-                            delegateRoot.isDisconnecting = true
-                            NetworkService.disconnectActive()
-                        } else {
-                            delegateRoot.isConnecting = true
-                            NetworkService.connectToNetwork(modelData.ssid)
+                        MouseArea {
+                            id: networkMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: delegateRoot.isProcessing ? Qt.WaitCursor : Qt.PointingHandCursor
+                            onClicked: {
+                                if (wifiRoot.actionInFlight) return
+
+                                const disconnecting = modelData.active
+                                wifiRoot.actionInFlight = true
+                                wifiRoot.targetSsid = modelData.ssid
+
+                                if (disconnecting) {
+                                    delegateRoot.isDisconnecting = true
+                                    NetworkService.disconnectActive()
+                                } else {
+                                    delegateRoot.isConnecting = true
+                                    // Tries without a secret first; NetworkService flips
+                                    // awaitingPasswordFor if one turns out to be required,
+                                    // which reveals the password row below.
+                                    NetworkService.connectToNetwork(modelData.ssid)
+                                }
+                            }
+                        }
+                    }
+
+                    // Password entry — shown when NetworkService reports this SSID
+                    // rejected a connection attempt for lacking a secret. Previously
+                    // there was no UI path for this at all: a new secured network
+                    // would just silently fail to connect.
+                    RowLayout {
+                        visible: delegateRoot.needsPassword
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        TextField {
+                            id: pwField
+                            Layout.fillWidth: true
+                            placeholderText: "Password"
+                            echoMode: TextInput.Password
+                            font.pixelSize: 11
+                            font.family: wifiRoot.fontFamily
+                            onAccepted: connectBtn.doConnect()
+                        }
+
+                        Text {
+                            id: connectBtn
+                            text: "Connect"
+                            color: Colors.primary
+                            font.pixelSize: 11
+                            font.weight: Font.Bold
+                            font.family: wifiRoot.fontFamily
+
+                            function doConnect() {
+                                if (pwField.text.length === 0) return
+                                wifiRoot.actionInFlight = true
+                                wifiRoot.targetSsid = modelData.ssid
+                                delegateRoot.isConnecting = true
+                                NetworkService.connectToNetwork(modelData.ssid, pwField.text)
+                            }
+
+                            TapHandler {
+                                cursorShape: Qt.PointingHandCursor
+                                onTapped: connectBtn.doConnect()
+                            }
                         }
                     }
                 }

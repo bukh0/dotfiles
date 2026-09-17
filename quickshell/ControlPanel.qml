@@ -6,8 +6,6 @@ import "."
 PanelWindow {
     id: controlPanel
 
-    // ── Configuration ─────────────────────────────────────────
-    // FIXED: Removed 'readonly' so Bar.qml can dynamically bind to this
     property int barHeight: 42
     property bool isOpen: false
 
@@ -21,9 +19,6 @@ PanelWindow {
     property int drawerTopMargin: 20
     property int drawerBottomMargin: 24
 
-    // ── Visibility logic (clean binding, no one-shot overrides) ─
-    // The window stays visible as long as the panel is open, or while the
-    // fade-out animation is still running.
     property bool _fadingOut: false
 
     visible: isOpen || _fadingOut
@@ -43,7 +38,6 @@ PanelWindow {
         height: controlPanel.height - controlPanel.barHeight
     }
 
-    // ── Timers ──────────────────────────────────────────────────
     Timer {
         id: closeDelayTimer
         interval: controlPanel.hoverCloseDelay
@@ -52,8 +46,6 @@ PanelWindow {
 
     Timer {
         id: fadeOutTimer
-        // Must not be shorter than the slide-down animation, or the window
-        // hides mid-motion and the close looks like it snaps/cuts off.
         interval: Math.max(controlPanel.slideDuration, controlPanel.fadeOutDuration)
         onTriggered: _fadingOut = false
     }
@@ -64,13 +56,11 @@ PanelWindow {
             closeDelayTimer.stop()
             fadeOutTimer.stop()
         } else {
-            // Start fade-out visual, but keep window visible
             _fadingOut = true
             fadeOutTimer.restart()
         }
     }
 
-    // ── Public API (called by the top bar or other components) ─
     function beginHoverOpen() {
         closeDelayTimer.stop()
         isOpen = true
@@ -85,15 +75,11 @@ PanelWindow {
         closeDelayTimer.stop()
     }
 
-    // ── Background dismissal (click outside drawer / Escape) ─
     FocusScope {
         id: overlayScope
         anchors.fill: parent
         enabled: controlPanel.isOpen
 
-        // Deferred: on Wayland/layer-shell, requesting focus in the same
-        // frame the window becomes visible/enabled can silently fail to
-        // take. Give it a beat instead of grabbing synchronously.
         onEnabledChanged: {
             if (enabled) {
                 Qt.callLater(() => {
@@ -110,7 +96,6 @@ PanelWindow {
         Keys.onEscapePressed: controlPanel.isOpen = false
     }
 
-    // ── Visual drawer ─────────────────────────────────────────
     Rectangle {
         id: drawerBg
         width: controlPanel.drawerWidth
@@ -133,13 +118,10 @@ PanelWindow {
             NumberAnimation { duration: controlPanel.fadeOutDuration }
         }
 
-        // Eats taps that land on the drawer's own background so they don't
-        // fall through to overlayScope's MouseArea and close the panel.
         TapHandler {
             onTapped: {}
         }
 
-        // Keep the drawer open while the mouse hovers over it
         HoverHandler {
             onHoveredChanged: {
                 if (hovered) {
@@ -150,7 +132,6 @@ PanelWindow {
             }
         }
 
-        // ── Content ────────────────────────────────────────────
         ColumnLayout {
             id: contentCol
             anchors {
@@ -171,12 +152,5 @@ PanelWindow {
             WifiToggle {}
             BluetoothToggle {}
         }
-    }
-
-    // ── Reusable divider ──────────────────────────────────────
-    component Divider: Rectangle {
-        Layout.fillWidth: true
-        height: 1
-        color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
     }
 }

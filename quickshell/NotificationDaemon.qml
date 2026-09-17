@@ -1,5 +1,6 @@
 pragma Singleton
 import QtQml
+import Quickshell
 import Quickshell.Services.Notifications
 
 QtObject {
@@ -36,8 +37,8 @@ QtObject {
 
     function clearAll() {
         const toClose = root.notifications.slice()
-        root.notifications = [] 
-        
+        root.notifications = []
+
         toClose.forEach(n => {
             if (typeof n.close === "function") {
                 try { n.close() } catch(e) { console.warn(e) }
@@ -48,20 +49,34 @@ QtObject {
     function closeNotification(idx) {
         const n = root.notifications[idx]
         if (n) {
-            // FIX: Instantly remove from the UI array to guarantee responsiveness
             const updated = root.notifications.slice()
             updated.splice(idx, 1)
             root.notifications = updated
 
-            // Tell the system backend to close it
             if (typeof n.close === "function") {
-                try { 
-                    n.close() 
+                try {
+                    n.close()
                 } catch(e) {
                     console.warn("Failed to close notification at index", idx, ":", e)
                 }
             }
         }
+    }
+
+    // Shared by NotificationPopup and NotificationDrawer — was duplicated
+    // verbatim in both before.
+    function getIconSource(data) {
+        if (!data) return ""
+        if (data.image) {
+            const img = data.image.toString()
+            return img.startsWith("/") ? "file://" + img : img
+        }
+        if (data.appIcon) {
+            const icon = data.appIcon.toString()
+            if (icon.startsWith("/")) return "file://" + icon
+            return Quickshell.iconPath(icon)
+        }
+        return ""
     }
 
     property NotificationServer server: NotificationServer {

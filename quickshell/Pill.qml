@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import "."
@@ -8,9 +9,17 @@ Rectangle {
 
     property bool isActive: false
     property bool isHovered: false
+    property int pillHeight: 32
+    property int horizontalPadding: 24
 
-    implicitHeight: 32
-    implicitWidth: layout.implicitWidth + 24
+    implicitHeight: pillHeight
+    implicitWidth: layout.implicitWidth + horizontalPadding
+
+    // Plain Items don't auto-bind width/height to their implicit* values
+    // outside a Layout — without this the pill collapses to 0x0 anywhere
+    // it's positioned with anchors instead of inside a Layout.
+    width: implicitWidth
+    height: implicitHeight
 
     radius: height / 2.5
 

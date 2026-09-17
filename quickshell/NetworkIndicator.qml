@@ -9,18 +9,18 @@ Item {
     width: label.implicitWidth
     height: label.implicitHeight
 
-    // ── Connection icon ─────────────────────────────────────
     readonly property string status: {
         if (NetworkService.connectionType === "wifi") return NetworkService.signalIcon(NetworkService.signalStrength)
         if (NetworkService.connectionType === "ethernet") return "󰈀"
         return "󰤭"
     }
 
-    // ── Find the nm-applet tray item dynamically ────────────
     property var nmAppletItem: null
 
     function findNmApplet() {
-        for (const item of Object.values(SystemTray.items)) {
+        // SystemTray.items is a Quickshell ObjectModel — Object.values()
+        // does not iterate it. Use .values, same as Hyprland.workspaces.
+        for (const item of SystemTray.items.values) {
             const id = (item.id || "").toLowerCase()
             if (id.includes("nm-applet") || id.includes("networkmanager")) {
                 nmAppletItem = item
@@ -30,7 +30,6 @@ Item {
         nmAppletItem = null
     }
 
-    // Event-driven watcher: automatically finds the item the moment system tray items change
     Connections {
         target: SystemTray.items
         function onValuesChanged() {
@@ -40,14 +39,12 @@ Item {
 
     Component.onCompleted: findNmApplet()
 
-    // ── Menu anchor ─────────────────────────────────────────
     QsMenuAnchor {
         id: menuAnchor
         menu: root.nmAppletItem ? root.nmAppletItem.menu : null
         anchor.item: root
     }
 
-    // ── Display ─────────────────────────────────────────────
     Text {
         id: label
         text: root.status
@@ -70,9 +67,7 @@ Item {
         cursorShape: Qt.PointingHandCursor
 
         onClicked: {
-            // Re-verify item exists and open safely via deferred call
             if (!root.nmAppletItem) root.findNmApplet()
-
             if (menuAnchor.menu) {
                 Qt.callLater(() => menuAnchor.open())
             }
