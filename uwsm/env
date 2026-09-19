@@ -1,0 +1,6 @@
+# Cursor: follows whatever nwg-look saved in gsettings (xcursor-only, so no HYPRCURSOR_*).
+_t=$(gsettings get org.gnome.desktop.interface cursor-theme 2>/dev/null | tr -d "'")
+_s=$(gsettings get org.gnome.desktop.interface cursor-size 2>/dev/null)
+export XCURSOR_THEME="${_t:-Adwaita}"
+export XCURSOR_SIZE="${_s:-24}"
+unset _t _s

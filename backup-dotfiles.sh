@@ -25,6 +25,12 @@ declare -A SYNC_MAP=(
   ["$CONFIG/swaync"]="$DOTFILES/swaync"
   ["$CONFIG/matugen"]="$DOTFILES/matugen"
 
+  # --- Session env, GTK and cursor settings ---
+  ["$CONFIG/uwsm"]="$DOTFILES/uwsm"
+  ["$CONFIG/gtk-3.0/settings.ini"]="$DOTFILES/gtk-3.0/settings.ini"
+  ["$CONFIG/gtk-4.0/settings.ini"]="$DOTFILES/gtk-4.0/settings.ini"
+  ["$HOME/.icons/default/index.theme"]="$DOTFILES/icons/default/index.theme"
+
   # --- Newly added theme architecture paths ---
   ["$HOME/.scripts"]="$DOTFILES/scripts"
   ["$CONFIG/wal"]="$DOTFILES/wal"

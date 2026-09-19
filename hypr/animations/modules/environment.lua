@@ -7,9 +7,6 @@ hl.env("QT_QPA_PLATFORM", "wayland")
 
 -- Theming Variables
 hl.env("GTK_THEME", "adw-gtk3-dark:dark")
-hl.env("XCURSOR_THEME", "Bibata-Modern-Classic")
-hl.env("XCURSOR_SIZE", "24")
-hl.env("HYPRCURSOR_SIZE", "24")
 
 -- Hardware Configuration (The Fix)
 hl.config({
