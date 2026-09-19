@@ -2,14 +2,20 @@
 # backup-dotfiles.sh
 # Syncs selected configs into ~/dotfiles and pushes to bukh0/dotfiles.git
 #
-# Usage: ./backup-dotfiles.sh [--push]
-#   --push   also commit and push after syncing (default: just sync + git add)
+# Usage: ./backup-dotfiles.sh [--push | --restore]
+#   (none)     sync live configs into the repo + git add
+#   --push     also commit and push after syncing
+#   --restore  reverse direction: copy repo files back to their live locations
+#              (no --delete, no git). Use on a fresh install.
 
 set -euo pipefail
 
 DOTFILES="$HOME/dotfiles"
 CONFIG="$HOME/.config"
 #WALLPAPERS="$HOME/Pictures/Wallpapers"
+
+MODE="backup"
+if [ "${1:-}" == "--restore" ]; then MODE="restore"; fi
 
 # --- Map of source -> destination inside dotfiles repo -----------------
 # Add/remove lines here as your setup evolves.
@@ -20,7 +26,6 @@ declare -A SYNC_MAP=(
   ["$CONFIG/rofi"]="$DOTFILES/rofi"
   ["$CONFIG/kitty"]="$DOTFILES/kitty"
   ["$CONFIG/nvim"]="$DOTFILES/nvim"
-  ["$CONFIG/zsh"]="$DOTFILES/zsh"
   ["$HOME/.zshrc"]="$DOTFILES/zsh/.zshrc"
   ["$CONFIG/swaync"]="$DOTFILES/swaync"
   ["$CONFIG/matugen"]="$DOTFILES/matugen"
@@ -56,14 +61,23 @@ if [ ! -d "$DOTFILES/.git" ]; then
   exit 1
 fi
 
-echo "==> Syncing configs"
-for src in "${!SYNC_MAP[@]}"; do
-  dest="${SYNC_MAP[$src]}"
+# Backup mirrors deletions into the repo; restore must never delete live files.
+DELETE_FLAG=(--delete)
+if [ "$MODE" == "restore" ]; then DELETE_FLAG=(); fi
+
+echo "==> Syncing configs ($MODE)"
+for entry in "${!SYNC_MAP[@]}"; do
+  src="$entry"
+  dest="${SYNC_MAP[$entry]}"
+  if [ "$MODE" == "restore" ]; then
+    src="${SYNC_MAP[$entry]}"
+    dest="$entry"
+  fi
   if [ -e "$src" ]; then
     mkdir -p "$(dirname "$dest")"
     if [ -d "$src" ]; then
       mkdir -p "$dest"
-      rsync -av --delete \
+      rsync -av "${DELETE_FLAG[@]}" \
         --exclude '.git' \
         --exclude '*.cache' \
         --exclude 'node_modules' \
@@ -80,6 +94,11 @@ for src in "${!SYNC_MAP[@]}"; do
     echo "  skipped (not found): $src"
   fi
 done
+
+if [ "$MODE" == "restore" ]; then
+  echo "==> Restored from $DOTFILES. Log out and back in to apply."
+  exit 0
+fi
 
 cd "$DOTFILES"
 git add -A
