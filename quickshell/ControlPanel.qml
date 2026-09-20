@@ -108,7 +108,7 @@ PanelWindow {
             NumberAnimation { duration: controlPanel.slideDuration; easing.type: Easing.OutQuart }
         }
 
-        radius: 16
+        radius: 12
         color: Qt.rgba(Colors.surfaceContainer.r, Colors.surfaceContainer.g, Colors.surfaceContainer.b, 0.97)
         border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
         border.width: 1

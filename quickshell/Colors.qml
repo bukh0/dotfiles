@@ -2,18 +2,18 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    readonly property color primary:              "#f2be6e"
-    readonly property color primaryFg:            "#442c00"
-    readonly property color secondary:            "#dcc3a1"
-    readonly property color secondaryFg:          "#3d2e16"
-    readonly property color tertiary:             "#b6cea3"
-    readonly property color tertiaryFg:           "#233517"
-    readonly property color surface:              "#18130b"
-    readonly property color surfaceFg:            "#ede1d4"
-    readonly property color surfaceContainer:     "#241f17"
-    readonly property color surfaceContainerHigh: "#2f2921"
-    readonly property color background:           "#18130b"
-    readonly property color outline:              "#9b8f80"
-    readonly property color error:                "#ffb4ab"
-    readonly property color errorOn:              "#690005"
+    readonly property color primary: "#b5937b"
+    readonly property color primaryFg: "#05050d"
+    readonly property color secondary: "#5971ac"
+    readonly property color secondaryFg: "#05050d"
+    readonly property color tertiary: "#5b4b4e"
+    readonly property color tertiaryFg: "#05050d"
+    readonly property color surface: "#05050d"
+    readonly property color surfaceFg: "#c0c0c2"
+    readonly property color surfaceContainer: Qt.tint(surface, Qt.rgba(surfaceFg.r, surfaceFg.g, surfaceFg.b, 0.06))
+    readonly property color surfaceContainerHigh: Qt.tint(surface, Qt.rgba(surfaceFg.r, surfaceFg.g, surfaceFg.b, 0.12))
+    readonly property color background: "#05050d"
+    readonly property color outline: "#555567"
+    readonly property color error: "#F2B8B5"
+    readonly property color errorOn: "#601410"
 }

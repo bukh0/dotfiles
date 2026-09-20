@@ -1,0 +1,113 @@
+{
+    "layer": "top",
+    "position": "top",
+    "margin-top": 6,
+    "margin-bottom": 6,
+    "margin-left": 0,
+    "margin-right": 0,
+    "height": 32,
+    "spacing": 10,
+    "modules-left": ["custom/launcher", "hyprland/window"],
+    "modules-center": [
+        "cpu",
+        "memory",
+        "custom/prev",
+        "mpris",
+        "custom/next",
+        "hyprland/workspaces",
+        "clock",
+        "custom/performance",
+        "battery",
+        "custom/power"
+    ],
+    "modules-right": ["tray", "custom/swaync", "network"],
+    "custom/swaync": {
+        "format": "󰂚",
+        "on-click": "swaync-client -t",
+        "tooltip": false
+    },
+    "custom/launcher": {
+        "format": "󰣇",
+        "on-click": "rofi -show drun",
+        "tooltip": false
+    },
+    "hyprland/window": {
+        "format": "{initialTitle}",
+        "max-length": 20
+    },
+    "cpu": {
+        "interval": 1,
+        "format": "󰻠 {usage}%",
+        "states": { "critical": 80 }
+    },
+    "tray": { "spacing": 8 },
+    "memory": {
+        "interval": 5,
+        "format": "󰍛 {percentage}%"
+    },
+    "mpris": {
+        "format": "{status_icon} {title}",
+        "format-paused": "󰏤 {title}",
+        "status-icons": {
+            "playing": "󰎆",
+            "paused": "󰏤",
+            "stopped": "󰓛"
+        },
+        "max-length": 20,
+        "min-length": 20,
+        "on-click": "playerctl play-pause",
+        "on-scroll-up": "playerctl next",
+        "on-scroll-down": "playerctl previous",
+        "tooltip": true,
+        "tooltip-format": "{player}"
+    },
+    "custom/prev": {
+        "exec": "playerctl status 2>/dev/null | grep -q 'Playing\\|Paused' && echo '{\"text\": \"󰒮\"}' || echo '{\"text\": \"\"}'",
+        "return-type": "json",
+        "interval": 2,
+        "on-click": "playerctl previous",
+        "tooltip": false
+    },
+    "custom/next": {
+        "exec": "playerctl status 2>/dev/null | grep -q 'Playing\\|Paused' && echo '{\"text\": \"󰒭\"}' || echo '{\"text\": \"\"}'",
+        "return-type": "json",
+        "interval": 2,
+        "on-click": "playerctl next",
+        "tooltip": false
+    },
+    "hyprland/workspaces": {
+        "format": "{id}",
+        "on-click": "activate",
+        "all-outputs": true,
+        "persistent-workspaces": { "*": [1, 2, 3, 4] }
+    },
+    "clock": { "format": "{:%H:%M · %a, %d/%m}" },
+    "custom/performance": {
+        "exec": "~/.scripts/performance-status.sh",
+        "interval": 2,
+        "on-click": "~/.scripts/toggle-performance.sh",
+        "format": "{}"
+    },
+    "battery": {
+        "states": {
+            "full": 100,
+            "high": 90,
+            "medium": 50,
+            "low": 20,
+            "critical": 10
+        },
+        "format": "{icon} {capacity}%",
+        "format-charging": " {capacity}%",
+        "format-plugged": " {capacity}%",
+        "format-icons": ["", "", "", "", ""]
+    },
+    "custom/power": { "format": "⏻", "on-click": "wlogout" },
+    "network": {
+        "format-wifi": "󰤨 {essid}",
+        "format-disconnected": "󰤭 Disconnected",
+        "on-click": "networkmanager_dmenu",
+        "tooltip-format": "{essid} {signalStrength}%"
+    }
+ //   },
+//    "bluetooth": { "format": "󰂯", "on-click": "blueman-manager" }
+}

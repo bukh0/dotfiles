@@ -1,0 +1,182 @@
+@import "/home/bukh0/.config/waybar/theme.css";
+
+* {
+    font-family: "JetBrainsMono Nerd Font", sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    border: none;
+    border-radius: 0;
+}
+
+/* ── Main bar ── */
+window#waybar {
+    background: transparent;
+}
+
+/* ── Shared pill base ── */
+.modules-left,
+.modules-center,
+.modules-right {
+    background: alpha(@surface, 0.4);
+    border: 0.5px solid alpha(@outline, 0.12);
+    border-radius: 11px;
+    margin: 0 4px 0 4px;
+    padding: 0 4px;
+}
+
+/* ── Module base ── */
+#custom-launcher,
+#workspaces,
+#window,
+#custom-prev,
+#mpris,
+#custom-next,
+#clock,
+#cpu,
+#memory,
+#battery,
+#network,
+#bluetooth,
+#custom-performance,
+#tray,
+#custom-swaync,
+#custom-power {
+    padding: 0 10px;
+    color: alpha(@on_surface, 0.75);
+    background: transparent;
+}
+
+/* ── Left pill ── */
+#custom-launcher {
+    font-size: 16px;
+    color: @primary;
+    padding: 0 12px 0 8px;
+}
+
+#window {
+    color: alpha(@on_surface, 0.8);
+    font-weight: 400;
+    font-size: 11px;
+}
+
+/* ── Workspaces ── */
+#workspaces {
+    padding: 0 2px;
+    background: transparent;
+    border: none;
+}
+
+#workspaces button {
+    color: alpha(@on_surface, 1);
+    padding: 0 1px;
+    min-width: 16px;
+    min-height: 16px;
+    font-size: 11px;
+    background: transparent;
+    transition: all 0.15s ease;
+}
+
+#workspaces button.active {
+    color: @primary;
+    background: alpha(@primary, 0.15);
+    border-radius: 50%;
+    min-width: 18px;
+    min-height: 18px;
+}
+
+#workspaces button:hover {
+    color: alpha(@on_surface, 0.6);
+    background: alpha(@on_surface, 0.06);
+    border-radius: 50%;
+}
+
+/* ── Center pill ── */
+#mpris {
+    color: alpha(@on_surface, 1);
+    min-width: 160px;
+    font-size: 11px;
+}
+
+#clock {
+    color: @primary;
+    padding: 0 12px;
+}
+
+#custom-prev,
+#custom-next {
+    color: alpha(@on_surface, 0.8);
+    font-size: 11px;
+    padding: 0 6px;
+}
+
+/* ── Right pill ── */
+#cpu {
+    color: alpha(@on_surface, 0.8);
+    min-width: 54px;
+}
+
+#memory {
+    color: alpha(@on_surface, 1);
+    min-width: 54px;
+}
+
+#battery {
+    color: alpha(@on_surface, 1);
+}
+
+#battery.charging,
+#battery.plugged {
+    color: @primary;
+}
+
+#battery.low {
+    color: @tertiary;
+}
+
+#battery.critical:not(.charging) {
+    color: @error;
+    animation: blink 0.5s linear infinite alternate;
+}
+
+#network {
+    color: alpha(@on_surface, 0.65);
+}
+
+#bluetooth,
+#custom-swaync {
+    color: alpha(@on_surface, 0.8);
+    padding: 0 8px;
+}
+
+#custom-performance {
+    color: alpha(@on_surface, 0.9);
+    font-size: 11px;
+}
+
+#custom-power {
+    color: alpha(@error, 0.7);
+    font-size: 14px;
+    padding: 0 10px 0 6px;
+}
+
+#tray {
+    padding: 0 6px;
+}
+
+#tray > .passive {
+    -gtk-icon-effect: dim;
+}
+
+/* ── CPU critical pulse ── */
+#cpu.critical {
+    color: @error;
+    animation: pulse 0.8s ease infinite alternate;
+}
+
+@keyframes pulse {
+    to { color: alpha(@error, 0.4); }
+}
+
+@keyframes blink {
+    to { color: alpha(@error, 0.3); }
+}

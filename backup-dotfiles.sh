@@ -14,6 +14,22 @@ DOTFILES="$HOME/dotfiles"
 CONFIG="$HOME/.config"
 #WALLPAPERS="$HOME/Pictures/Wallpapers"
 
+# Shell history is never backed up: it is skipped in SYNC_MAP, excluded from rsync,
+# kept in .gitignore, and unstaged before commit. To remove history that was already
+# backed up (working tree + git history), run ~/.scripts/purge-history.sh
+HISTORY_FILES=(.zsh_history .bash_history .zhistory .histfile .sh_history)
+
+is_history() {
+  local p
+  for p in "${HISTORY_FILES[@]}"; do
+    [[ ${1##*/} == "$p" ]] && return 0
+  done
+  return 1
+}
+
+HISTORY_EXCLUDES=()
+for p in "${HISTORY_FILES[@]}"; do HISTORY_EXCLUDES+=(--exclude "$p"); done
+
 MODE="backup"
 if [ "${1:-}" == "--restore" ]; then MODE="restore"; fi
 
@@ -29,6 +45,7 @@ declare -A SYNC_MAP=(
   ["$HOME/.zshrc"]="$DOTFILES/zsh/.zshrc"
   ["$CONFIG/swaync"]="$DOTFILES/swaync"
   ["$CONFIG/matugen"]="$DOTFILES/matugen"
+  ["$CONFIG/waybar"]="$DOTFILES/waybar"
 
   # --- Session env, GTK and cursor settings ---
   ["$CONFIG/uwsm"]="$DOTFILES/uwsm"
@@ -73,11 +90,16 @@ for entry in "${!SYNC_MAP[@]}"; do
     src="${SYNC_MAP[$entry]}"
     dest="$entry"
   fi
+  if is_history "$src"; then
+    echo "  skipped (shell history): $src"
+    continue
+  fi
   if [ -e "$src" ]; then
     mkdir -p "$(dirname "$dest")"
     if [ -d "$src" ]; then
       mkdir -p "$dest"
       rsync -av "${DELETE_FLAG[@]}" \
+        "${HISTORY_EXCLUDES[@]}" \
         --exclude '.git' \
         --exclude '*.cache' \
         --exclude 'node_modules' \
@@ -101,7 +123,23 @@ if [ "$MODE" == "restore" ]; then
 fi
 
 cd "$DOTFILES"
+
+# Keep history files git-ignored (any depth).
+for p in "${HISTORY_FILES[@]}"; do
+  grep -qxF "$p" .gitignore 2>/dev/null || echo "$p" >> .gitignore
+done
+
 git add -A
+
+# Fail-safe: unstage any history file that slipped through, warn if one is already tracked.
+specs=()
+for p in "${HISTORY_FILES[@]}"; do specs+=(":(glob)**/$p"); done
+git reset -q -- "${specs[@]}" 2>/dev/null || true
+tracked=$(git ls-files -- "${specs[@]}")
+if [ -n "$tracked" ]; then
+  echo "WARNING: shell history is tracked in git. Run ~/.scripts/purge-history.sh"
+  echo "$tracked" | sed 's/^/  /'
+fi
 
 if [ "${1:-}" == "--push" ]; then
   ts=$(date "+%Y-%m-%d %H:%M:%S")
@@ -111,12 +149,11 @@ if [ "${1:-}" == "--push" ]; then
     git commit -m "Backup configs: $ts"
   fi
 
-  # Push whenever local is ahead of remote, regardless of whether this
-  # run created a new commit (covers commits left over from prior runs).
+  # Push only when local commits are ahead of the remote (covers commits left
+  # over from prior runs, and doesn't try to push when the remote is ahead).
   git fetch origin --quiet || true
-  LOCAL=$(git rev-parse @)
-  REMOTE=$(git rev-parse @{u} 2>/dev/null || echo "")
-  if [ -n "$REMOTE" ] && [ "$LOCAL" != "$REMOTE" ]; then
+  AHEAD=$(git rev-list --count '@{u}..@' 2>/dev/null || echo 0)
+  if [ "$AHEAD" -gt 0 ]; then
     git push
     echo "==> Pushed to remote"
   else
