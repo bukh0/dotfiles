@@ -5,7 +5,7 @@ import "."
 RowLayout {
     id: root
     Layout.fillWidth: true
-    spacing: 10
+    spacing: Theme.spacingMD
 
     property string icon: ""
     property color iconColor: Colors.primary
@@ -24,8 +24,8 @@ RowLayout {
     Text {
         text: root.icon
         color: root.iconColor
-        font.pixelSize: 16
-        font.family: "JetBrainsMono Nerd Font"
+        font.pixelSize: Theme.fontSizeXL
+        font.family: Theme.fontMono
 
         TapHandler {
             cursorShape: Qt.PointingHandCursor
@@ -56,10 +56,10 @@ RowLayout {
         Rectangle {
             x: Math.min(Math.max(root.visualValue, 0), 1) * (parent.width - width)
             anchors.verticalCenter: parent.verticalCenter
-            width: 14
-            height: 14
-            radius: 7
-            color: root.trackColor
+            width: 6
+            height: 12
+            radius: 2
+            color: Colors.surfaceFg
             Behavior on x { NumberAnimation { duration: root.isDragging ? 0 : 80 } }
         }
 
@@ -93,8 +93,8 @@ RowLayout {
     Text {
         text: Math.round(root.visualValue * 100) + "%"
         color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6)
-        font.pixelSize: 11
-        font.family: "JetBrainsMono Nerd Font"
+        font.pixelSize: Theme.fontSizeSM
+        font.family: Theme.fontMono
         Layout.minimumWidth: 32
     }
 }

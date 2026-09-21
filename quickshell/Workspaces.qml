@@ -8,7 +8,7 @@ import "."
 RowLayout {
     id: root
     property var screen
-    spacing: 4
+    spacing: Theme.spacingXS
 
     readonly property var workspaceList: Hyprland.workspaces.values
 
@@ -43,8 +43,27 @@ RowLayout {
         return null
     }
 
+    property var _pendingWsId: null
+
     Process {
         id: switchProc
+        onRunningChanged: {
+            if (!running && root._pendingWsId !== null) {
+                const nextId = root._pendingWsId
+                root._pendingWsId = null
+                command = ["hyprctl", "dispatch", "workspace", String(nextId)]
+                running = true
+            }
+        }
+    }
+
+    function switchWorkspace(id) {
+        if (!switchProc.running) {
+            switchProc.command = ["hyprctl", "dispatch", "workspace", String(id)]
+            switchProc.running = true
+        } else {
+            root._pendingWsId = id
+        }
     }
 
     Repeater {
@@ -57,28 +76,30 @@ RowLayout {
 
             readonly property bool active: root.activeWsId === wsId
 
-            width: Math.max(24, wsLabel.implicitWidth + 10)
-            height: 30
+            width: Math.max(22, wsLabel.implicitWidth + 8)
+            height: 22
 
             Rectangle {
                 id: pill
                 anchors.fill: parent
-                radius: height / 2
-                visible: active || wsMa.containsMouse
+                radius: Theme.radius
 
                 color: active
-                    ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.15)
+                    ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18)
                     : (wsMa.containsMouse ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.08) : "transparent")
+                border.color: active ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.6) : "transparent"
+                border.width: 1
 
                 Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on border.color { ColorAnimation { duration: 150 } }
             }
 
             Text {
                 id: wsLabel
                 anchors.centerIn: parent
                 text: wsId
-                font.pixelSize: 14
-                font.family: "JetBrainsMono Nerd Font"
+                font.pixelSize: Theme.fontSizeLG
+                font.family: Theme.fontMono
                 font.weight: Font.Bold
                 color: Colors.primary
             }
@@ -92,9 +113,8 @@ RowLayout {
                     const ws = root.getWorkspaceById(wsId)
                     if (ws) {
                         ws.activate()
-                    } else if (!switchProc.running) {
-                        switchProc.command = ["hyprctl", "dispatch", "workspace", String(wsId)]
-                        switchProc.running = true
+                    } else {
+                        root.switchWorkspace(wsId)
                     }
                 }
             }

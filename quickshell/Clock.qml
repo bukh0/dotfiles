@@ -60,8 +60,8 @@ RowLayout {
         text: dateTimeText
         color: Colors.primary
         font {
-            pixelSize: 13
-            family: "JetBrainsMono Nerd Font"
+            pixelSize: Theme.fontSizeMD
+            family: Theme.fontMono
             weight: Font.Bold
         }
     }

@@ -26,15 +26,15 @@ Rectangle {
     width: implicitWidth
     height: implicitHeight
 
-    radius: height / 3.0
+    radius: 4
 
     readonly property color bgColor: isActive
-        ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.3)
-        : Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, isHovered ? 0.9 : 0.99)
+        ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.15)
+        : Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, isHovered ? 0.6 : 0.2)
 
     readonly property color borderColorC: isActive
         ? Colors.primary
-        : Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.5)
+        : Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, isHovered ? 0.35 : 0.18)
 
     color: bgColor
     border.color: borderColorC

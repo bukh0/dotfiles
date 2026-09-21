@@ -10,7 +10,7 @@ ColumnLayout {
     spacing: 10
 
     // ── Constants & configuration ──────────────────────────────
-    readonly property string fontFamily: "JetBrainsMono Nerd Font"
+    readonly property string fontFamily: Theme.fontMono
     readonly property int artSize: 84
     readonly property int controlsHeight: 42
     readonly property int rowGap: 10
@@ -48,7 +48,7 @@ ColumnLayout {
 
         width: boxSize
         height: boxSize
-        radius: 8
+        radius: 4
 
         color: tap.pressed
             ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.3)
@@ -116,7 +116,7 @@ ColumnLayout {
         stderr: StdioCollector {
             onStreamFinished: {
                 const err = text.trim()
-                if (err.length > 0) console.warn("playerctl poll error:", err)
+                if (err.length > 0 && !err.includes("No players found")) console.warn("playerctl poll error:", err)
             }
         }
     }
@@ -202,10 +202,13 @@ ColumnLayout {
         const newSnapshot = Object.assign({}, root._lastSnapshot)
         const parsedNames = new Set(parsed.map(p => p.player))
 
-        // 1. Remove vanished players FIRST
+        // 1. Remove vanished players FIRST, and prune their snapshot entries
         for (let i = playersListModel.count - 1; i >= 0; i--) {
-            if (!parsedNames.has(playersListModel.get(i).player)) {
+            const gone = playersListModel.get(i).player
+            if (!parsedNames.has(gone)) {
                 playersListModel.remove(i, 1)
+                delete newSnapshot[gone]
+                cacheUpdated = true
             }
         }
 
@@ -360,7 +363,7 @@ ColumnLayout {
             anchors.left: parent.left
             anchors.top: parent.top
             width: root.artSize; height: root.artSize
-            radius: 10
+            radius: 4
             color: Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
 
             Text {
@@ -438,7 +441,7 @@ ColumnLayout {
                                 Layout.preferredWidth: root.artSize
                                 Layout.preferredHeight: root.artSize
                                 Layout.alignment: Qt.AlignTop
-                                radius: 10
+                                radius: 4
                                 color: Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
                                 clip: true
 
@@ -608,9 +611,9 @@ ColumnLayout {
             model: playersListModel.count
 
             delegate: Rectangle {
-                implicitWidth: index === pager.currentIndex ? 16 : 6
-                implicitHeight: 6
-                radius: 3
+                implicitWidth: index === pager.currentIndex ? 14 : 4
+                implicitHeight: 3
+                radius: 1
                 color: index === pager.currentIndex
                     ? Colors.primary
                     : Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.4)

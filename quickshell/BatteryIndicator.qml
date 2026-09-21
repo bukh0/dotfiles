@@ -99,8 +99,8 @@ Item {
         id: label
         text: root.icon + " " + root.capacity + "%"
         color: root.iconColor
-        font.pixelSize: 13
-        font.family: "JetBrainsMono Nerd Font"
+        font.pixelSize: Theme.fontSizeMD
+        font.family: Theme.fontMono
         font.weight: Font.Bold
         Behavior on color { ColorAnimation { duration: 200 } }
     }

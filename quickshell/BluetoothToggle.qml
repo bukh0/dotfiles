@@ -21,6 +21,7 @@ ColumnLayout {
 
     // Used for detecting connection changes
     property var previousConnected: null
+    property var previousDeviceNames: ({})
 
     // ── Shared notification helper ─────────────────────────────
     Process {
@@ -34,11 +35,13 @@ ColumnLayout {
         notifyProc.running = true
     }
 
+    // ── Font ───────────────────────────────────────────────────
+    readonly property string fontFamily: Theme.fontMono
+
     // ── Generic command runner (for power toggle etc.) ─────────
     Process {
         id: actionProc
         running: false
-        stdout: StdioCollector { onStreamFinished: btRoot._checkError(text) }
         stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
         onRunningChanged: {
             if (!running) btPoll.running = true   // refresh full state
@@ -51,25 +54,58 @@ ColumnLayout {
         actionProc.running = true
     }
 
-    // ── Main polling process ──────────────────────────────────
+    // ── Main polling process — reads BlueZ's D-Bus state directly.
+    // NOTE: known open issue — some devices (e.g. non-standard-profile
+    // audio devices with a virtualized MAC like 00:00:00:00:03:80) can be
+    // actively connected at the audio layer while org.bluez.Device1's
+    // Connected property still reports false. Still investigating the
+    // root cause; UI will under-report "connected" for those devices
+    // until resolved.
     Process {
         id: btPoll
-        command: ["sh", "-c",
-            "env NO_COLOR=1 bluetoothctl show | grep -q 'Powered: yes' && echo 'enabled' || echo 'disabled';" +
-            "echo '===';" +
-            "env NO_COLOR=1 bluetoothctl devices Paired;" +
-            "echo '===';" +
-            "env NO_COLOR=1 bluetoothctl devices Connected"
-        ]
+        command: ["busctl", "--system", "-j", "call", "org.bluez", "/",
+                  "org.freedesktop.DBus.ObjectManager", "GetManagedObjects"]
+        stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
         stdout: StdioCollector {
             onStreamFinished: {
-                const textOutput = text.replace(/\x1b\[[0-9;]*m/g, "").trim()
-                const sections = textOutput.split("===")
+                let parsed
+                try {
+                    parsed = JSON.parse(text)
+                } catch (e) {
+                    console.warn("bluetooth: failed to parse busctl output:", e)
+                    return
+                }
+                const objs = (parsed.data && parsed.data[0]) || {}
 
-                btRoot.btOn = (sections[0].trim() === "enabled")
-                
-                // If Bluetooth is off, wipe the state silently and abort
-                if (!btRoot.btOn) {
+                let adapterPowered = false
+                const paired = []
+                const connectedMacs = []
+                const connectedNames = []
+
+                for (const path in objs) {
+                    const ifaces = objs[path]
+
+                    const adapter = ifaces["org.bluez.Adapter1"]
+                    if (adapter && adapter.Powered) adapterPowered = !!adapter.Powered.data
+
+                    const dev = ifaces["org.bluez.Device1"]
+                    if (!dev || !dev.Paired || !dev.Paired.data) continue
+
+                    const mac = dev.Address ? dev.Address.data : ""
+                    if (!mac) continue
+                    const name = (dev.Name && dev.Name.data) || (dev.Alias && dev.Alias.data) || mac
+                    const connected = !!(dev.Connected && dev.Connected.data)
+
+                    paired.push({ mac, name, connected })
+                    if (connected) {
+                        connectedMacs.push(mac)
+                        connectedNames.push(name)
+                    }
+                }
+
+                btRoot.btOn = adapterPowered
+
+                if (!adapterPowered) {
                     btRoot.previousConnected = []
                     btRoot.devices = []
                     btRoot.connectedName = ""
@@ -77,44 +113,34 @@ ColumnLayout {
                     return
                 }
 
-                if (sections.length < 3) return
-
-                const pairedLines = sections[1].trim().split("\n").filter(l => l.includes("Device "))
-                const connLines = sections[2].trim().split("\n").filter(l => l.includes("Device "))
-
-                const currConnectedMacs = connLines.map(l => l.split(" ")[1]).filter(m => m)
-                const connectedNamesArr = []
-
-                const newDevices = pairedLines.map(l => {
-                    const parts = l.split(" ")
-                    const mac = parts[1]
-                    const name = parts.slice(2).join(" ").trim()
-                    const isConn = currConnectedMacs.includes(mac)
-                    if (isConn) connectedNamesArr.push(name)
-                    return { mac, name, connected: isConn }
-                }).filter(d => d.mac)
-
-                btRoot.connectedName = connectedNamesArr.join(", ")
-                btRoot.devices = newDevices
+                btRoot.connectedName = connectedNames.join(", ")
+                btRoot.devices = paired
 
                 // Clean up discovered list (remove newly paired devices)
                 if (btRoot.discoveredDevices.length > 0) {
-                    const pairedMacs = newDevices.map(d => d.mac)
+                    const pairedMacs = paired.map(d => d.mac)
                     btRoot.discoveredDevices = btRoot.discoveredDevices.filter(d => !pairedMacs.includes(d.mac))
                 }
 
                 // Connection change notifications
                 if (btRoot.previousConnected !== null) {
                     const prevMacs = btRoot.previousConnected
-                    const added = currConnectedMacs.filter(m => !prevMacs.includes(m))
-                    const removed = prevMacs.filter(m => !currConnectedMacs.includes(m))
+                    const added = connectedMacs.filter(m => !prevMacs.includes(m))
+                    const removed = prevMacs.filter(m => !connectedMacs.includes(m))
                     added.forEach(m => {
-                        const d = newDevices.find(x => x.mac === m)
+                        const d = paired.find(x => x.mac === m)
                         if (d) btRoot.notify("Bluetooth Connected", d.name)
                     })
-                    if (removed.length > 0) btRoot.notify("Bluetooth Disconnected", "Device disconnected")
+                    removed.forEach(m => {
+                        const name = btRoot.previousDeviceNames[m] || "Device"
+                        btRoot.notify("Bluetooth Disconnected", name)
+                    })
                 }
-                btRoot.previousConnected = currConnectedMacs
+                btRoot.previousConnected = connectedMacs
+
+                const nameMap = {}
+                paired.forEach(d => { nameMap[d.mac] = d.name })
+                btRoot.previousDeviceNames = nameMap
             }
         }
     }
@@ -159,6 +185,8 @@ ColumnLayout {
                 btPoll.running = true
         }
     }
+
+    Component.onCompleted: btPoll.running = true
 
     // ── Discovery helpers ──────────────────────────────────────
     Process {
@@ -232,12 +260,11 @@ ColumnLayout {
         if (n.includes("speaker")) return "󰓃"
         return "󰂯"
     }
-    
+
     // ── Connection Actions ─────────────────────────────────────
     Process {
         id: rootConnectProc
         running: false
-        stdout: StdioCollector { onStreamFinished: btRoot._checkError(text) }
         stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
         onRunningChanged: {
             if (!running) {
@@ -251,7 +278,6 @@ ColumnLayout {
     Process {
         id: rootPairProc
         running: false
-        stdout: StdioCollector { onStreamFinished: btRoot._checkError(text) }
         stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
         onRunningChanged: {
             if (!running) {
@@ -266,27 +292,32 @@ ColumnLayout {
     // ── Header toggle ──────────────────────────────────────────
     Rectangle {
         Layout.fillWidth: true
-        implicitHeight: 48
-        radius: 10
+        implicitHeight: 36
+        radius: Theme.radius
         color: btRoot.btOn
-            ? Qt.rgba(Colors.secondary.r, Colors.secondary.g, Colors.secondary.b, btRoot.expanded ? 0.25 : 0.15)
-            : Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.6)
+            ? Qt.rgba(Colors.secondary.r, Colors.secondary.g, Colors.secondary.b, btRoot.expanded ? 0.2 : 0.12)
+            : Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.4)
+        border.color: btRoot.btOn
+            ? Qt.rgba(Colors.secondary.r, Colors.secondary.g, Colors.secondary.b, 0.4)
+            : Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
+        border.width: 1
         Behavior on color { ColorAnimation { duration: 200 } }
+        Behavior on border.color { ColorAnimation { duration: 200 } }
 
         RowLayout {
-            anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
+            anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
             spacing: 8
 
             // Power button
             Rectangle {
-                width: 32; height: 32; radius: 16
+                width: 26; height: 26; radius: Theme.radiusSM
                 color: "transparent"
                 Text {
                     anchors.centerIn: parent
                     text: actionProc.running ? "󰔟" : "󰂯"
                     color: btRoot.btOn ? Colors.secondary : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
-                    font.pixelSize: 18
-                    font.family: "JetBrainsMono Nerd Font"
+                    font.pixelSize: 20
+                    font.family: btRoot.fontFamily
                 }
                 MouseArea {
                     anchors.fill: parent
@@ -326,14 +357,14 @@ ColumnLayout {
                             color: Colors.surfaceFg
                             font.pixelSize: 12
                             font.weight: Font.Medium
-                            font.family: "JetBrainsMono Nerd Font"
+                            font.family: btRoot.fontFamily
                         }
                         Text {
                             visible: btRoot.btOn && btRoot.connectedName !== ""
                             text: btRoot.connectedName
                             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.55)
                             font.pixelSize: 10
-                            font.family: "JetBrainsMono Nerd Font"
+                            font.family: btRoot.fontFamily
                             elide: Text.ElideRight
                         }
                     }
@@ -343,7 +374,7 @@ ColumnLayout {
                         text: btRoot.expanded ? "󰅃" : "󰅀"
                         color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
                         font.pixelSize: 14
-                        font.family: "JetBrainsMono Nerd Font"
+                        font.family: btRoot.fontFamily
                     }
                 }
             }
@@ -362,7 +393,7 @@ ColumnLayout {
             text: "No paired devices"
             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
             font.pixelSize: 11
-            font.family: "JetBrainsMono Nerd Font"
+            font.family: btRoot.fontFamily
         }
 
         Text {
@@ -371,7 +402,7 @@ ColumnLayout {
             text: "Scanning..."
             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
             font.pixelSize: 11
-            font.family: "JetBrainsMono Nerd Font"
+            font.family: btRoot.fontFamily
         }
 
         // Paired devices
@@ -380,11 +411,10 @@ ColumnLayout {
             delegate: Rectangle {
                 id: delegateRoot
                 Layout.fillWidth: true
-                implicitHeight: 38
-                radius: 8
+                implicitHeight: 32
+                radius: 4
 
                 property bool isProcessing: btRoot.actionInFlight && btRoot.targetMac === modelData.mac
-                property bool isConnecting: false
                 property bool isDisconnecting: false
 
                 readonly property bool showConnected: modelData.connected && !isDisconnecting
@@ -405,13 +435,13 @@ ColumnLayout {
                         text: btRoot.deviceIcon(modelData.name)
                         color: delegateRoot.showConnected ? Colors.secondary : Colors.surfaceFg
                         font.pixelSize: 14
-                        font.family: "JetBrainsMono Nerd Font"
+                        font.family: btRoot.fontFamily
                     }
                     Text {
                         text: modelData.name
                         color: delegateRoot.showConnected ? Colors.secondary : Colors.surfaceFg
                         font.pixelSize: 12
-                        font.family: "JetBrainsMono Nerd Font"
+                        font.family: btRoot.fontFamily
                         Layout.fillWidth: true
                         elide: Text.ElideRight
                     }
@@ -420,7 +450,7 @@ ColumnLayout {
                         text: delegateRoot.isProcessing ? "󰔟" : "󰄬"
                         color: delegateRoot.isProcessing ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6) : Colors.secondary
                         font.pixelSize: 12
-                        font.family: "JetBrainsMono Nerd Font"
+                        font.family: btRoot.fontFamily
                     }
                 }
 
@@ -433,12 +463,8 @@ ColumnLayout {
                         if (btRoot.actionInFlight) return
 
                         const disconnecting = modelData.connected
-                        if (disconnecting) {
-                            delegateRoot.isDisconnecting = true
-                        } else {
-                            delegateRoot.isConnecting = true
-                        }
-                        
+                        if (disconnecting) delegateRoot.isDisconnecting = true
+
                         btRoot.actionInFlight = true
                         btRoot.targetMac = modelData.mac
 
@@ -457,8 +483,8 @@ ColumnLayout {
             delegate: Rectangle {
                 id: pairDelegateRoot
                 Layout.fillWidth: true
-                implicitHeight: 38
-                radius: 8
+                implicitHeight: 32
+                radius: 4
 
                 property bool isProcessing: btRoot.actionInFlight && btRoot.targetMac === modelData.mac
 
@@ -476,7 +502,7 @@ ColumnLayout {
                         text: btRoot.deviceIcon(modelData.name)
                         color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6)
                         font.pixelSize: 14
-                        font.family: "JetBrainsMono Nerd Font"
+                        font.family: btRoot.fontFamily
                     }
                     ColumnLayout {
                         Layout.fillWidth: true
@@ -485,7 +511,7 @@ ColumnLayout {
                             text: modelData.name
                             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.75)
                             font.pixelSize: 12
-                            font.family: "JetBrainsMono Nerd Font"
+                            font.family: btRoot.fontFamily
                             Layout.fillWidth: true
                             elide: Text.ElideRight
                         }
@@ -494,7 +520,7 @@ ColumnLayout {
                             text: "Tap to pair"
                             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
                             font.pixelSize: 10
-                            font.family: "JetBrainsMono Nerd Font"
+                            font.family: btRoot.fontFamily
                         }
                     }
                     Text {
@@ -502,7 +528,7 @@ ColumnLayout {
                         text: "󰔟"
                         color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6)
                         font.pixelSize: 12
-                        font.family: "JetBrainsMono Nerd Font"
+                        font.family: btRoot.fontFamily
                     }
                 }
 
@@ -517,7 +543,7 @@ ColumnLayout {
                         btRoot.actionInFlight = true
                         btRoot.targetMac = mac
                         rootPairProc.command = ["sh", "-c",
-                            "bluetoothctl pair " + mac + " && bluetoothctl trust " + mac + " && bluetoothctl connect " + mac]
+                            "bluetoothctl pair '" + mac + "' && bluetoothctl trust '" + mac + "' && bluetoothctl connect '" + mac + "'"]
                         rootPairProc.running = true
                     }
                 }
@@ -527,8 +553,8 @@ ColumnLayout {
         // Scan button
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: 32
-            radius: 8
+            implicitHeight: 28
+            radius: 4
             color: btRescanMa.containsMouse
                 ? Qt.rgba(Colors.secondary.r, Colors.secondary.g, Colors.secondary.b, 0.15)
                 : "transparent"
@@ -539,7 +565,7 @@ ColumnLayout {
                 text: btRoot.scanning ? "󰑐  Scanning..." : "󰑐  Scan for devices"
                 color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
                 font.pixelSize: 11
-                font.family: "JetBrainsMono Nerd Font"
+                font.family: btRoot.fontFamily
             }
             MouseArea {
                 id: btRescanMa

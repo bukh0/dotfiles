@@ -10,8 +10,8 @@ PanelWindow {
     property bool isOpen: NotificationDaemon.isDrawerOpen
     property int fadeOutDuration: 200
     property int drawerY: 44
-    property string uiFont: "sans-serif"
-    property string iconFont: "JetBrainsMono Nerd Font"
+    property string uiFont: Theme.fontUI
+    property string iconFont: Theme.fontMono
 
     visible: isOpen || drawerBg.opacity > 0
     color: "transparent"
@@ -50,16 +50,16 @@ PanelWindow {
         width: 380
         height: 560
 
-        x: parent.width - width - 12
+        x: parent.width - width - Theme.spacingMD
         y: root.isOpen ? root.drawerY : root.drawerY - 10
 
         Behavior on y {
             NumberAnimation { duration: root.fadeOutDuration; easing.type: Easing.OutCubic }
         }
 
-        radius: 12
-        color: Qt.rgba(Colors.surfaceContainer.r, Colors.surfaceContainer.g, Colors.surfaceContainer.b, 0.97)
-        border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
+        radius: Theme.radiusLG
+        color: Qt.rgba(Colors.surfaceContainer.r, Colors.surfaceContainer.g, Colors.surfaceContainer.b, 0.98)
+        border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.25)
         border.width: 1
 
         opacity: root.isOpen ? 1.0 : 0.0
@@ -85,8 +85,8 @@ PanelWindow {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 16
-            spacing: 12
+            anchors.margins: Theme.drawerPaddingH
+            spacing: Theme.spacingMD
 
             RowLayout {
                 Layout.fillWidth: true
@@ -150,7 +150,7 @@ PanelWindow {
                 Layout.fillHeight: true
                 visible: NotificationDaemon.notifications.length > 0
                 clip: true
-                spacing: 10
+                spacing: Theme.spacingSM
                 model: NotificationDaemon.notifications
 
                 rightMargin: ScrollBar.vertical.visible ? 8 : 0
@@ -183,8 +183,8 @@ PanelWindow {
                     required property int index
 
                     width: ListView.view.width - ListView.view.rightMargin
-                    implicitHeight: notifContent.implicitHeight + 24
-                    radius: 10
+                    implicitHeight: notifContent.implicitHeight + Theme.spacingXL
+                    radius: Theme.radius
                     color: Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
                     border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
                     border.width: 1
@@ -195,9 +195,9 @@ PanelWindow {
                             top: parent.top
                             left: parent.left
                             right: parent.right
-                            margins: 12
+                            margins: Theme.spacingMD
                         }
-                        spacing: 8
+                        spacing: Theme.spacingSM
 
                         RowLayout {
                             Layout.fillWidth: true
@@ -224,7 +224,7 @@ PanelWindow {
                                 Layout.alignment: Qt.AlignVCenter
                                 width: 24
                                 height: 24
-                                radius: 12
+                                radius: Theme.radiusSM
                                 color: closeHover.hovered ? Qt.rgba(Colors.error.r, Colors.error.g, Colors.error.b, 0.15) : "transparent"
 
                                 Behavior on color { ColorAnimation { duration: 150 } }

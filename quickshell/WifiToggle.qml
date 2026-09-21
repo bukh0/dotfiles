@@ -9,7 +9,7 @@ ColumnLayout {
     id: wifiRoot
     spacing: 6
 
-    readonly property string fontFamily: "JetBrainsMono Nerd Font"
+    readonly property string fontFamily: Theme.fontMono
 
     readonly property bool wifiOn: NetworkService.wifiOn
     readonly property string ssid: NetworkService.ssid
@@ -64,25 +64,30 @@ ColumnLayout {
     // ── Wi‑Fi header ───────────────────────────────────────────
     Rectangle {
         Layout.fillWidth: true
-        implicitHeight: 48
-        radius: 10
+        implicitHeight: 36
+        radius: Theme.radius
         color: wifiRoot.wifiOn
-            ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, wifiRoot.expanded ? 0.25 : 0.15)
-            : Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.6)
+            ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, wifiRoot.expanded ? 0.2 : 0.12)
+            : Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.4)
+        border.color: wifiRoot.wifiOn
+            ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.4)
+            : Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
+        border.width: 1
         Behavior on color { ColorAnimation { duration: 200 } }
+        Behavior on border.color { ColorAnimation { duration: 200 } }
 
         RowLayout {
-            anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
+            anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
             spacing: 8
 
             Rectangle {
-                width: 32; height: 32; radius: 16
+                width: 26; height: 26; radius: Theme.radiusSM
                 color: "transparent"
                 Text {
                     anchors.centerIn: parent
                     text: wifiRoot.wifiOn ? "󰤨" : "󰤭"
                     color: wifiRoot.wifiOn ? Colors.primary : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
-                    font.pixelSize: 18
+                    font.pixelSize: 20
                     font.family: wifiRoot.fontFamily
                 }
                 MouseArea {
@@ -164,7 +169,7 @@ ColumnLayout {
                 id: delegateRoot
                 Layout.fillWidth: true
                 implicitHeight: contentCol.implicitHeight + 16
-                radius: 8
+                radius: 4
 
                 property bool isProcessing: wifiRoot.actionInFlight && wifiRoot.targetSsid === modelData.ssid
                 property bool isConnecting: false
@@ -310,8 +315,8 @@ ColumnLayout {
         // Rescan button
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: 32
-            radius: 8
+            implicitHeight: 28
+            radius: 4
             color: rescanMa.containsMouse
                 ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.15)
                 : "transparent"

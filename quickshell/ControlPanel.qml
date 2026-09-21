@@ -15,9 +15,9 @@ PanelWindow {
     property int openY: 46
     property int closedY: 26
 
-    property int drawerWidth: 420
-    property int drawerTopMargin: 20
-    property int drawerBottomMargin: 24
+    property int drawerWidth: Theme.drawerWidth
+    property int drawerTopMargin: Theme.drawerPaddingV
+    property int drawerBottomMargin: Theme.drawerPaddingV
 
     property bool _fadingOut: false
 
@@ -108,9 +108,9 @@ PanelWindow {
             NumberAnimation { duration: controlPanel.slideDuration; easing.type: Easing.OutQuart }
         }
 
-        radius: 12
-        color: Qt.rgba(Colors.surfaceContainer.r, Colors.surfaceContainer.g, Colors.surfaceContainer.b, 0.97)
-        border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
+        radius: Theme.radiusLG
+        color: Qt.rgba(Colors.surfaceContainer.r, Colors.surfaceContainer.g, Colors.surfaceContainer.b, 0.98)
+        border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.25)
         border.width: 1
 
         opacity: controlPanel.isOpen ? 1 : 0
@@ -140,7 +140,7 @@ PanelWindow {
                 right: parent.right
                 margins: controlPanel.drawerTopMargin
             }
-            spacing: 16
+            spacing: Theme.drawerSpacing
 
             MusicWidget {}
             Divider {}

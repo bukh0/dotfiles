@@ -32,8 +32,8 @@ Item {
             : mouseArea.containsMouse
                 ? Colors.surfaceFg
                 : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.8)
-        font.pixelSize: 15
-        font.family: "JetBrainsMono Nerd Font"
+        font.pixelSize: Theme.fontSizeIcon
+        font.family: Theme.fontMono
         font.weight: Font.Bold
         Behavior on color { ColorAnimation { duration: 200 } }
     }

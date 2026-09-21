@@ -127,3 +127,8 @@ export PATH="$HOME/.local/bin:$PATH"
 export EDITOR=nvim
 export Pracs="$HOME/Documents/Pracs"
 export Programs="$HOME/Documents/Programs"
+# Antigravity = agy
+
+
+# Added by Antigravity CLI installer
+export PATH="/home/bukh0/.local/bin:$PATH"

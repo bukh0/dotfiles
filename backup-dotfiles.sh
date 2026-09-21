@@ -37,6 +37,7 @@ if [ "${1:-}" == "--restore" ]; then MODE="restore"; fi
 # Add/remove lines here as your setup evolves.
 declare -A SYNC_MAP=(
   ["$CONFIG/quickshell"]="$DOTFILES/quickshell"
+  ["$CONFIG/quickshell-alt"]="$DOTFILES/quickshell-alt"
   ["$CONFIG/quickshell-mango"]="$DOTFILES/quickshell-mango"
   ["$CONFIG/hypr"]="$DOTFILES/hypr"
   ["$CONFIG/rofi"]="$DOTFILES/rofi"

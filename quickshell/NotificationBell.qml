@@ -9,14 +9,14 @@ Rectangle {
     property bool hasNotifs: count > 0
     
     // ── Fonts ──────────────────────────────────────────────
-    property string uiFont: "sans-serif"
-    property string iconFont: "JetBrainsMono Nerd Font"
+    property string uiFont: Theme.fontUI
+    property string iconFont: Theme.fontMono
 
     // ── Dimensions & Styling ───────────────────────────────
     // Added padding for a comfortable button-like hit area
     implicitWidth: row.implicitWidth + 16
     implicitHeight: row.implicitHeight + 8
-    radius: 6
+    radius: Theme.radius
 
     // Subtle background highlight on hover
     color: hover.hovered ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.1) : "transparent"
@@ -25,13 +25,13 @@ Rectangle {
     RowLayout {
         id: row
         anchors.centerIn: parent
-        spacing: 6
+        spacing: Theme.spacingSM
 
         Text {
             Layout.alignment: Qt.AlignVCenter
             text: root.hasNotifs ? "󰂚" : "󰂜"
             color: root.hasNotifs ? Colors.primary : Colors.surfaceFg
-            font.pixelSize: 16
+            font.pixelSize: Theme.fontSizeXL
             font.family: root.iconFont
 
             Behavior on color { ColorAnimation { duration: 200 } }
