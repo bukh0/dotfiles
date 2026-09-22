@@ -3,14 +3,12 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-#include <map>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <cstdlib>
 #include <cstdio>
 #include <ctime>
 
-// Safely escape paths for the shell
 std::string escapeShellArg(const std::string& arg) {
     std::string escaped = "'";
     for (size_t i = 0; i < arg.length(); ++i) {
@@ -21,7 +19,6 @@ std::string escapeShellArg(const std::string& arg) {
     return escaped;
 }
 
-// Strict trim to replicate bash string substitution stripping
 std::string trim(const std::string& str) {
     size_t first = str.find_first_not_of(" \t\r\n");
     if (std::string::npos == first) return "";
@@ -58,11 +55,17 @@ bool fileExists(const std::string& path) {
     return (stat(path.c_str(), &buffer) == 0);
 }
 
-// Guarantees Bash's native file handling for symlinks and inodes
+// Pure C++ atomic copy. No slow bash sub-shells.
 bool atomicCopy(const std::string& src, const std::string& dest) {
     if (!fileExists(src)) return false;
-    std::string cmd = "/bin/bash -c \"cp " + escapeShellArg(src) + " " + escapeShellArg(dest + ".tmp") + " && mv -f " + escapeShellArg(dest + ".tmp") + " " + escapeShellArg(dest) + "\"";
-    return (system(cmd.c_str()) == 0);
+    std::string tmp = dest + ".tmp";
+    std::ifstream is(src.c_str(), std::ios::binary);
+    std::ofstream os(tmp.c_str(), std::ios::binary);
+    if (!is || !os) return false;
+    os << is.rdbuf();
+    is.close();
+    os.close();
+    return (std::rename(tmp.c_str(), dest.c_str()) == 0);
 }
 
 std::string getThumbPath(const std::string& thumbDir, const std::string& srcPath) {
@@ -91,7 +94,6 @@ int main() {
         while ((ent = readdir(dir)) != NULL) {
             std::string name = ent->d_name;
             if (name == "." || name == ".." || name == "matugen" || name == "pywal") continue;
-            
             struct stat st;
             if (stat((themeDir + "/" + name).c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
                 presets.push_back(name);
@@ -153,11 +155,9 @@ int main() {
         for (size_t i = 0; i < wallpapers.size(); ++i) {
             std::string thumb = getThumbPath(thumbDir, wallpapers[i].fullPath);
             struct stat stThumb, stSrc;
-            bool needThumb = true;
-            if (stat(thumb.c_str(), &stThumb) == 0 && stat(wallpapers[i].fullPath.c_str(), &stSrc) == 0) {
-                if (stThumb.st_mtime >= stSrc.st_mtime) needThumb = false;
+            if (!(stat(thumb.c_str(), &stThumb) == 0 && stat(wallpapers[i].fullPath.c_str(), &stSrc) == 0 && stThumb.st_mtime >= stSrc.st_mtime)) {
+                thumbQueue += escapeShellArg(wallpapers[i].fullPath) + " ";
             }
-            if (needThumb) thumbQueue += escapeShellArg(wallpapers[i].fullPath) + " ";
         }
 
         if (!thumbQueue.empty()) {
@@ -167,8 +167,7 @@ int main() {
 
         std::ofstream wout("/tmp/wall_menu.txt");
         for (size_t i = 0; i < wallpapers.size(); ++i) {
-            std::string thumb = getThumbPath(thumbDir, wallpapers[i].fullPath);
-            wout << wallpapers[i].filename << '\0' << "icon\x1f" << thumb << '\n';
+            wout << wallpapers[i].filename << '\0' << "icon\x1f" << getThumbPath(thumbDir, wallpapers[i].fullPath) << '\n';
         }
         wout.close();
 
@@ -208,7 +207,6 @@ int main() {
 
     if (choice == "Matugen") {
         srcDir = themeDir + "/matugen/generated";
-        // Restored fullPath over thumbTarget and removed -q flag
         system(("matugen image " + escapeShellArg(fullPath) + " -c " + escapeShellArg(themeDir + "/matugen/config.toml") + " --prefer=saturation").c_str());
     } else if (choice == "pywal") {
         srcDir = home + "/.cache/wal";
@@ -218,24 +216,26 @@ int main() {
         srcDir = themeDir + "/" + choice;
     }
 
-    std::map<std::string, std::string> routes;
-    routes["rofi.rasi"] = home + "/.config/rofi/colors.rasi";
-    routes["kitty.conf"] = home + "/.config/kitty/theme.conf";
-    routes["waybar.css"] = home + "/.config/waybar/theme.css";
-    routes["gtk.css"] = home + "/.config/gtk-3.0/gtk.css";
-    routes["swaync.css"] = home + "/.config/swaync/colors.css";
-    routes["hyprlock.conf"] = home + "/.config/hypr/hyprlock-colors.conf";
-    routes["wlogout.css"] = home + "/.config/wlogout/colors.css";
-    routes["midnight-discord.css"] = home + "/.config/vesktop/themes/midnight-discord.css";
-    routes["quickshell-colors.qml"] = home + "/.config/quickshell/Colors.qml";
+    std::vector<std::pair<std::string, std::string> > routes;
+    routes.push_back(std::make_pair("rofi.rasi", home + "/.config/rofi/colors.rasi"));
+    routes.push_back(std::make_pair("kitty.conf", home + "/.config/kitty/theme.conf"));
+    routes.push_back(std::make_pair("waybar.css", home + "/.config/waybar/theme.css"));
+    routes.push_back(std::make_pair("gtk.css", home + "/.config/gtk-3.0/gtk.css"));
+    routes.push_back(std::make_pair("swaync.css", home + "/.config/swaync/colors.css"));
+    routes.push_back(std::make_pair("hyprlock.conf", home + "/.config/hypr/hyprlock-colors.conf"));
+    routes.push_back(std::make_pair("wlogout.css", home + "/.config/wlogout/colors.css"));
+    routes.push_back(std::make_pair("midnight-discord.css", home + "/.config/vesktop/themes/midnight-discord.css"));
+    routes.push_back(std::make_pair("quickshell-colors.qml", home + "/.config/quickshell/Colors.qml"));
+    routes.push_back(std::make_pair("quickshell-colors.qml", home + "/.config/quickshell-alt/Colors.qml"));
 
-    for (std::map<std::string, std::string>::iterator it = routes.begin(); it != routes.end(); ++it) {
-        atomicCopy(srcDir + "/" + it->first, it->second);
+    for (size_t i = 0; i < routes.size(); ++i) {
+        atomicCopy(srcDir + "/" + routes[i].first, routes[i].second);
     }
 
     system("pkill -USR1 -x kitty");
     system("pkill -USR2 -x waybar");
-    system("pgrep -x swaync >/dev/null && swaync-client -rs &>/dev/null &");
+    system("pkill -0 swaync && swaync-client -rs &>/dev/null &");
+    system("~/.scripts/switch_quickshell.sh reload &");
 
     std::string notifyCmd = "notify-send -a 'Theme Engine' " + escapeShellArg("Theme updated to " + choice);
     if (!fullPath.empty()) {

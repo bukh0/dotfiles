@@ -39,12 +39,12 @@ struct Wallpaper {
 };
 
 int main() {
-    // Dependency check (mirrors wallpick.sh)
+    // Dependency check (C++98 compliant array loop)
     const char* deps[] = {"rofi", "swww", "matugen", "notify-send"};
-    for (const char* dep : deps) {
-        std::string check = std::string("command -v ") + dep + " >/dev/null 2>&1";
+    for (size_t i = 0; i < sizeof(deps)/sizeof(deps[0]); ++i) {
+        std::string check = std::string("command -v ") + deps[i] + " >/dev/null 2>&1";
         if (system(check.c_str()) != 0) {
-            std::cerr << "Error: " << dep << " is not installed." << std::endl;
+            std::cerr << "Error: " << deps[i] << " is not installed." << std::endl;
             return 1;
         }
     }
@@ -87,7 +87,10 @@ int main() {
     wout.close();
 
     std::string choiceFile = "/tmp/wallpick_choice.txt";
-    system(("cat /tmp/wallpick_menu.txt | rofi -dmenu -i -show-icons -theme " + escapeShellArg(rofiTheme) + " -p '  Wallpaper' > " + choiceFile).c_str());
+    
+    // Optimization: Use native file redirection '<' instead of spawning a 'cat |' subshell pipeline
+    std::string rofiCmd = "rofi -dmenu -i -show-icons -theme " + escapeShellArg(rofiTheme) + " -p '  Wallpaper' < /tmp/wallpick_menu.txt > " + choiceFile;
+    system(rofiCmd.c_str());
 
     std::ifstream wf(choiceFile.c_str());
     std::string selectedWall;

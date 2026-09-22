@@ -1,6 +1,5 @@
 return {
-  { "catppuccin/nvim", name = "catppuccin", lazy = true },
-  { "folke/tokyonight.nvim", lazy = true },
+  -- catppuccin and tokyonight are already bundled by LazyVim
   { "rebelot/kanagawa.nvim", lazy = true },
   { "ellisonleao/gruvbox.nvim", lazy = true },
   { "EdenEast/nightfox.nvim", lazy = true },

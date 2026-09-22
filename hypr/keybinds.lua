@@ -44,9 +44,10 @@ hl.bind(mod .. " + SHIFT + G", hl.dsp.exec_cmd("~/.scripts/toggle-performance.sh
 hl.bind(mod .. " + J", hl.dsp.exec_cmd("~/.scripts/toggleLayout.sh"))
 
 -- Waybar & Custom Toggles
-hl.bind(mod .. " + ALT + 9", hl.dsp.exec_cmd("~/.scripts/toggle_waybar.sh"))
-hl.bind(mod .. " + ALT + 8", hl.dsp.exec_cmd("~/user_scripts/wayclick/dusky_wayclick.sh"))
-hl.bind(mod .. " + ALT + 0", hl.dsp.exec_cmd("~/.scripts/toggle_quickshell.sh"))
+hl.bind(mod .. " + ALT + 8", hl.dsp.exec_cmd("~/.scripts/toggle_waybar.sh"))
+-- hl.bind(mod .. " + ALT + 8", hl.dsp.exec_cmd("~/user_scripts/wayclick/dusky_wayclick.sh"))
+hl.bind(mod .. " + ALT + 9", hl.dsp.exec_cmd("~/.scripts/toggle_quickshell.sh"))
+hl.bind(mod .. " + ALT + 0", hl.dsp.exec_cmd("~/.scripts/switch_quickshell.sh"))
 
 -- Audio & Brightness
 hl.bind("XF86AudioRaiseVolume",  hl.dsp.exec_cmd("swayosd-client --output-volume raise"), { locked = true})

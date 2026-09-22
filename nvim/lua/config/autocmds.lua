@@ -7,10 +7,11 @@
 -- Or remove existing autocmds by their group name (which is prefixed with `lazyvim_` for the defaults)
 -- e.g. vim.api.nvim_del_augroup_by_name("lazyvim_wrap_spell")
 
--- Format (clangd) and save
+-- Format and save (uses LazyVim's format controller so <leader>uf toggle is respected)
 vim.api.nvim_create_user_command("Ws", function()
-  require("conform").format({ lsp_fallback = true })
+  LazyVim.format({ force = true })
   vim.cmd("write")
-end, { desc = "Format (clangd) and save" })
+end, { desc = "Format and save" })
 
-vim.cmd("cnoreabbrev ws Ws")
+-- Only expand at the very start of a : command, not inside search or :! shell commands
+vim.cmd([[cabbrev <expr> ws (getcmdtype()==':' && getcmdpos()<=3) ? 'Ws' : 'ws']])

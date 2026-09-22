@@ -4,28 +4,8 @@ return {
     keymap = {
       preset = "none", -- disable the preset entirely, define everything yourself
 
-      ["<Tab>"] = {
-        function(cmp)
-          if cmp.snippet_active() then
-            return cmp.accept()
-          else
-            return cmp.select_next()
-          end
-        end,
-        "snippet_forward",
-        "fallback",
-      },
-      ["<S-Tab>"] = {
-        function(cmp)
-          if cmp.snippet_active() then
-            return cmp.snippet_backward()
-          else
-            return cmp.select_prev()
-          end
-        end,
-        "snippet_backward",
-        "fallback",
-      },
+      ["<Tab>"] = { "snippet_forward", "select_next", "fallback" },
+      ["<S-Tab>"] = { "snippet_backward", "select_prev", "fallback" },
 
       ["<CR>"] = { "accept", "fallback" },
       ["<C-y>"] = { "accept", "fallback" },

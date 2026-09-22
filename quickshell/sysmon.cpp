@@ -7,9 +7,9 @@
 #include <sys/time.h>
 
 std::string trim(const std::string& str) {
-    size_t first = str.find_first_not_of(" \t");
+    size_t first = str.find_first_not_of(" \t\r\n");
     if (std::string::npos == first) return str;
-    size_t last = str.find_last_not_of(" \t");
+    size_t last = str.find_last_not_of(" \t\r\n");
     return str.substr(first, (last - first + 1));
 }
 
@@ -19,12 +19,10 @@ std::string getCpuModel() {
     while (std::getline(file, line)) {
         if (line.find("model name") == 0) {
             size_t colon = line.find(':');
-            if (colon != std::string::npos) {
-                return trim(line.substr(colon + 1));
-            }
+            if (colon != std::string::npos) return trim(line.substr(colon + 1));
         }
     }
-    return "";
+    return "Unknown CPU";
 }
 
 std::string formatSpeed(double bytesPerSec) {
@@ -47,55 +45,25 @@ std::string toStr(T val) {
 int main(int argc, char* argv[]) {
     std::string tempPath = (argc > 1) ? argv[1] : "";
     std::string cpuModel = getCpuModel();
+    const char* homeDir = std::getenv("HOME");
+    std::string perfPath = homeDir ? std::string(homeDir) + "/.cache/perf-mode" : "";
     
     unsigned long lastIdle = 0, lastTotal = 0;
     unsigned long lastRx = 0, lastTx = 0;
     struct timeval lastTime;
     gettimeofday(&lastTime, NULL);
 
-    // Initial poll to seed deltas
+    // Keep file streams open for zero-overhead polling
     std::ifstream statFile("/proc/stat");
+    std::ifstream memFile("/proc/meminfo");
+    std::ifstream netFile("/proc/net/dev");
+    std::ifstream tempFile;
+    if (tempPath != "none" && !tempPath.empty()) tempFile.open(tempPath.c_str());
+
     std::string line;
-    if (std::getline(statFile, line)) {
-        std::istringstream iss(line);
-        std::string cpu;
-        if (iss >> cpu && cpu == "cpu") {
-            unsigned long val;
-            int col = 1;
-            while (iss >> val) {
-                lastTotal += val;
-                if (col == 4) lastIdle = val;
-                col++;
-            }
-        }
-    }
-    statFile.close();
-
-    // Daemon Loop
     while (true) {
-        usleep(3000000); // 3 seconds
-
-        // 1. RAM
-        std::ifstream memFile("/proc/meminfo");
-        unsigned long memTotal = 0, memAvailable = 0, swapTotal = 0, swapFree = 0;
-        while (std::getline(memFile, line)) {
-            std::istringstream iss(line);
-            std::string key; unsigned long value;
-            if (iss >> key >> value) {
-                if (key == "MemTotal:") memTotal = value;
-                else if (key == "MemAvailable:") memAvailable = value;
-                else if (key == "SwapTotal:") swapTotal = value;
-                else if (key == "SwapFree:") swapFree = value;
-            }
-        }
-        memFile.close();
-        
-        long ramPct = memTotal > 0 ? (memTotal - memAvailable) * 100 / memTotal : 0;
-        std::string tooltipRam = "Total: " + toStr(memTotal / 1024) + " MB\\nAvailable: " + toStr(memAvailable / 1024) + 
-                                 " MB\\nSwap: " + toStr((swapTotal - swapFree)/1024) + " MB / " + toStr(swapTotal/1024) + " MB";
-
-        // 2. CPU
-        statFile.open("/proc/stat");
+        // 1. CPU
+        statFile.clear(); statFile.seekg(0);
         unsigned long idle = 0, total = 0;
         if (std::getline(statFile, line)) {
             std::istringstream iss(line);
@@ -109,21 +77,31 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
-        statFile.close();
-        
         long cpuPct = 0;
         if (total > lastTotal) {
-            unsigned long dIdle = idle - lastIdle;
-            unsigned long dTotal = total - lastTotal;
-            cpuPct = (dTotal - dIdle) * 100 / dTotal;
+            cpuPct = ((total - lastTotal) - (idle - lastIdle)) * 100 / (total - lastTotal);
         }
         lastIdle = idle; lastTotal = total;
-        std::string tooltipCpu = "CPU: " + toStr(cpuPct) + "%\\n" + cpuModel;
+
+        // 2. RAM
+        memFile.clear(); memFile.seekg(0);
+        unsigned long memTotal = 0, memAvail = 0, swapTotal = 0, swapFree = 0;
+        while (std::getline(memFile, line)) {
+            std::istringstream iss(line);
+            std::string key; unsigned long val;
+            if (iss >> key >> val) {
+                if (key == "MemTotal:") memTotal = val;
+                else if (key == "MemAvailable:") memAvail = val;
+                else if (key == "SwapTotal:") swapTotal = val;
+                else if (key == "SwapFree:") swapFree = val;
+            }
+        }
+        long ramPct = memTotal > 0 ? (memTotal - memAvail) * 100 / memTotal : 0;
 
         // 3. Network
-        std::ifstream netFile("/proc/net/dev");
+        netFile.clear(); netFile.seekg(0);
         unsigned long rxTotal = 0, txTotal = 0;
-        std::getline(netFile, line); std::getline(netFile, line); // Skip headers
+        std::getline(netFile, line); std::getline(netFile, line);
         while (std::getline(netFile, line)) {
             size_t colon = line.find(':');
             if (colon != std::string::npos) {
@@ -139,48 +117,42 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
-        netFile.close();
-
         struct timeval now;
         gettimeofday(&now, NULL);
         double dt = (now.tv_sec - lastTime.tv_sec) + (now.tv_usec - lastTime.tv_usec) / 1000000.0;
-        std::string rxSpeed = "0 B/s", txSpeed = "0 B/s";
-        if (dt > 0) {
-            rxSpeed = formatSpeed((rxTotal > lastRx ? rxTotal - lastRx : 0) / dt);
-            txSpeed = formatSpeed((txTotal > lastTx ? txTotal - lastTx : 0) / dt);
-        }
+        std::string rxSpeed = dt > 0 ? formatSpeed((rxTotal > lastRx ? rxTotal - lastRx : 0) / dt) : "0 B/s";
+        std::string txSpeed = dt > 0 ? formatSpeed((txTotal > lastTx ? txTotal - lastTx : 0) / dt) : "0 B/s";
         lastRx = rxTotal; lastTx = txTotal; lastTime = now;
-        std::string tooltipNet = "↓ " + rxSpeed + "    ↑ " + txSpeed;
 
         // 4. Temp
         std::string tempStr = "N/A";
-        std::string tooltipTemp = "Temperature: N/A";
         int isHot = 0;
-        if (tempPath != "none" && tempPath != "") {
-            std::ifstream tFile(tempPath.c_str());
+        if (tempFile.is_open()) {
+            tempFile.clear(); tempFile.seekg(0);
             long tempRaw = 0;
-            if (tFile >> tempRaw) {
+            if (tempFile >> tempRaw) {
                 long tempC = tempRaw / 1000;
                 tempStr = toStr(tempC) + "°C";
                 isHot = (tempC > 75) ? 1 : 0;
-                tooltipTemp = "Temperature: " + tempStr + (isHot ? "\\n⚠ Above 75°C" : "");
             }
         }
 
-        // 5. Power
-        const char* homeDir = std::getenv("HOME");
+        // 5. Power Profile (Files overwritten by other scripts must be re-opened)
         std::string profile = "auto";
-        if (homeDir) {
-            std::ifstream pFile((std::string(homeDir) + "/.cache/perf-mode").c_str());
-            if (!(pFile >> profile)) profile = "auto";
+        if (!perfPath.empty()) {
+            std::ifstream pFile(perfPath.c_str());
+            if (pFile.is_open()) pFile >> profile;
         }
-        
-        // Output formatted payload to QML
-        std::cout << ramPct << "%|" << tooltipRam << "|" 
-                  << cpuPct << "%|" << tooltipCpu << "|" 
-                  << rxSpeed << "|" << txSpeed << "|" << tooltipNet << "|" 
-                  << tempStr << "|" << isHot << "|" << tooltipTemp << "|" 
+
+        // Output payloads
+        std::cout << ramPct << "%|Total: " << (memTotal/1024) << " MB\\nAvailable: " << (memAvail/1024) 
+                  << " MB\\nSwap: " << ((swapTotal-swapFree)/1024) << " MB / " << (swapTotal/1024) << " MB|"
+                  << cpuPct << "%|CPU: " << cpuPct << "%\\n" << cpuModel << "|"
+                  << rxSpeed << "|" << txSpeed << "|↓ " << rxSpeed << "    ↑ " << txSpeed << "|"
+                  << tempStr << "|" << isHot << "|Temperature: " << tempStr << (isHot ? "\\n⚠ Above 75°C" : "") << "|"
                   << profile << std::endl;
+
+        usleep(3000000);
     }
     return 0;
 }

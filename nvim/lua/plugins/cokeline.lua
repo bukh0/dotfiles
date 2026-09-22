@@ -17,19 +17,23 @@ return {
       -- Components run on every redraw, for every buffer. Rebuilding the
       -- palette (nvim_get_hl calls) inside get_color() on each of those
       -- calls is wasted work — cache it, refresh only on ColorScheme.
-      local palette = theme.colors() or {}
+      
+      --
+      -- theme.colors() caches/invalidates itself now, so there's no need to
+      -- keep a second copy here — calling it straight from get_color() stays
+      -- cheap even on every redraw.
       local function get_color(key)
-        return palette[key] or "NONE"
+        return (theme.colors() or {})[key] or "NONE"
       end
 
-      local function refresh_transparency()
+      local function refresh_tabline_highlights()
         vim.api.nvim_set_hl(0, "TabLineFill", { bg = "NONE", ctermbg = "NONE" })
         vim.api.nvim_set_hl(0, "TabLine", { bg = "NONE", ctermbg = "NONE" })
-        palette = theme.colors() or {}
       end
 
-      -- Ensure transparency + palette persist across colorscheme switches
-      theme.on_colorscheme(refresh_transparency)
+      -- These two highlight groups aren't covered by apply_ui_highlights(),
+      -- so they still need their own re-force on colorscheme switches.
+      theme.on_colorscheme(refresh_tabline_highlights)
 
       -- buffer.devicon is nil for buffers with no icon match; guard both fields
       -- so an unmatched filetype doesn't error instead of just showing no icon.

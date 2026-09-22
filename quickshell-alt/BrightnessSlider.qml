@@ -8,6 +8,8 @@ ColumnLayout {
     spacing: 6
 
     property real brightness: 0.5
+    property string backlightPath: ""
+    property real maxBrightness: 1
 
     readonly property string brightIcon: {
         if (slider.visualValue < 0.25) return "󰃞"
@@ -16,26 +18,47 @@ ColumnLayout {
         return "󰃠"
     }
 
+    // ── Discover the backlight sysfs path once ──────────────────
     Process {
-        id: brightPoll
-        command: ["brightnessctl", "-m"]
+        id: backlightDiscover
+        command: ["sh", "-c", "ls -d /sys/class/backlight/* 2>/dev/null | head -1"]
+        running: true
         stdout: StdioCollector {
             onStreamFinished: {
-                const parts = text.trim().split(",")
-                if (parts.length >= 4) {
-                    brightness = parseFloat(parts[3].replace("%", "")) / 100.0
+                const p = text.trim()
+                if (p) {
+                    backlightPath = p
+                    maxBrightProc.running = true
                 }
             }
         }
     }
 
-    Timer {
-        id: brightPollTimer
-        interval: 2000
-        running: !slider.isDragging
-        repeat: true
-        onTriggered: brightPoll.running = true
-        Component.onCompleted: brightPoll.running = true
+    // ── Read max_brightness once so we can normalise ────────────
+    Process {
+        id: maxBrightProc
+        command: ["sh", "-c", "cat " + backlightPath + "/max_brightness"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const v = parseInt(text.trim())
+                if (v > 0) maxBrightness = v
+            }
+        }
+    }
+
+    // ── inotify-based watch: kernel writes this file on every
+    // hardware or software brightness change, so no polling needed.
+    FileView {
+        id: brightFile
+        path: backlightPath !== "" ? backlightPath + "/brightness" : ""
+        watchChanges: backlightPath !== ""
+        onFileChanged: reload()
+        onLoaded: {
+            if (slider.isDragging) return   // ignore during drag
+            const v = parseInt(text())
+            if (!isNaN(v) && maxBrightness > 0)
+                brightness = Math.max(0.05, v / maxBrightness)
+        }
     }
 
     Process { id: setProc }
@@ -68,7 +91,6 @@ ColumnLayout {
             cmdDebounce.stop()
             setProc.command = ["brightnessctl", "set", Math.round(val * 100) + "%"]
             setProc.running = true
-            brightPollTimer.restart()
         }
     }
 }

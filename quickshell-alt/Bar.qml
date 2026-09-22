@@ -22,22 +22,18 @@ PanelWindow {
     property int centerPillMinWidth: 180
     property int centerPillExtraWidth: 80
 
+    // The total height taken up by the bar + margins
     implicitHeight: barHeight + 14
     color: "transparent"
 
     property color pillBg: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.99)
     property color pillBorder: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
 
-    // Fullscreen toggling is bound natively in Hyprland instead of a QML
-    // Shortcut here, since a Shortcut only fires if this layer-shell
-    // surface has keyboard focus — which a bar shouldn't grab:
-    //   hl.bind({ mod = "SUPER", key = "F", dispatcher = hl.dsp.fullscreen })
-
     Item {
         anchors.fill: parent
         anchors.margins: 7
 
-        // LEFT PILL – Workspaces & Window Title
+        // ── LEFT PILL ──────────────────────────────────────────
         Rectangle {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
@@ -61,7 +57,13 @@ PanelWindow {
                     color: Colors.surfaceFg
                     font.pixelSize: 13
                     font.weight: Font.Medium
-                    text: ToplevelManager.activeToplevel ? ToplevelManager.activeToplevel.title : ""
+                    text: {
+                        if (!ToplevelManager.activeToplevel) return ""
+                        const raw = ToplevelManager.activeToplevel.title ?? ""
+                        const parts = raw.split(" — ")
+                        const name = parts[parts.length - 1].trim()
+                        return name || raw
+                    }
                     visible: text !== ""
                     Layout.leftMargin: 12
                     Layout.maximumWidth: 350
@@ -70,7 +72,7 @@ PanelWindow {
             }
         }
 
-        // CENTER PILL – Clock & Control Panel trigger
+        // ── CENTER PILL ────────────────────────────────────────
         Item {
             id: centerPillWrap
             anchors.horizontalCenter: parent.horizontalCenter
@@ -78,9 +80,6 @@ PanelWindow {
             width: centerPill.width
             height: centerPill.height
 
-            // Tracks whether the panel was opened via click, as opposed to
-            // hover — so a hover-exit can't slam shut a panel the user
-            // deliberately pinned open.
             property bool pinnedOpen: false
 
             Pill {
@@ -88,10 +87,6 @@ PanelWindow {
                 pillHeight: root.barHeight
                 isActive: controlPanel.isOpen
                 isHovered: centerMa.containsMouse
-                // Overrides Pill's default implicitWidth-based sizing to
-                // match the bar's original center-pill formula: a floor
-                // width plus extra breathing room so the pill doesn't
-                // resize/jitter as the clock text's width changes.
                 width: Math.max(contentImplicitWidth + root.centerPillExtraWidth, root.centerPillMinWidth)
 
                 Clock {}
@@ -111,7 +106,7 @@ PanelWindow {
             }
         }
 
-        // RIGHT PILL – System modules
+        // ── RIGHT PILL ─────────────────────────────────────────
         Rectangle {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
@@ -138,14 +133,17 @@ PanelWindow {
     ControlPanel {
         id: controlPanel
         screen: root.screen
-        openY: 10
-        closedY: 26
-        barHeight: root.barHeight
+        // Drops the panel right below the total footprint of the floating bar
+        openY: root.implicitHeight + 4
+        // Pulls it up securely behind the mask when closed
+        closedY: root.implicitHeight - 20
+        // Tells the mask to start at the bottom of the floating boundary
+        barHeight: root.implicitHeight
     }
 
     NotificationDrawer {
         id: notificationDrawer
         screen: root.screen
-        drawerY: 10
+        drawerY: root.implicitHeight + 4
     }
 }

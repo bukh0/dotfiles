@@ -17,6 +17,7 @@ ColumnLayout {
         return "󰕾"
     }
 
+    // ── Single wpctl query — triggered by events, not a timer ──
     Process {
         id: volPoll
         command: ["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"]
@@ -30,13 +31,37 @@ ColumnLayout {
         }
     }
 
+    // ── Long-lived pactl subscribe: fires instantly on any
+    // PipeWire/PulseAudio sink event without spawning a process
+    // per second. Replaces the 1000ms polling timer entirely.
+    Process {
+        id: pactlSubscribe
+        command: ["pactl", "subscribe"]
+        running: true
+        stdout: SplitParser {
+            onRead: line => {
+                // Only react to sink or server events (covers volume + mute + default device changes)
+                if (!line.includes("sink") && !line.includes("server")) return
+                if (!volPollDebounce.running) volPollDebounce.start()
+            }
+        }
+        onRunningChanged: {
+            // pactl subscribe shouldn't die, but restart it if it does
+            if (!running) pactlRestart.start()
+        }
+    }
+
     Timer {
-        id: volPollTimer
-        interval: 1000
-        running: !slider.isDragging
-        repeat: true
-        onTriggered: volPoll.running = true
-        Component.onCompleted: volPoll.running = true
+        id: pactlRestart
+        interval: 2000
+        onTriggered: pactlSubscribe.running = true
+    }
+
+    // Debounce: pactl subscribe fires multiple events for one user action
+    Timer {
+        id: volPollDebounce
+        interval: 50
+        onTriggered: { if (!volPoll.running) volPoll.running = true }
     }
 
     Process { id: ctlProc }
@@ -52,6 +77,8 @@ ColumnLayout {
         }
     }
 
+    Component.onCompleted: volPoll.running = true
+
     SliderRow {
         id: slider
         icon: volIcon
@@ -62,8 +89,6 @@ ColumnLayout {
         onIconTapped: {
             muteProc.command = ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]
             muteProc.running = true
-            volPollTimer.restart()
-            Qt.callLater(() => volPoll.running = true)
         }
 
         onDragged: val => {
@@ -76,7 +101,6 @@ ColumnLayout {
             cmdDebounce.stop()
             ctlProc.command = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", val.toFixed(2)]
             ctlProc.running = true
-            volPollTimer.restart()
         }
     }
 }

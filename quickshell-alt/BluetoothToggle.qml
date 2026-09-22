@@ -21,6 +21,7 @@ ColumnLayout {
 
     // Used for detecting connection changes
     property var previousConnected: null
+    property var previousDeviceNames: ({})
 
     // ── Shared notification helper ─────────────────────────────
     Process {
@@ -38,7 +39,6 @@ ColumnLayout {
     Process {
         id: actionProc
         running: false
-        stdout: StdioCollector { onStreamFinished: btRoot._checkError(text) }
         stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
         onRunningChanged: {
             if (!running) btPoll.running = true   // refresh full state
@@ -51,25 +51,58 @@ ColumnLayout {
         actionProc.running = true
     }
 
-    // ── Main polling process ──────────────────────────────────
+    // ── Main polling process — reads BlueZ's D-Bus state directly.
+    // NOTE: known open issue — some devices (e.g. non-standard-profile
+    // audio devices with a virtualized MAC like 00:00:00:00:03:80) can be
+    // actively connected at the audio layer while org.bluez.Device1's
+    // Connected property still reports false. Still investigating the
+    // root cause; UI will under-report "connected" for those devices
+    // until resolved.
     Process {
         id: btPoll
-        command: ["sh", "-c",
-            "env NO_COLOR=1 bluetoothctl show | grep -q 'Powered: yes' && echo 'enabled' || echo 'disabled';" +
-            "echo '===';" +
-            "env NO_COLOR=1 bluetoothctl devices Paired;" +
-            "echo '===';" +
-            "env NO_COLOR=1 bluetoothctl devices Connected"
-        ]
+        command: ["busctl", "--system", "-j", "call", "org.bluez", "/",
+                  "org.freedesktop.DBus.ObjectManager", "GetManagedObjects"]
+        stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
         stdout: StdioCollector {
             onStreamFinished: {
-                const textOutput = text.replace(/\x1b\[[0-9;]*m/g, "").trim()
-                const sections = textOutput.split("===")
+                let parsed
+                try {
+                    parsed = JSON.parse(text)
+                } catch (e) {
+                    console.warn("bluetooth: failed to parse busctl output:", e)
+                    return
+                }
+                const objs = (parsed.data && parsed.data[0]) || {}
 
-                btRoot.btOn = (sections[0].trim() === "enabled")
-                
-                // If Bluetooth is off, wipe the state silently and abort
-                if (!btRoot.btOn) {
+                let adapterPowered = false
+                const paired = []
+                const connectedMacs = []
+                const connectedNames = []
+
+                for (const path in objs) {
+                    const ifaces = objs[path]
+
+                    const adapter = ifaces["org.bluez.Adapter1"]
+                    if (adapter && adapter.Powered) adapterPowered = !!adapter.Powered.data
+
+                    const dev = ifaces["org.bluez.Device1"]
+                    if (!dev || !dev.Paired || !dev.Paired.data) continue
+
+                    const mac = dev.Address ? dev.Address.data : ""
+                    if (!mac) continue
+                    const name = (dev.Name && dev.Name.data) || (dev.Alias && dev.Alias.data) || mac
+                    const connected = !!(dev.Connected && dev.Connected.data)
+
+                    paired.push({ mac, name, connected })
+                    if (connected) {
+                        connectedMacs.push(mac)
+                        connectedNames.push(name)
+                    }
+                }
+
+                btRoot.btOn = adapterPowered
+
+                if (!adapterPowered) {
                     btRoot.previousConnected = []
                     btRoot.devices = []
                     btRoot.connectedName = ""
@@ -77,44 +110,34 @@ ColumnLayout {
                     return
                 }
 
-                if (sections.length < 3) return
-
-                const pairedLines = sections[1].trim().split("\n").filter(l => l.includes("Device "))
-                const connLines = sections[2].trim().split("\n").filter(l => l.includes("Device "))
-
-                const currConnectedMacs = connLines.map(l => l.split(" ")[1]).filter(m => m)
-                const connectedNamesArr = []
-
-                const newDevices = pairedLines.map(l => {
-                    const parts = l.split(" ")
-                    const mac = parts[1]
-                    const name = parts.slice(2).join(" ").trim()
-                    const isConn = currConnectedMacs.includes(mac)
-                    if (isConn) connectedNamesArr.push(name)
-                    return { mac, name, connected: isConn }
-                }).filter(d => d.mac)
-
-                btRoot.connectedName = connectedNamesArr.join(", ")
-                btRoot.devices = newDevices
+                btRoot.connectedName = connectedNames.join(", ")
+                btRoot.devices = paired
 
                 // Clean up discovered list (remove newly paired devices)
                 if (btRoot.discoveredDevices.length > 0) {
-                    const pairedMacs = newDevices.map(d => d.mac)
+                    const pairedMacs = paired.map(d => d.mac)
                     btRoot.discoveredDevices = btRoot.discoveredDevices.filter(d => !pairedMacs.includes(d.mac))
                 }
 
                 // Connection change notifications
                 if (btRoot.previousConnected !== null) {
                     const prevMacs = btRoot.previousConnected
-                    const added = currConnectedMacs.filter(m => !prevMacs.includes(m))
-                    const removed = prevMacs.filter(m => !currConnectedMacs.includes(m))
+                    const added = connectedMacs.filter(m => !prevMacs.includes(m))
+                    const removed = prevMacs.filter(m => !connectedMacs.includes(m))
                     added.forEach(m => {
-                        const d = newDevices.find(x => x.mac === m)
+                        const d = paired.find(x => x.mac === m)
                         if (d) btRoot.notify("Bluetooth Connected", d.name)
                     })
-                    if (removed.length > 0) btRoot.notify("Bluetooth Disconnected", "Device disconnected")
+                    removed.forEach(m => {
+                        const name = btRoot.previousDeviceNames[m] || "Device"
+                        btRoot.notify("Bluetooth Disconnected", name)
+                    })
                 }
-                btRoot.previousConnected = currConnectedMacs
+                btRoot.previousConnected = connectedMacs
+
+                const nameMap = {}
+                paired.forEach(d => { nameMap[d.mac] = d.name })
+                btRoot.previousDeviceNames = nameMap
             }
         }
     }
@@ -167,6 +190,8 @@ ColumnLayout {
                 btPoll.running = true
         }
     }
+
+    Component.onCompleted: btPoll.running = true
 
     // ── Discovery helpers ──────────────────────────────────────
     Process {
@@ -245,7 +270,6 @@ ColumnLayout {
     Process {
         id: rootConnectProc
         running: false
-        stdout: StdioCollector { onStreamFinished: btRoot._checkError(text) }
         stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
         onRunningChanged: {
             if (!running) {
@@ -259,7 +283,6 @@ ColumnLayout {
     Process {
         id: rootPairProc
         running: false
-        stdout: StdioCollector { onStreamFinished: btRoot._checkError(text) }
         stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
         onRunningChanged: {
             if (!running) {

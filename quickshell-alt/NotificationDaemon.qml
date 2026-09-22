@@ -10,6 +10,13 @@ QtObject {
     property bool isDrawerOpen: false
     property int hoverCloseDelay: 300
 
+    // Hard cap on retained notifications. Nothing expires on its own —
+    // once you're past this depth, the OLDEST entries get evicted and
+    // their underlying Notification objects closed (releasing icon
+    // pixmaps etc.) so memory stays bounded even if you never touch
+    // "Clear All".
+    property int maxNotifications: 100
+
     signal newNotification(var data)
 
     property Timer closeTimer: Timer {
@@ -63,8 +70,6 @@ QtObject {
         }
     }
 
-    // Shared by NotificationPopup and NotificationDrawer — was duplicated
-    // verbatim in both before.
     function getIconSource(data) {
         if (!data) return ""
         if (data.image) {
@@ -93,7 +98,21 @@ QtObject {
                 }
             }
 
-            root.notifications = [data, ...root.notifications]
+            let updated = [data, ...root.notifications]
+
+            // Memory Management: Evict oldest past the cap and actually close them 
+            // so the underlying Quickshell Notification gets released.
+            if (updated.length > root.maxNotifications) {
+                const overflow = updated.slice(root.maxNotifications)
+                updated = updated.slice(0, root.maxNotifications)
+                overflow.forEach(n => {
+                    if (typeof n.close === "function") {
+                        try { n.close() } catch(e) {}
+                    }
+                })
+            }
+
+            root.notifications = updated
             root.newNotification(data)
 
             notif.closed.connect(() => {

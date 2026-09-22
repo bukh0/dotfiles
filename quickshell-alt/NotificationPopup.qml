@@ -10,6 +10,11 @@ PanelWindow {
     property int displayDuration: 4000
     property bool isVisible: false
 
+    // ── Queue ────────────────────────────────────────────────
+    // A second notification arriving while one is still showing used to
+    // silently overwrite it. Queue instead so nothing gets dropped.
+    property var _queue: []
+
     property string uiFont: Theme.fontUI
     property string iconFont: Theme.fontMono
 
@@ -34,6 +39,37 @@ PanelWindow {
         interval: popup.displayDuration
         onTriggered: popup.isVisible = false
         repeat: false
+    }
+
+    // Small gap after the fade-out so the next toast doesn't pop in
+    // while the current one is still animating away.
+    Timer {
+        id: advanceTimer
+        interval: 220
+        onTriggered: popup._advanceQueue()
+    }
+
+    onIsVisibleChanged: {
+        if (!isVisible && popup._queue.length > 0) advanceTimer.restart()
+    }
+
+    function _advanceQueue() {
+        if (popup._queue.length === 0) return
+        const next = popup._queue[0]
+        popup._queue = popup._queue.slice(1)
+        popup.notificationData = next
+        popup.isVisible = true
+        hideTimer.restart()
+    }
+
+    function showNotification(data) {
+        if (popup.isVisible) {
+            popup._queue = popup._queue.concat([data])
+            return
+        }
+        popup.notificationData = data
+        popup.isVisible = true
+        hideTimer.restart()
     }
 
     Rectangle {
@@ -76,14 +112,28 @@ PanelWindow {
                 Layout.fillWidth: true
                 spacing: 4
 
-                Text {
-                    text: popup.notificationData?.appName || "App"
-                    color: Colors.primary
-                    font.pixelSize: 11
-                    font.weight: Font.Bold
-                    font.family: popup.uiFont
+                RowLayout {
                     Layout.fillWidth: true
-                    elide: Text.ElideRight
+                    spacing: 6
+
+                    Text {
+                        text: popup.notificationData?.appName || "App"
+                        color: Colors.primary
+                        font.pixelSize: 11
+                        font.weight: Font.Bold
+                        font.family: popup.uiFont
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
+                    }
+
+                    Text {
+                        visible: popup._queue.length > 0
+                        text: "+" + popup._queue.length
+                        color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
+                        font.pixelSize: 10
+                        font.weight: Font.Bold
+                        font.family: popup.uiFont
+                    }
                 }
 
                 Text {
@@ -128,11 +178,5 @@ PanelWindow {
                 hideTimer.stop()
             }
         }
-    }
-
-    function showNotification(data) {
-        notificationData = data
-        isVisible = true
-        hideTimer.restart()
     }
 }

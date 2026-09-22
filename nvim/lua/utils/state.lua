@@ -14,15 +14,21 @@ function M.read(name, default)
   if content == nil or content == "" then
     return default
   end
-  -- Trim whitespace/newlines — a trailing "\n" (manual edit, another tool
-  -- appending) would otherwise get passed straight into things like
-  -- vim.cmd.colorscheme("ayu-dark\n"), which errors rather than trimming.
   return vim.trim(content)
 end
 
 function M.write(name, value)
+  vim.fn.mkdir(vim.fn.stdpath("state"), "p")
   local f = io.open(path_for(name), "w")
   if not f then
+    -- The only realistic cause is a missing/unwritable stdpath("state") dir.
+    -- Every caller previously ignored the boolean return value, so this was
+    -- failing completely silently.
+    vim.notify(
+      ("failed to write state file '%s' (stdpath('state') not writable?)"):format(name),
+      vim.log.levels.WARN,
+      { title = "state.lua" }
+    )
     return false
   end
   f:write(value)
