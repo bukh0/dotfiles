@@ -1,5 +1,5 @@
 import QtQuick
-import QtQuick.Controls          
+import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell.Io
 import "."
@@ -16,48 +16,21 @@ RowLayout {
     // ── Display values ─────────────────────────────────────
     property string cpuPercent: "0%"
     property string ramPercent: "0%"
-    property string swapPercent: "0%"
     property string rxSpeed: "0 B/s"
     property string txSpeed: "0 B/s"
     property string powerProfile: "auto"
     property string cpuTemp: "--°C"
     property bool   cpuHot: false
 
-    property string tempSourcePath: ""
-
-    // ── Configuration ──────────────────────────────────────
-    property int    tempWarningThreshold: 75
-
     property string tooltipRam: ""
     property string tooltipCpu: ""
     property string tooltipNet: "Calculating…"
     property string tooltipTemp: "Calculating…"
     property string tooltipProfile: ""
-    property string cpuModel: ""
 
-    property real lastIdle: 0
-    property real lastTotal: 0
-    property real lastRx: 0
-    property real lastTx: 0
-    property var  lastNetTime: 0
+    property string tempSourcePath: ""
 
-    // ── Helpers ────────────────────────────────────────────
-    function formatSpeed(bytes) {
-        if (bytes < 1024) return bytes.toFixed(0) + " B/s"
-        if (bytes < 1048576) return (bytes / 1024).toFixed(0) + " K/s"
-        return (bytes / 1048576).toFixed(1) + " M/s"
-    }
-
-    // ── CPU model (fetched once) ──────────────────────────
-    Process {
-        id: cpuInfoProc
-        command: ["sh", "-c", "awk -F: '/model name/ { gsub(/^[ \\t]+/, \"\", $2); print $2; exit }' /proc/cpuinfo"]
-        stdout: StdioCollector {
-            onStreamFinished: { root.cpuModel = text.trim() }
-        }
-    }
-
-    // ── Resolve which file actually has the CPU temp, once ──────
+    // ── Resolve Temp File Once ──────────────────────────────
     Process {
         id: tempSourceDiscover
         command: ["sh", "-c",
@@ -68,133 +41,38 @@ RowLayout {
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
-                root.tempSourcePath = text.trim().split("\n")[0] || ""
-                if (root.tempSourcePath !== "" && !statsPoll.running) {
-                    statsPoll.running = true
-                }
+                root.tempSourcePath = text.trim().split("\n")[0] || "none"
+                sysmonDaemon.running = true
             }
         }
     }
 
-    // ── Unified poll (awk) ─────────────────────────────────
+    // ── C++ Daemon Stream ────────────────────────────────────
     Process {
-        id: statsPoll
-        command: [
-            "awk",
-            `
-            BEGIN { home = ENVIRON["HOME"]; tempFile = "${root.tempSourcePath}"; temp = "N/A" }
-            /^MemTotal:/     { mt = $2 }
-            /^MemAvailable:/ { ma = $2 }
-            /^SwapTotal:/    { st = $2 }
-            /^SwapFree:/     { sf = $2 }
-            /^cpu / { idle = $5; total = 0; for(i=2;i<=8;i++) total += $i }
-            END {
-                while ((getline devLine < "/proc/net/dev") > 0) {
-                    sub(/:/, " ", devLine)
-                    n = split(devLine, f)
-                    if (f[1] ~ /^[ew]/) { rx += f[2]; tx += f[10] }
+        id: sysmonDaemon
+        command: ["sh", "-c", "~/.config/quickshell/sysmon " + root.tempSourcePath]
+        running: false
+        stdout: SplitParser {
+            onRead: line => {
+                const parts = line.split("|")
+                if (parts.length >= 11) {
+                    root.ramPercent   = parts[0]
+                    root.tooltipRam   = parts[1].replace(/\\n/g, "\n")
+                    root.cpuPercent   = parts[2]
+                    root.tooltipCpu   = parts[3].replace(/\\n/g, "\n")
+                    root.rxSpeed      = parts[4]
+                    root.txSpeed      = parts[5]
+                    root.tooltipNet   = parts[6].replace(/\\n/g, "\n")
+                    root.cpuTemp      = parts[7]
+                    root.cpuHot       = parts[8] === "1"
+                    root.tooltipTemp  = parts[9].replace(/\\n/g, "\n")
+                    root.powerProfile = parts[10]
+                    root.tooltipProfile = `Power Profile: ${parts[10]}`
                 }
-                close("/proc/net/dev")
-
-                if (tempFile != "" && (getline t < tempFile) > 0) {
-                    temp = int(t/1000)
-                    close(tempFile)
-                }
-
-                pf = home "/.cache/perf-mode"
-                if ((getline p < pf) > 0) profile = p; else profile = "auto"; 
-                close(pf)
-
-                print "ram", (mt ? (mt-ma)/mt*100 : 0), mt+0, ma+0, st+0, sf+0
-                print "cpu", idle+0, total+0
-                print "net", rx+0, tx+0
-                print "temp", temp
-                print "power", profile
-            }
-            `, 
-            "/proc/meminfo", 
-            "/proc/stat"
-        ]
-        stdout: StdioCollector {
-            onStreamFinished: root._parseStats(text)
-        }
-    }
-
-    function _parseStats(raw) {
-        const lines = raw.trim().split("\n")
-        const now = Date.now()
-
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i]
-            const p = line.split(/\s+/)
-            
-            if (line.startsWith("ram ")) {
-                root.ramPercent = Math.round(parseFloat(p[1])) + "%"
-                const swapTotal = parseInt(p[4]) || 0
-                const swapFree  = parseInt(p[5]) || 0
-                
-                root.swapPercent = swapTotal > 0 ? Math.round((swapTotal - swapFree) / swapTotal * 100) + "%" : "0%"
-                root.tooltipRam = `Total: ${Math.round(p[2] / 1024)} MB\nAvailable: ${Math.round(p[3] / 1024)} MB\nSwap: ${Math.round((swapTotal - swapFree) / 1024)} MB / ${Math.round(swapTotal / 1024)} MB`
-            
-            } else if (line.startsWith("cpu ")) {
-                const idle = parseFloat(p[1]) || 0
-                const total = parseFloat(p[2]) || 0
-                
-                if (root.lastTotal > 0) {
-                    const dIdle = idle - root.lastIdle
-                    const dTotal = total - root.lastTotal
-                    const usage = dTotal > 0 ? Math.round(100 * (1 - dIdle / dTotal)) : 0
-                    root.cpuPercent = usage + "%"
-                    root.tooltipCpu = `CPU: ${usage}%\n${root.cpuModel ? root.cpuModel : ""}`
-                }
-                root.lastIdle = idle
-                root.lastTotal = total
-                
-            } else if (line.startsWith("net ")) {
-                const rx = parseInt(p[1]) || 0
-                const tx = parseInt(p[2]) || 0
-                
-                if (root.lastNetTime > 0) {
-                    const dt = (now - root.lastNetTime) / 1000.0
-                    if (dt > 0) {
-                        root.rxSpeed = root.formatSpeed(Math.max(0, rx - root.lastRx) / dt)
-                        root.txSpeed = root.formatSpeed(Math.max(0, tx - root.lastTx) / dt)
-                        root.tooltipNet = `↓ ${root.rxSpeed}    ↑ ${root.txSpeed}`
-                    }
-                }
-                root.lastRx = rx
-                root.lastTx = tx
-                root.lastNetTime = now
-                
-            } else if (line.startsWith("temp ")) {
-                let tval = parseInt(p[1])
-                if (!isNaN(tval)) {
-                    if (tval > 1000) tval = Math.round(tval / 1000)
-                    root.cpuTemp = tval + "°C"
-                    root.cpuHot = tval > root.tempWarningThreshold
-                    root.tooltipTemp = `Temperature: ${tval}°C` + (root.cpuHot ? `\n⚠ Above ${root.tempWarningThreshold}°C` : "")
-                } else {
-                    root.cpuTemp = "N/A"
-                }
-                
-            } else if (line.startsWith("power ")) {
-                root.powerProfile = p[1] || "auto"
-                root.tooltipProfile = `Power Profile: ${root.powerProfile}`
             }
         }
-    }
-
-    // Single merged Component hook
-    Component.onCompleted: {
-        cpuInfoProc.running = true
-        statsPoll.running = true
-    }
-
-    Timer {
-        interval: 3000
-        running: true
-        repeat: true
-        onTriggered: { if (!statsPoll.running) statsPoll.running = true }
+        // Auto-restart if killed
+        onRunningChanged: { if (!running && root.tempSourcePath !== "") sysmonDaemon.running = true }
     }
 
     // ── Reusable Stat (Scalable) ──────────────────────────
@@ -231,9 +109,6 @@ RowLayout {
         ToolTip.delay: 300
         ToolTip.timeout: 2000
     }
-
-    // ── Divider ────────────────────────────────────────────
-    // (was a private inline `component Divider`, now VDivider.qml)
 
     // ── Layout ─────────────────────────────────────────────
     Stat { 
@@ -315,10 +190,5 @@ RowLayout {
 
     Process {
         id: profileProc
-        onRunningChanged: {
-            if (!running && !statsPoll.running) {
-                statsPoll.running = true
-            }
-        }
     }
 }
