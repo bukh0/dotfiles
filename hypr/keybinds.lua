@@ -35,8 +35,8 @@ hl.bind(mod .." + Print", hl.dsp.exec_cmd('FILE="$HOME/Pictures/Screenshots/scre
 
 -- Theming & Scripts
 hl.bind(mod .. " + B", hl.dsp.exec_cmd("~/.scripts/toggle.blur.sh"))
-hl.bind(mod .. " + D", hl.dsp.exec_cmd("~/.scripts/wallpick.sh"))
-hl.bind(mod .. " + T", hl.dsp.exec_cmd("~/.scripts/theme.switcher.sh"))
+hl.bind(mod .. " + D", hl.dsp.exec_cmd("~/.scripts/wallpick.o"))
+hl.bind(mod .. " + T", hl.dsp.exec_cmd("~/.scripts/theme.switcher.o"))
 hl.bind(mod .. " + H", hl.dsp.exec_cmd("~/.scripts/configs.sh"))
 hl.bind(mod .. " + SHIFT + N", hl.dsp.exec_cmd([[bash -c "pkill -x wlsunset || wlsunset -l -25.74 -L 28.18 -t 4500 -T 6500 &"]]))
 hl.bind(mod .. " + G", hl.dsp.exec_cmd("~/.scripts/gamemode-toggle.sh"))

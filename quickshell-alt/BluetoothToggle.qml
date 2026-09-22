@@ -120,6 +120,13 @@ ColumnLayout {
     }
 
     // ── Event-driven refresh ───────────────────────────────────
+    // dbus-monitor watches BlueZ's PropertiesChanged signals directly
+    // on the system bus. Unlike the old `bluetoothctl` interactive
+    // session (whose stdout was block-buffered when piped, causing
+    // events to silently stall), dbus-monitor is designed for pipe
+    // consumption and flushes immediately — so connections made by
+    // any process (blueman, bluetoothctl CLI, KDE Connect, etc.)
+    // are picked up within the debounce window.
     Timer {
         id: monitorDebounce
         interval: 300
@@ -128,12 +135,13 @@ ColumnLayout {
 
     Process {
         id: btMonitor
-        command: ["sh", "-c", "env NO_COLOR=1 bluetoothctl"]
+        command: ["dbus-monitor", "--system",
+            "type='signal',sender='org.bluez',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'"
+        ]
         running: true
         stdout: SplitParser {
             onRead: (line) => {
-                if (!line.includes("[CHG]")) return
-                if (!(line.includes("Connected:") || line.includes("Powered:") || line.includes("Paired:"))) return
+                if (!(line.includes("Connected") || line.includes("Powered") || line.includes("Paired"))) return
                 if (btPoll.running || actionProc.running || btRoot.actionInFlight) return
                 monitorDebounce.restart()
             }

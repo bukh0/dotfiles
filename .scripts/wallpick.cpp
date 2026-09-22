@@ -39,6 +39,16 @@ struct Wallpaper {
 };
 
 int main() {
+    // Dependency check (mirrors wallpick.sh)
+    const char* deps[] = {"rofi", "swww", "matugen", "notify-send"};
+    for (const char* dep : deps) {
+        std::string check = std::string("command -v ") + dep + " >/dev/null 2>&1";
+        if (system(check.c_str()) != 0) {
+            std::cerr << "Error: " << dep << " is not installed." << std::endl;
+            return 1;
+        }
+    }
+
     const char* homeDir = std::getenv("HOME");
     if (!homeDir) return 1;
     

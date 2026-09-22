@@ -91,7 +91,6 @@ int main(int argc, char* argv[]) {
         memFile.close();
         
         long ramPct = memTotal > 0 ? (memTotal - memAvailable) * 100 / memTotal : 0;
-        long swapUsed = swapTotal > 0 ? (swapTotal - swapFree) * 100 / swapTotal : 0;
         std::string tooltipRam = "Total: " + toStr(memTotal / 1024) + " MB\\nAvailable: " + toStr(memAvailable / 1024) + 
                                  " MB\\nSwap: " + toStr((swapTotal - swapFree)/1024) + " MB / " + toStr(swapTotal/1024) + " MB";
 
@@ -129,7 +128,7 @@ int main(int argc, char* argv[]) {
             size_t colon = line.find(':');
             if (colon != std::string::npos) {
                 std::string iface = trim(line.substr(0, colon));
-                if (iface != "lo" && (iface[0] == 'e' || iface[0] == 'w')) {
+                if (!iface.empty() && iface != "lo" && (iface[0] == 'e' || iface[0] == 'w')) {
                     std::istringstream iss(line.substr(colon + 1));
                     unsigned long rx, tx, dmy;
                     if (iss >> rx) {
