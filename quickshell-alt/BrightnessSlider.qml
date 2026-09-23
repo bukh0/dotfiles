@@ -10,6 +10,7 @@ ColumnLayout {
     property real brightness: 0.5
     property string backlightPath: ""
     property real maxBrightness: 1
+    property bool maxBrightnessReady: false
 
     readonly property string brightIcon: {
         if (slider.visualValue < 0.25) return "󰃞"
@@ -42,6 +43,7 @@ ColumnLayout {
             onStreamFinished: {
                 const v = parseInt(text.trim())
                 if (v > 0) maxBrightness = v
+            maxBrightnessReady = true
             }
         }
     }
@@ -50,14 +52,14 @@ ColumnLayout {
     // hardware or software brightness change, so no polling needed.
     FileView {
         id: brightFile
-        path: backlightPath !== "" ? backlightPath + "/brightness" : ""
-        watchChanges: backlightPath !== ""
+        path: (backlightPath !== "" && maxBrightnessReady) ? backlightPath + "/brightness" : ""
+        watchChanges: backlightPath !== "" && maxBrightnessReady
         onFileChanged: reload()
         onLoaded: {
             if (slider.isDragging) return   // ignore during drag
             const v = parseInt(text())
             if (!isNaN(v) && maxBrightness > 0)
-                brightness = Math.max(0.05, v / maxBrightness)
+                brightness = Math.min(1, Math.max(0.05, v / maxBrightness))
         }
     }
 
