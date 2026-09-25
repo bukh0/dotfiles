@@ -1,6 +1,7 @@
 pragma Singleton
 import QtQml
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.Notifications
 
 QtObject {
@@ -9,15 +10,10 @@ QtObject {
     property var notifications: []
     property bool isDrawerOpen: false
     property int hoverCloseDelay: 300
-
-    // Hard cap on retained notifications. Nothing expires on its own —
-    // once you're past this depth, the OLDEST entries get evicted and
-    // their underlying Notification objects closed (releasing icon
-    // pixmaps etc.) so memory stays bounded even if you never touch
-    // "Clear All". Bump this as high as you like.
     property int maxNotifications: 100
 
     signal newNotification(var data)
+    signal dismissPopup()
 
     property Timer closeTimer: Timer {
         interval: root.hoverCloseDelay
@@ -70,8 +66,6 @@ QtObject {
         }
     }
 
-    // Shared by NotificationPopup and NotificationDrawer — was duplicated
-    // verbatim in both before.
     function getIconSource(data) {
         if (!data) return ""
         if (data.image) {
@@ -102,9 +96,6 @@ QtObject {
 
             let updated = [data, ...root.notifications]
 
-            // Evict oldest past the cap, and actually close them so the
-            // underlying Quickshell Notification (and its icon pixmap)
-            // gets released rather than just dropped from the JS array.
             if (updated.length > root.maxNotifications) {
                 const overflow = updated.slice(root.maxNotifications)
                 updated = updated.slice(0, root.maxNotifications)
@@ -123,6 +114,14 @@ QtObject {
                     root.notifications = root.notifications.filter(n => n !== data)
                 }
             })
+        }
+    }
+
+    property IpcHandler ipc: IpcHandler {
+        target: "notifications"
+
+        function closeLatest(): void {
+            root.dismissPopup()
         }
     }
 }

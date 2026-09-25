@@ -21,7 +21,8 @@ hl.bind(mod .. " + Q", hl.dsp.window.close())
 hl.bind(mod .. " + M", hl.dsp.exec_cmd("wlogout"))
 hl.bind(mod .. " + L", hl.dsp.exec_cmd("hyprlock"))
 hl.bind(mod .. " + V", hl.dsp.window.float({ action = "toggle" }))
-hl.bind(mod .. " + N", hl.dsp.exec_cmd("swaync-client --close-latest"))
+-- hl.bind(mod .. " + N", hl.dsp.exec_cmd("swaync-client --close-latest"))
+hl.bind(mod .. " + N", hl.dsp.exec_cmd("qs ipc call notifications closeLatest"))
 hl.bind(mod .. " + F", hl.dsp.window.fullscreen({ action = "toggle" }))
 hl.bind(mod .. " + SHIFT + M",  hl.dsp.exit())
 hl.bind(mod .. " + SHIFT + Q", hl.dsp.exec_cmd("uwsm stop"))
@@ -66,8 +67,8 @@ hl.bind(mod .. " + down",  hl.dsp.focus({ direction = "d" }))
 
 -- Workspaces 1-10
 for i = 1, 9 do
-    hl.bind(mod .. " + " .. i,               hl.dsp.focus({ workspace = i }))
-    hl.bind(mod .. " + SHIFT + " .. i,       hl.dsp.window.move({ workspace = i }))
+  hl.bind(mod .. " + " .. i,               hl.dsp.focus({ workspace = i }))
+  hl.bind(mod .. " + SHIFT + " .. i,       hl.dsp.window.move({ workspace = i }))
 end
 hl.bind(mod .. " + 0",         hl.dsp.focus({ workspace = 10 }))
 hl.bind(mod .. " + SHIFT + 0", hl.dsp.window.move({ workspace = 10 }))
