@@ -60,7 +60,7 @@ ZSH_THEME="robbyrussell"
 # "mm/dd/yyyy"|"dd.mm.yyyy"|"yyyy-mm-dd"
 # or set a custom format using the strftime function format specifications,
 # see 'man strftime' for details.
-# HIST_STAMPS="mm/dd/yyyy"
+HIST_STAMPS="dd.mm.yyyy"
 
 # Would you like to use another custom folder than $ZSH/custom?
 # ZSH_CUSTOM=/path/to/new-custom-folder
@@ -74,6 +74,7 @@ plugins=(
 	git 
 	zsh-autosuggestions
 	zsh-syntax-highlighting
+  zsh-vi-mode
 )
 # Plugin Edit
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=6'
@@ -109,9 +110,9 @@ source $ZSH/oh-my-zsh.sh
 # Example aliases
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
-alias ls="exa"
-alias ll="exa -l"
-alias lla="exa -la"
+alias ls="eza"
+alias ll="eza -l"
+alias lla="eza -la"
 alias exe="sudo chmod +x"
 alias i="sudo pacman -S"
 alias nv="nvim"
@@ -132,3 +133,9 @@ export Programs="$HOME/Documents/Programs"
 
 # Added by Antigravity CLI installer
 export PATH="/home/bukh0/.local/bin:$PATH"
+
+# Rebind Ctrl+Q: default push-line stashes the line and restores it
+# after the next command — replace with a real clear instead.
+bindkey "^Q" kill-whole-line
+bindkey -v
+export PATH="$HOME/.npm-global/bin:$PATH"

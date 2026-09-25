@@ -37,8 +37,8 @@ static const char unknown_str[] = "[n/a]";
  * keymap              layout (variant) of current     NULL
  *                     keymap
  * load_avg            load average                    NULL
- * netspeed_rx         receive network speed           interface name (wlan0)
- * netspeed_tx         transfer network speed          interface name (wlan0)
+ * netspeed_rx         receive network speed           interface name (wlp3s0)
+ * netspeed_tx         transfer network speed          interface name (wlp3s0)
  * num_files           number of files in a directory  path
  *                                                     (/home/foo/Inbox/cur)
  * ram_free            free memory in GB               NULL
@@ -61,18 +61,30 @@ static const char unknown_str[] = "[n/a]";
  * username            username of current user        NULL
  * vol_perc            OSS/ALSA volume in percent      mixer file (/dev/mixer)
  *                                                     NULL on OpenBSD/FreeBSD
- * wifi_essid          WiFi ESSID                      interface name (wlan0)
- * wifi_perc           WiFi signal in percent          interface name (wlan0)
+ * wifi_essid          WiFi ESSID                      interface name (wlp3s0)
+ * wifi_perc           WiFi signal in percent          interface name (wlp3s0)
+ */
+/*
+ * Requires:
+ * 1. dwm patched with statuscolors (^c#hex^ and ^d^)
+ * 2. Nerd Font installed (e.g. JetBrainsMono Nerd Font)
  */
 static const struct arg args[] = {
-    /* function       format                  argument */
-    { datetime,       "^c#ff9800^Time: ^d^%s |",      "%T | ^c#ff9800^Date: ^d^%F" },
-    { battery_perc,   " ^c#ff9800^Battery:^d^ %s%% [", "BAT0" },
-    { battery_state,  "(%s)]",                "BAT0" },
-    { ram_perc,       " | ^c#ff9800^RAM: ^d^%s%% ",  NULL },
-    { wifi_essid,     " | ^c#ff9800^WiFi: ^d^%s",     "wlan0" },
-    { wifi_perc,      " %s%% |",              "wlan0" },
-//    { netspeed_rx,   "↓ %sB/s ",    "wlan0" },
-//    { netspeed_tx,   "↑ %sB/s  ",    "wlan0" },
-    { run_command,    " ^c#ff9800^Bluetooth: ^d^%s",  "bluetoothctl show | grep -q 'Powered: yes' && echo 'On' || echo 'Off'" },
+    /* function      format                           argument */
+
+    /* Date & Time */
+    { datetime,      "^c#fab387^󰸗 ^d^%s  ",           "%a %d %b" },
+    { datetime,      "^c#f38ba8^󱑎 ^d^%s       ",      "%H:%M" },
+
+    /* Hardware: RAM */
+    { ram_perc,      "^c#cba6f7^ ^d^%s%%   ",         NULL },
+
+    /* Battery (Uses icon + percent) */
+    { battery_perc,  "^c#a6e3a1^󰁹^d^ %s%%   ",        "BAT0" },
+
+    /* Dynamic WiFi */
+    { run_command,   "^c#89b4fa^󰤨 ^d^%s   ",           "iwgetid -r 2>/dev/null || nmcli -t -f active,ssid dev wifi 2>/dev/null | grep '^yes' | cut -d: -f2 || echo 'Offline'" },
+
+    /* Bluetooth */
+    { run_command,   "^c#74c7ec^󰂯^d^ %s ",            "bluetoothctl show 2>/dev/null | grep -q 'Powered: yes' && echo 'On' || echo 'Off'" },
 };
