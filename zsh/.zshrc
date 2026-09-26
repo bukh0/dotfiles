@@ -120,8 +120,7 @@ alias t="tmux"
 alias ta="tmux attach || tmux new"
 alias tl="tmux ls"
 alias tk="tmux kill-session -t"
-alias nvc="NVIM_APPNAME=nvim_nvchad nvim"
-
+alias nvp="nvim ~/Documents/Pracs/"
 
 #export PATH=$PATH:/home/bukh0/.spicetify
 export PATH="$HOME/.local/bin:$PATH"

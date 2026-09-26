@@ -82,7 +82,7 @@ RowLayout {
             Rectangle {
                 id: pill
                 anchors.fill: parent
-                radius: height / 2
+                radius: 0
                 visible: active || wsMa.containsMouse
 
                 color: active
@@ -96,7 +96,7 @@ RowLayout {
                 id: wsLabel
                 anchors.centerIn: parent
                 text: wsId
-                font.pixelSize: 14
+                font.pixelSize: 13
                 font.family: Theme.fontMono
                 font.weight: Font.Bold
                 color: Colors.primary

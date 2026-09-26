@@ -17,7 +17,7 @@ PanelWindow {
     }
 
     property int barHeight: 35
-    property int pillRadius: 12
+    property int pillRadius: 8
     property int pillPaddingH: 24
     property int centerPillMinWidth: 180
     property int centerPillExtraWidth: 80
@@ -56,7 +56,7 @@ PanelWindow {
                     id: activeWindowTitle
                     color: Colors.surfaceFg
                     font.pixelSize: 13
-                    font.weight: Font.Medium
+                    font.weight: Font.Normal
                     text: {
                         if (!ToplevelManager.activeToplevel) return ""
                         const raw = ToplevelManager.activeToplevel.title ?? ""

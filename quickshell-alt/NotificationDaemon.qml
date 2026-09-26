@@ -1,6 +1,7 @@
 pragma Singleton
 import QtQml
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.Notifications
 
 QtObject {
@@ -18,6 +19,7 @@ QtObject {
     property int maxNotifications: 100
 
     signal newNotification(var data)
+    signal dismissPopup()
 
     property Timer closeTimer: Timer {
         interval: root.hoverCloseDelay
@@ -100,7 +102,7 @@ QtObject {
 
             let updated = [data, ...root.notifications]
 
-            // Memory Management: Evict oldest past the cap and actually close them 
+            // Memory Management: Evict oldest past the cap and actually close them
             // so the underlying Quickshell Notification gets released.
             if (updated.length > root.maxNotifications) {
                 const overflow = updated.slice(root.maxNotifications)
@@ -120,6 +122,14 @@ QtObject {
                     root.notifications = root.notifications.filter(n => n !== data)
                 }
             })
+        }
+    }
+
+    property IpcHandler ipc: IpcHandler {
+        target: "notifications"
+
+        function closeLatest(): void {
+            root.dismissPopup()
         }
     }
 }

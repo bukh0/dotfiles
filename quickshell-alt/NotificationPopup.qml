@@ -53,6 +53,14 @@ PanelWindow {
         if (!isVisible && popup._queue.length > 0) advanceTimer.restart()
     }
 
+    Connections {
+        target: NotificationDaemon
+        function onDismissPopup() {
+            popup.isVisible = false
+            hideTimer.stop()
+        }
+    }
+
     function _advanceQueue() {
         if (popup._queue.length === 0) return
         const next = popup._queue[0]

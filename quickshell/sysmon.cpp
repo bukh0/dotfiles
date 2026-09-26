@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
     std::string cpuModel = getCpuModel();
     const char* homeDir = std::getenv("HOME");
     std::string perfPath = homeDir ? std::string(homeDir) + "/.cache/perf-mode" : "";
-    
+
     unsigned long lastIdle = 0, lastTotal = 0;
     unsigned long lastRx = 0, lastTx = 0;
     struct timeval lastTime;
@@ -61,7 +61,25 @@ int main(int argc, char* argv[]) {
     if (tempPath != "none" && !tempPath.empty()) tempFile.open(tempPath.c_str());
 
     std::string line;
+
+    // Seed CPU deltas so the first real reading is instantaneous,
+    // not "usage since boot".
+    if (std::getline(statFile, line)) {
+        std::istringstream iss(line);
+        std::string cpu;
+        if (iss >> cpu && cpu == "cpu") {
+            unsigned long val; int col = 1;
+            while (iss >> val) {
+                lastTotal += val;
+                if (col == 4) lastIdle = val;
+                col++;
+            }
+        }
+    }
+
     while (true) {
+        usleep(3000000);
+
         // 1. CPU
         statFile.clear(); statFile.seekg(0);
         unsigned long idle = 0, total = 0;
@@ -82,6 +100,7 @@ int main(int argc, char* argv[]) {
             cpuPct = ((total - lastTotal) - (idle - lastIdle)) * 100 / (total - lastTotal);
         }
         lastIdle = idle; lastTotal = total;
+        std::string tooltipCpu = "CPU: " + toStr(cpuPct) + "%\\n" + cpuModel;
 
         // 2. RAM
         memFile.clear(); memFile.seekg(0);
@@ -97,6 +116,8 @@ int main(int argc, char* argv[]) {
             }
         }
         long ramPct = memTotal > 0 ? (memTotal - memAvail) * 100 / memTotal : 0;
+        std::string tooltipRam = "Total: " + toStr(memTotal / 1024) + " MB\\nAvailable: " + toStr(memAvail / 1024) +
+                                 " MB\\nSwap: " + toStr((swapTotal - swapFree) / 1024) + " MB / " + toStr(swapTotal / 1024) + " MB";
 
         // 3. Network
         netFile.clear(); netFile.seekg(0);
@@ -123,9 +144,11 @@ int main(int argc, char* argv[]) {
         std::string rxSpeed = dt > 0 ? formatSpeed((rxTotal > lastRx ? rxTotal - lastRx : 0) / dt) : "0 B/s";
         std::string txSpeed = dt > 0 ? formatSpeed((txTotal > lastTx ? txTotal - lastTx : 0) / dt) : "0 B/s";
         lastRx = rxTotal; lastTx = txTotal; lastTime = now;
+        std::string tooltipNet = "↓ " + rxSpeed + "    ↑ " + txSpeed;
 
         // 4. Temp
         std::string tempStr = "N/A";
+        std::string tooltipTemp = "Temperature: N/A";
         int isHot = 0;
         if (tempFile.is_open()) {
             tempFile.clear(); tempFile.seekg(0);
@@ -134,25 +157,22 @@ int main(int argc, char* argv[]) {
                 long tempC = tempRaw / 1000;
                 tempStr = toStr(tempC) + "°C";
                 isHot = (tempC > 75) ? 1 : 0;
+                tooltipTemp = "Temperature: " + tempStr + (isHot ? "\\n⚠ Above 75°C" : "");
             }
         }
 
-        // 5. Power Profile (Files overwritten by other scripts must be re-opened)
+        // 5. Power profile — file gets overwritten by other scripts, must reopen each time
         std::string profile = "auto";
         if (!perfPath.empty()) {
             std::ifstream pFile(perfPath.c_str());
-            if (pFile.is_open()) pFile >> profile;
+            if (!(pFile >> profile)) profile = "auto";
         }
 
-        // Output payloads
-        std::cout << ramPct << "%|Total: " << (memTotal/1024) << " MB\\nAvailable: " << (memAvail/1024) 
-                  << " MB\\nSwap: " << ((swapTotal-swapFree)/1024) << " MB / " << (swapTotal/1024) << " MB|"
-                  << cpuPct << "%|CPU: " << cpuPct << "%\\n" << cpuModel << "|"
-                  << rxSpeed << "|" << txSpeed << "|↓ " << rxSpeed << "    ↑ " << txSpeed << "|"
-                  << tempStr << "|" << isHot << "|Temperature: " << tempStr << (isHot ? "\\n⚠ Above 75°C" : "") << "|"
+        std::cout << ramPct << "%|" << tooltipRam << "|"
+                  << cpuPct << "%|" << tooltipCpu << "|"
+                  << rxSpeed << "|" << txSpeed << "|" << tooltipNet << "|"
+                  << tempStr << "|" << isHot << "|" << tooltipTemp << "|"
                   << profile << std::endl;
-
-        usleep(3000000);
     }
     return 0;
 }

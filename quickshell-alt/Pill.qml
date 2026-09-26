@@ -26,7 +26,7 @@ Rectangle {
     width: implicitWidth
     height: implicitHeight
 
-    radius: height / 3.0
+    radius: 8
 
     readonly property color bgColor: isActive
         ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.3)

@@ -1,6 +1,6 @@
 # Compiler & Flags
 CXX = g++
-CXXFLAGS = -std=c++98 -O3 -Wall -Wextra
+CXXFLAGS = -std=c++98 -O3 -Wall -Wextra -Werror
 
 # Paths
 HOME_DIR = $(HOME)
@@ -36,4 +36,4 @@ clean:
 	rm -f theme.switcher wallpick
 	rm -f $(QS_DIR)/sysmon $(QS_ALT_DIR)/sysmon
 
-.PHONY: all clean wallpick
+.PHONY: Done
