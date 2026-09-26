@@ -7,7 +7,7 @@ PanelWindow {
     id: popup
 
     property var notificationData: null
-    property int displayDuration: 4000
+    property int displayDuration: 3000
     property bool isVisible: false
 
     // ── Queue ────────────────────────────────────────────────

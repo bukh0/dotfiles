@@ -16,7 +16,7 @@ PanelWindow {
     }
 
     implicitHeight: Theme.barHeight
-    color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.94)
+    color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 1)
 
     // Bottom hairline separator
     Rectangle {
