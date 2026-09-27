@@ -1,18 +1,14 @@
 #!/usr/bin/env bash
+set -u
+source "$(dirname "$0")/quickshell-common.sh"
 
-STATE_FILE="$HOME/.cache/quickshell_current_bar"
+CURRENT_BAR="$(quickshell_read_bar)"
+[[ "$CURRENT_BAR" == "default" || "$CURRENT_BAR" == "alt" ]] || CURRENT_BAR="default"
+quickshell_write_bar "$CURRENT_BAR"
 
-# Default to the standard bar if no state file exists
-if [[ ! -f "$STATE_FILE" ]]; then
-    echo "quickshell" > "$STATE_FILE"
-fi
-
-CURRENT_BAR=$(cat "$STATE_FILE")
-
-if pgrep -x "quickshell" > /dev/null; then
-    killall quickshell 2>/dev/null
+if pgrep -x quickshell >/dev/null; then
+    quickshell_stop
 else
-    # Prevent notification daemon conflicts before claiming the bus
-    killall swaync dunst mako notification-daemon 2>/dev/null
-    quickshell -p "$HOME/.config/$CURRENT_BAR" > "$HOME/.cache/${CURRENT_BAR}.log" 2>&1 &
+    quickshell_stop_notification_daemons
+    quickshell_start "$CURRENT_BAR"
 fi

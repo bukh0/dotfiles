@@ -6,6 +6,8 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <cstdlib>
+#include <cstdio>
+#include <unistd.h>
 
 std::string escapeShellArg(const std::string& arg) {
     std::string escaped = "'";
@@ -37,6 +39,16 @@ struct Wallpaper {
     time_t mtime;
     bool operator<(const Wallpaper& other) const { return mtime > other.mtime; }
 };
+
+std::string makeTempFile(const std::string& prefix) {
+    std::string pattern = "/tmp/" + prefix + "XXXXXX";
+    std::vector<char> buffer(pattern.begin(), pattern.end());
+    buffer.push_back('\0');
+    int fd = mkstemp(&buffer[0]);
+    if (fd < 0) return "";
+    close(fd);
+    return std::string(&buffer[0]);
+}
 
 int main() {
     // Dependency check (C++98 compliant array loop)
@@ -80,16 +92,24 @@ int main() {
 
     std::sort(wallpapers.begin(), wallpapers.end());
 
-    std::ofstream wout("/tmp/wallpick_menu.txt");
+    std::string menuFile = makeTempFile("wallpick-menu.");
+    std::string choiceFile = makeTempFile("wallpick-choice.");
+    if (menuFile.empty() || choiceFile.empty()) {
+        if (!menuFile.empty()) std::remove(menuFile.c_str());
+        if (!choiceFile.empty()) std::remove(choiceFile.c_str());
+        return 1;
+    }
+
+    std::ofstream wout(menuFile.c_str());
     for (size_t i = 0; i < wallpapers.size(); ++i) {
         wout << wallpapers[i].filename << '\0' << "icon\x1f" << wallRoot << "/" << wallpapers[i].filename << '\n';
     }
     wout.close();
 
-    std::string choiceFile = "/tmp/wallpick_choice.txt";
-    
     // Optimization: Use native file redirection '<' instead of spawning a 'cat |' subshell pipeline
-    std::string rofiCmd = "rofi -dmenu -i -show-icons -theme " + escapeShellArg(rofiTheme) + " -p '  Wallpaper' < /tmp/wallpick_menu.txt > " + choiceFile;
+    std::string rofiCmd = "rofi -dmenu -i -show-icons -theme " + escapeShellArg(rofiTheme) +
+        " -p '  Wallpaper' < " + escapeShellArg(menuFile) +
+        " > " + escapeShellArg(choiceFile);
     system(rofiCmd.c_str());
 
     std::ifstream wf(choiceFile.c_str());
@@ -98,11 +118,29 @@ int main() {
     wf.close();
     
     selectedWall = trim(selectedWall);
+    std::remove(menuFile.c_str());
+    std::remove(choiceFile.c_str());
     if (selectedWall.empty()) return 0;
+
+    bool knownWallpaper = false;
+    for (size_t i = 0; i < wallpapers.size(); ++i) {
+        if (wallpapers[i].filename == selectedWall) {
+            knownWallpaper = true;
+            break;
+        }
+    }
+    if (!knownWallpaper) {
+        std::cerr << "Error: Rofi returned an unknown wallpaper." << std::endl;
+        return 1;
+    }
+
     std::string fullPath = wallRoot + "/" + selectedWall;
 
     system(("swww img " + escapeShellArg(fullPath) + " --transition-type grow --transition-duration 2 --transition-fps 60 &").c_str());
-    system(("matugen image " + escapeShellArg(fullPath) + " --source-color-index 0 -q").c_str());
+    if (system(("matugen image " + escapeShellArg(fullPath) + " --source-color-index 0 -q").c_str()) != 0) {
+        std::cerr << "Error: failed to generate theme from wallpaper." << std::endl;
+        return 1;
+    }
 
     std::string baseName = selectedWall;
     size_t lastSlash = baseName.find_last_of('/');

@@ -22,10 +22,20 @@ ORIGINALS_BACKUP_DIR = os.path.join(WALLPAPER_DIR, ".originals_backup")
 BG_WEIGHT = 0.65
 ACCENT_WEIGHT = 0.35
 ACCENT_CHROMA_FLOOR = 8.0
-EINK_CHROMA_THRESHOLD = 10.0
-EINK_MAX_CHROMA_CEILING = 22.0
-REJECT_THRESHOLD = 45.0
-MATCH_TOLERANCE = 0.12
+
+# --- E-ink detection: image must be overwhelmingly grey/black/white ---
+EINK_NEUTRAL_CHROMA_CEILING = 8.0   # a swatch counts as "neutral" only at or below this chroma
+EINK_NEUTRAL_WEIGHT_MIN = 0.90      # at least 90% of the image (by weight) must be neutral
+EINK_MAX_CHROMA_CEILING = 12.0      # hard cap: even the single most saturated swatch can't exceed this
+
+# Background detection (color themes): a swatch counts as "background-like"
+# if its chroma is at or below this. We average all such swatches
+# (weighted) instead of just picking the single highest-weight swatch,
+# which could be a saturated accent region rather than the true background.
+BG_NEUTRAL_CHROMA_CEILING = 14.0
+
+REJECT_THRESHOLD = 38.0      # stricter about forcing a match at all
+MATCH_TOLERANCE = 0.08       # fewer images get copied into multiple themes
 
 
 def rgb_to_lab(rgb):
@@ -122,29 +132,57 @@ def classify_image(image_path):
     if not palette:
         return None
 
-    avg_chroma = 0.0
     max_chroma = 0.0
     highest_weight = 0.0
     dom_lightness = 0.0
+    neutral_weight_total = 0.0
 
     for rgb, weight in palette:
         L, a, b = rgb_to_lab(rgb)
         chroma = math.sqrt(a ** 2 + b ** 2)
 
-        avg_chroma += chroma * weight
-
         if chroma > max_chroma:
             max_chroma = chroma
+
+        if chroma <= EINK_NEUTRAL_CHROMA_CEILING:
+            neutral_weight_total += weight
 
         if weight > highest_weight:
             highest_weight = weight
             dom_lightness = L
 
-    if avg_chroma < EINK_CHROMA_THRESHOLD and max_chroma < EINK_MAX_CHROMA_CEILING:
+    is_eink = (
+        neutral_weight_total >= EINK_NEUTRAL_WEIGHT_MIN
+        and max_chroma <= EINK_MAX_CHROMA_CEILING
+    )
+
+    if is_eink:
         return "e-ink" if dom_lightness > 50.0 else "e-ink-dark"
 
-    dom_rgb, _ = max(palette, key=lambda p: p[1])
-    dom_lab = rgb_to_lab(dom_rgb)
+    # --- Background: weighted average of neutral (low-chroma) swatches ---
+    neutral_L = neutral_a = neutral_b = 0.0
+    bg_neutral_weight_total = 0.0
+
+    for rgb, weight in palette:
+        L, a, b = rgb_to_lab(rgb)
+        chroma = math.sqrt(a ** 2 + b ** 2)
+        if chroma <= BG_NEUTRAL_CHROMA_CEILING:
+            neutral_L += L * weight
+            neutral_a += a * weight
+            neutral_b += b * weight
+            bg_neutral_weight_total += weight
+
+    if bg_neutral_weight_total > 0:
+        dom_lab = (
+            neutral_L / bg_neutral_weight_total,
+            neutral_a / bg_neutral_weight_total,
+            neutral_b / bg_neutral_weight_total,
+        )
+    else:
+        # No meaningfully neutral area at all -- fall back to the old
+        # dominant-swatch approach rather than guessing.
+        dom_rgb, _ = max(palette, key=lambda p: p[1])
+        dom_lab = rgb_to_lab(dom_rgb)
 
     scores = {}
     for theme, anchors in THEME_ANCHORS_LAB.items():

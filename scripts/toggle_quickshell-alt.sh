@@ -1,12 +1,25 @@
 #!/usr/bin/env bash
+set -u
+source "$(dirname "$0")/quickshell-common.sh"
 
-STATE_FILE="$HOME/.cache/quickshell_current_bar"
-
-if pgrep -x "quickshell" > /dev/null; then
-    killall quickshell 2>/dev/null
+if pgrep -x quickshell >/dev/null; then
+    CURRENT_BAR="$(quickshell_read_bar)"
+    quickshell_stop
+    for _ in {1..30}; do
+        pgrep -x quickshell >/dev/null || break
+        sleep 0.1
+    done
+    if pgrep -x quickshell >/dev/null; then
+        printf 'Could not stop the running Quickshell instance\n' >&2
+        exit 1
+    fi
+    if [[ "$CURRENT_BAR" != "alt" ]]; then
+        quickshell_stop_notification_daemons
+        quickshell_start alt || exit 1
+        quickshell_write_bar alt
+    fi
 else
-    # Prevent notification daemon conflicts before claiming the bus
-    killall swaync dunst mako notification-daemon 2>/dev/null
-    printf "%s\n" "quickshell-alt" > "$STATE_FILE"
-    quickshell -p "$HOME/.config/quickshell-alt" > "$HOME/.cache/quickshell-alt.log" 2>&1 &
+    quickshell_stop_notification_daemons
+    quickshell_start alt || exit 1
+    quickshell_write_bar alt
 fi

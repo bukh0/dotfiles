@@ -1,28 +1,35 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-# 1. Compile C binary
-make || exit 1
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+make
 
-# 2. Kill ghost instances
-pkill -x dwm 2>/dev/null
-pkill -x slstatus 2>/dev/null
+: "${DISPLAY:=:0}"
+export DISPLAY
+unset WAYLAND_DISPLAY
 
-sleep 0.1
+cleanup() {
+    [[ -n "${DWM_PID:-}" ]] && kill "$DWM_PID" 2>/dev/null || true
+    kill "${SLSTATUS_PID:-}" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
 
-# 3. Paint canvas
-if [ -f ~/.fehbg ]; then
-    DISPLAY=:2 ~/.fehbg &
+if [[ -x "$HOME/.fehbg" ]]; then
+    "$HOME/.fehbg" &
 fi
 
-# 4. Launch Window Manager in the background, grab its exact PID
-env -u WAYLAND_DISPLAY DISPLAY=:2 ./dwm &
+if pgrep -x slstatus >/dev/null 2>&1; then
+    pkill -x slstatus
+    for _ in {1..20}; do
+        pgrep -x slstatus >/dev/null 2>&1 || break
+        sleep 0.05
+    done
+fi
+
+./dwm &
 DWM_PID=$!
 
-# 5. THE BRIDGE: Give dwm 200ms to open the root window property
-sleep 0.2
+slstatus &
+SLSTATUS_PID=$!
 
-# 6. Mount the status bar daemon
-DISPLAY=:2 slstatus &
-
-# 7. Anchor this script to dwm's PID so the sub-shells stay alive
-wait $DWM_PID
+wait "$DWM_PID"

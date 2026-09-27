@@ -1,0 +1,1 @@
+../shared/BatteryIndicator.qml

@@ -1,29 +1,34 @@
 #!/usr/bin/env bash
+set -u
+source "$(dirname "$0")/quickshell-common.sh"
 
-STATE_FILE="$HOME/.cache/quickshell_current_bar"
+CURRENT_BAR="$(quickshell_read_bar)"
 
-# Read state instantly without spawning 'cat'
-if [[ -f "$STATE_FILE" ]]; then
-    read -r CURRENT_BAR < "$STATE_FILE"
-else
-    CURRENT_BAR="quickshell"
-fi
-
-if [[ "$1" == "reload" ]]; then
+if [[ "${1:-}" == "reload" ]]; then
     TARGET_BAR="$CURRENT_BAR"
 else
-    # Swap layout
-    [[ "$CURRENT_BAR" == "quickshell" ]] && TARGET_BAR="quickshell-alt" || TARGET_BAR="quickshell"
-    # Write instantly without spawning 'echo'
-    printf "%s\n" "$TARGET_BAR" > "$STATE_FILE"
+    [[ "$CURRENT_BAR" == "default" ]] && TARGET_BAR="alt" || TARGET_BAR="default"
 fi
 
-# pkill -0 is the fastest process check (sends signal 0, exits 0 if process exists)
-if pkill -0 -x "quickshell" 2>/dev/null; then
-    killall quickshell 2>/dev/null
-    sleep 0.2
-    killall swaync dunst mako notification-daemon 2>/dev/null
-    
-    # Use native reload scripts which you already have
-    bash "$HOME/.config/$TARGET_BAR/reload.sh" &
+if pgrep -x quickshell >/dev/null; then
+    quickshell_stop
 fi
+
+# Wait for Quickshell to release its instance/socket before starting the
+# replacement. A fixed short sleep is unreliable under load.
+for _ in {1..30}; do
+    pgrep -x quickshell >/dev/null || break
+    sleep 0.1
+done
+
+if pgrep -x quickshell >/dev/null; then
+    printf 'Could not stop the running Quickshell instance\n' >&2
+    exit 1
+fi
+
+quickshell_stop_notification_daemons
+if ! quickshell_start "$TARGET_BAR"; then
+    printf 'Could not start Quickshell profile: %s\n' "$TARGET_BAR" >&2
+    exit 1
+fi
+quickshell_write_bar "$TARGET_BAR"

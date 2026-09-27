@@ -1,7 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
 /* interval between updates (in ms) */
-const unsigned int interval = 1000;
+const unsigned int interval = 2000;
 
 /* text to show if no value can be retrieved */
 static const char unknown_str[] = "[n/a]";
@@ -73,18 +73,18 @@ static const struct arg args[] = {
     /* function      format                           argument */
 
     /* Date & Time */
-    { datetime,      "^c#fab387^󰸗 ^d^%s  ",           "%a %d %b" },
-    { datetime,      "^c#f38ba8^󱑎 ^d^%s       ",      "%H:%M" },
+    { datetime,      "^c#89b4fa^󰸗 ^d^ %s  ",           "%a %d %b" },
+    { datetime,      "^c#cba6f7^󱑎 ^d^ %s  ",           "%H:%M" },
 
     /* Hardware: RAM */
-    { ram_perc,      "^c#cba6f7^ ^d^%s%%   ",         NULL },
+    { ram_perc,      "^c#585b70^│ ^d^^c#f5c2e7^ ^d^ %s%%  ", NULL },
 
     /* Battery (Uses icon + percent) */
-    { battery_perc,  "^c#a6e3a1^󰁹^d^ %s%%   ",        "BAT0" },
+    { battery_perc,  "^c#585b70^│ ^d^^c#a6e3a1^󰁹^d^ %s%%  ", "BAT0" },
 
     /* Dynamic WiFi */
-    { run_command,   "^c#89b4fa^󰤨 ^d^%s   ",           "iwgetid -r 2>/dev/null || nmcli -t -f active,ssid dev wifi 2>/dev/null | grep '^yes' | cut -d: -f2 || echo 'Offline'" },
+    { run_command,   "^c#585b70^│ ^d^^c#74c7ec^󰤨 ^d^ %s  ", "ssid=$(iwgetid -r 2>/dev/null); if [ -n \"$ssid\" ]; then printf '%s' \"$ssid\"; else nmcli -t -f active,ssid dev wifi 2>/dev/null | awk -F: '$1 == \"yes\" { print $2; found=1; exit } END { if (!found) print \"Offline\" }'; fi" },
 
     /* Bluetooth */
-    { run_command,   "^c#74c7ec^󰂯^d^ %s ",            "bluetoothctl show 2>/dev/null | grep -q 'Powered: yes' && echo 'On' || echo 'Off'" },
+    { run_command,   "^c#585b70^│ ^d^^c#89dceb^󰂯^d^ %s  ", "bluetoothctl show 2>/dev/null | grep -q '^\\s*Powered: yes' && printf 'On' || printf 'Off'" },
 };

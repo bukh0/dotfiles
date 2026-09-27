@@ -1,0 +1,1 @@
+../shared/Pill.qml

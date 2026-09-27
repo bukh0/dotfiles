@@ -1,0 +1,1 @@
+../shared/SystemResourceRow.qml

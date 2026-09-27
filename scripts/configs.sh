@@ -12,24 +12,25 @@ CHOICE=$(echo -e "$MAIN_OPTIONS" | rofi -dmenu -i -p "󱊟 " -config "$ROFI_CONF
 
 case "$CHOICE" in
     *Hyprland)
-        FILE=$(ls "$HYPR_DIR" | grep ".lua" | rofi -dmenu -i -p "󰧨 Hyprland Configs" -config "$ROFI_CONF")
+        FILE=$(find "$HYPR_DIR" -maxdepth 1 -type f -name '*.lua' -printf '%f\n' | sort | rofi -dmenu -i -p "󰧨 Hyprland Configs" -config "$ROFI_CONF")
         [[ -n "$FILE" ]] && kitty -e nvim "$HYPR_DIR/$FILE"
         ;;
 
     *Waybar)
-        PRESET=$(ls -d "$WAYBAR_DIR"/*/ | xargs -n1 basename | rofi -dmenu -i -p "󱗼 Select Waybar Layout" -config "$ROFI_CONF")
+        PRESET=$(find "$WAYBAR_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | rofi -dmenu -i -p "󱗼 Select Waybar Layout" -config "$ROFI_CONF")
         
         if [[ -n "$PRESET" ]]; then
             ln -sf "$WAYBAR_DIR/$PRESET/config.jsonc" "$WAYBAR_DIR/config.jsonc"
             ln -sf "$WAYBAR_DIR/$PRESET/style.css" "$WAYBAR_DIR/style.css"
             
-            killall waybar && waybar &
+            pkill -x waybar 2>/dev/null || true
+            waybar &
             notify-send -a "System" "Waybar layout changed to $PRESET"
         fi
         ;;
 
     *Animations)
-        ANIM=$(ls "$ANIM_DIR" | grep ".lua" | grep -v "current" | rofi -dmenu -i -p "󰚔 Select Animation" -config "$ROFI_CONF")
+        ANIM=$(find "$ANIM_DIR" -maxdepth 1 -type f -name '*.lua' ! -name 'current*' -printf '%f\n' | sort | rofi -dmenu -i -p "󰚔 Select Animation" -config "$ROFI_CONF")
         
         if [[ -n "$ANIM" ]]; then
             ln -sf "$ANIM_DIR/$ANIM" "$ANIM_DIR/current_animations.lua"
