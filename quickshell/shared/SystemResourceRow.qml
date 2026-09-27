@@ -35,9 +35,10 @@ RowLayout {
     Process {
         id: tempSourceDiscover
         command: ["sh", "-c",
-            "for i in 0 1 2 3 4 5 6 7 8 9; do f=/sys/class/thermal/thermal_zone$i/temp; " +
+            "for f in /sys/class/thermal/thermal_zone*/temp; do " +
             "[ -r \"$f\" ] && { echo \"$f\"; exit; }; done; " +
-            "ls /sys/class/hwmon/hwmon*/temp1_input 2>/dev/null | head -1"
+            "for f in /sys/class/hwmon/hwmon*/temp1_input; do " +
+            "[ -r \"$f\" ] && { echo \"$f\"; exit; }; done"
         ]
         running: true
         stdout: StdioCollector {
@@ -49,7 +50,7 @@ RowLayout {
                     root._restartForTemperature = true
                     sysmonDaemon.running = false
                 } else {
-                    sysmonRestart.restart()
+                    sysmonRestart.start()
                 }
             }
 
@@ -96,13 +97,13 @@ RowLayout {
             if (!running && root.tempSourcePath !== "" && !root._restartForTemperature)
                 sysmonRestart.start()
             else if (!running && root._restartForTemperature)
-                sysmonRestart.restart()
+                sysmonRestart.start()
         }
     }
 
     Timer {
         id: sysmonRestart
-        interval: 2000
+        interval: 250
         onTriggered: {
             root._restartForTemperature = false
             sysmonDaemon.running = true

@@ -52,6 +52,7 @@ int main(int argc, char* argv[]) {
     unsigned long long lastRx = 0, lastTx = 0;
     struct timeval lastTime;
     gettimeofday(&lastTime, NULL);
+    bool firstSample = true;
 
     // Keep file streams open for zero-overhead polling
     std::ifstream statFile("/proc/stat");
@@ -89,8 +90,6 @@ int main(int argc, char* argv[]) {
     }
 
     while (true) {
-        usleep(3000000);
-
         // 1. CPU
         statFile.clear(); statFile.seekg(0);
         unsigned long long idle = 0, total = 0;
@@ -165,9 +164,14 @@ int main(int argc, char* argv[]) {
         struct timeval now;
         gettimeofday(&now, NULL);
         double dt = (now.tv_sec - lastTime.tv_sec) + (now.tv_usec - lastTime.tv_usec) / 1000000.0;
-        std::string rxSpeed = dt > 0 ? formatSpeed((rxTotal > lastRx ? rxTotal - lastRx : 0) / dt) : "0 B/s";
-        std::string txSpeed = dt > 0 ? formatSpeed((txTotal > lastTx ? txTotal - lastTx : 0) / dt) : "0 B/s";
+        std::string rxSpeed = !firstSample && dt > 0
+            ? formatSpeed((rxTotal > lastRx ? rxTotal - lastRx : 0) / dt)
+            : "0 B/s";
+        std::string txSpeed = !firstSample && dt > 0
+            ? formatSpeed((txTotal > lastTx ? txTotal - lastTx : 0) / dt)
+            : "0 B/s";
         lastRx = rxTotal; lastTx = txTotal; lastTime = now;
+        firstSample = false;
         std::string tooltipNet = "↓ " + rxSpeed + "    ↑ " + txSpeed;
 
         // 4. Temp
@@ -197,6 +201,8 @@ int main(int argc, char* argv[]) {
                   << rxSpeed << "|" << txSpeed << "|" << tooltipNet << "|"
                   << tempStr << "|" << isHot << "|" << tooltipTemp << "|"
                   << profile << std::endl;
+
+        usleep(1000000);
     }
     return 0;
 }
