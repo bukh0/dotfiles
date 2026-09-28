@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Io
 import "."
 
@@ -9,11 +10,9 @@ RowLayout {
     Layout.fillWidth: true
     spacing: 8
 
-    // ── Fonts ──────────────────────────────────────────────
     property string uiFont: Theme.fontUI
     property string iconFont: Theme.fontMono
 
-    // ── Display values ─────────────────────────────────────
     property string cpuPercent: "0%"
     property string ramPercent: "0%"
     property string rxSpeed: "0 B/s"
@@ -30,51 +29,49 @@ RowLayout {
 
     property string tempSourcePath: "none"
     property bool _restartForTemperature: false
+    property int _restartDelay: 250
 
-    // ── Resolve Temp File Once ──────────────────────────────
     Process {
         id: tempSourceDiscover
         command: ["sh", "-c",
-            "for f in /sys/class/thermal/thermal_zone*/temp; do " +
-            "[ -r \"$f\" ] && { echo \"$f\"; exit; }; done; " +
-            "for f in /sys/class/hwmon/hwmon*/temp1_input; do " +
-            "[ -r \"$f\" ] && { echo \"$f\"; exit; }; done"
+            "for z in /sys/class/thermal/thermal_zone*; do " +
+            "[ -r \"$z/type\" ] && case \"$(cat \"$z/type\")\" in " +
+            "x86_pkg_temp|cpu*|k10temp*) echo \"$z/temp\"; exit;; esac; " +
+            "done; " +
+            "for h in /sys/class/hwmon/hwmon*; do " +
+            "case \"$(cat \"$h/name\" 2>/dev/null)\" in coretemp|k10temp) " +
+            "[ -r \"$h/temp1_input\" ] && echo \"$h/temp1_input\"; exit;; esac; " +
+            "done"
         ]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
                 const discovered = text.trim().split("\n")[0] || "none"
-                if (discovered === root.tempSourcePath) return
+                if (discovered === root.tempSourcePath && sysmonDaemon.running) return
                 root.tempSourcePath = discovered
                 if (sysmonDaemon.running) {
                     root._restartForTemperature = true
                     sysmonDaemon.running = false
                 } else {
-                    sysmonRestart.start()
+                    sysmonRestart.restart()
                 }
             }
-
         }
     }
 
     Timer {
-        id: tempSourceRefresh
-        interval: 30000
-        running: true
-        repeat: true
-        onTriggered: {
-            if (!tempSourceDiscover.running) tempSourceDiscover.running = true
-        }
+        id: sysmonStableTimer
+        interval: 5000
+        onTriggered: root._restartDelay = 250
     }
 
-    // ── C++ Daemon Stream ────────────────────────────────────
     Process {
         id: sysmonDaemon
         command: [Theme.sysmonPath, root.tempSourcePath]
         running: false
         stdout: SplitParser {
             onRead: line => {
-                const parts = line.split("|")
+                const parts = line.split("\u001f")
                 if (parts.length >= 11) {
                     root.ramPercent   = parts[0]
                     root.tooltipRam   = parts[1].replace(/\\n/g, "\n")
@@ -91,13 +88,17 @@ RowLayout {
                 }
             }
         }
-        // Auto-restart if killed — with a short backoff so a crash-loop
-        // doesn't spin the CPU respawning instantly forever.
         onRunningChanged: {
-            if (!running && root.tempSourcePath !== "" && !root._restartForTemperature)
-                sysmonRestart.start()
-            else if (!running && root._restartForTemperature)
-                sysmonRestart.start()
+            if (running) {
+                sysmonStableTimer.restart()
+                return
+            }
+            sysmonStableTimer.stop()
+            if (root.tempSourcePath !== "") {
+                root._restartDelay = Math.min(root._restartDelay * 2, 30000)
+                sysmonRestart.interval = root._restartDelay
+                sysmonRestart.restart()
+            }
         }
     }
 
@@ -110,9 +111,6 @@ RowLayout {
         }
     }
 
-    Component.onCompleted: sysmonDaemon.running = true
-
-    // ── Reusable Stat (Scalable) ──────────────────────────
     component Stat: RowLayout {
         id: statRoot
         property string icon: ""
@@ -147,7 +145,6 @@ RowLayout {
         ToolTip.timeout: 2000
     }
 
-    // ── Layout ─────────────────────────────────────────────
     Stat {
         icon: "󰍛"
         value: root.cpuPercent
@@ -190,7 +187,6 @@ RowLayout {
         Layout.minimumWidth: 0
     }
 
-    // ── Power profile toggle ──────────────────────────────
     RowLayout {
         Layout.alignment: Qt.AlignVCenter
 
@@ -217,7 +213,7 @@ RowLayout {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     if (profileProc.running) return
-                    profileProc.command = ["bash", "-c", "~/.scripts/toggle-performance.sh"]
+                    profileProc.command = ["bash", "-c", "exec \"$HOME/.scripts/toggle-performance.sh\""]
                     profileProc.running = true
                 }
             }
@@ -226,5 +222,17 @@ RowLayout {
 
     Process {
         id: profileProc
+        stderr: StdioCollector {
+            onStreamFinished: {
+                const msg = text.trim()
+                if (msg.length > 0) console.warn("power profile:", msg)
+            }
+        }
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0) {
+                Quickshell.execDetached(["notify-send", "-a", "Power Profile", "--",
+                    "Power profile change failed", "Exit status " + exitCode])
+            }
+        }
     }
 }

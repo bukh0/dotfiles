@@ -12,7 +12,7 @@ ColumnLayout {
     // ── Constants & configuration ──────────────────────────────
     readonly property string fontFamily: Theme.fontMono
     readonly property int artSize: Theme.mediaArtSize
-    readonly property int controlsHeight: Theme.mediaControlSize
+    readonly property int controlsHeight: 42
     readonly property int rowGap: 10
     readonly property int pageHeight: artSize + rowGap + controlsHeight
 
@@ -118,7 +118,8 @@ ColumnLayout {
     // ── Playerctl process ──────────────────────────────────────
     Process {
         id: metaPoll
-        command: ["playerctl", "-a", "metadata", "--format", "{{playerName}}\u001f{{title}}\u001f{{artist}}\u001f{{album}}\u001f{{status}}\u001f{{mpris:artUrl}}"]
+        // Metadata can contain newlines; use a separate record terminator.
+        command: ["playerctl", "-a", "metadata", "--format", "{{playerName}}\u001f{{playerInstance}}\u001f{{title}}\u001f{{artist}}\u001f{{album}}\u001f{{status}}\u001f{{mpris:artUrl}}\u001e"]
         stdout: StdioCollector {
             onStreamFinished: root.applyPollResult(text)
         }
@@ -138,6 +139,7 @@ ColumnLayout {
 
     // ── Model update (with Spotify Priority & Smart fallback) ──
     property var _lastSnapshot: ({})
+    property var _lastTracks: ({})
     property bool _pollPending: false
 
     property string _pendingPlayer: ""
@@ -150,11 +152,14 @@ ColumnLayout {
         if (trimmed === "") {
             playersListModel.clear()
             root._lastSnapshot = ({})
+            root._lastTracks = ({})
+            root._pendingPlayer = ""
+            pager.currentIndex = 0
             return
         }
 
         const parsed = []
-        const lines = trimmed.split("\n")
+        const lines = trimmed.split("\u001e")
         const now = Date.now()
         const isLockActive = root._pendingPlayer !== "" && (now - root._pendingSince) < root.pendingTimeoutMs
         if (root._pendingPlayer !== "" && !isLockActive) {
@@ -165,15 +170,18 @@ ColumnLayout {
             if (lines[i].trim() === "") continue
 
             const parts = lines[i].split("\u001f")
-            if (parts.length < 5) continue
+            if (parts.length < 6) continue
 
-            const player = parts[0].trim()
-            const title = parts[1].trim() || "Nothing playing"
-            const artist = parts[2].trim()
-            const album = parts[3].trim()
-            const artUrl = parts.slice(5).join("\u001f").trim()
+            const playerName = parts[0].trim()
+            const playerInstance = parts[1].trim()
+            const player = playerName + "\u001e" + playerInstance
+            const playerTarget = playerInstance || playerName
+            const title = parts[2].trim() || "Nothing playing"
+            const artist = parts[3].trim()
+            const album = parts[4].trim()
+            const artUrl = parts.slice(6).join("\u001f").trim()
 
-            const rawStatus = parts[4].trim()
+            const rawStatus = parts[5].trim()
             const actualStatus = rawStatus !== ""
                 ? rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase()
                 : root.statusStopped
@@ -184,12 +192,12 @@ ColumnLayout {
                 effectiveStatus = root._pendingStatus
             }
 
-            parsed.push({ player, title, artist, album, status: effectiveStatus, artUrl })
+            parsed.push({ player, playerName, playerTarget, title, artist, album, status: effectiveStatus, artUrl })
         }
 
         parsed.sort((a, b) => {
-            const aIsSpotify = a.player.toLowerCase().includes("spotify")
-            const bIsSpotify = b.player.toLowerCase().includes("spotify")
+            const aIsSpotify = a.playerName.toLowerCase().includes("spotify")
+            const bIsSpotify = b.playerName.toLowerCase().includes("spotify")
             if (aIsSpotify && !bIsSpotify) return -1
             if (!aIsSpotify && bIsSpotify) return 1
 
@@ -207,22 +215,48 @@ ColumnLayout {
         }
 
         const newSnapshot = ({})
-        const parsedNames = new Set(parsed.map(p => p.player))
+        const newTracks = ({})
 
+        const parsedPlayers = ({})
+        for (const p of parsed) {
+            parsedPlayers[p.player] = p
+            newTracks[p.player] = JSON.stringify([p.title, p.artist, p.album])
+            if (p.artUrl !== "") newSnapshot[p.player] = p.artUrl
+            else if (root._lastTracks[p.player] === newTracks[p.player] && root._lastSnapshot[p.player])
+                newSnapshot[p.player] = root._lastSnapshot[p.player]
+        }
+
+        // Update the model in place so the page delegates (and their
+        // controls) survive routine metadata polls.
         for (let i = playersListModel.count - 1; i >= 0; i--) {
-            if (!parsedNames.has(playersListModel.get(i).player)) {
-                playersListModel.remove(i, 1)
+            const player = playersListModel.get(i).player
+            if (!parsedPlayers[player]) playersListModel.remove(i)
+        }
+
+        for (let i = 0; i < parsed.length; i++) {
+            const player = parsed[i]
+            let currentIndex = -1
+            for (let j = 0; j < playersListModel.count; j++) {
+                if (playersListModel.get(j).player === player.player) {
+                    currentIndex = j
+                    break
+                }
+            }
+
+            if (currentIndex === -1) {
+                playersListModel.insert(i, player)
+            } else {
+                if (currentIndex !== i) playersListModel.move(currentIndex, i, 1)
+                const updatedIndex = i
+                for (const role of ["playerName", "playerTarget", "title", "artist", "album", "status", "artUrl"]) {
+                    if (playersListModel.get(updatedIndex)[role] !== player[role])
+                        playersListModel.setProperty(updatedIndex, role, player[role])
+                }
             }
         }
 
-        playersListModel.clear()
-        for (const p of parsed) {
-            playersListModel.append(p)
-            if (p.artUrl !== "") newSnapshot[p.player] = p.artUrl
-            else if (root._lastSnapshot[p.player]) newSnapshot[p.player] = root._lastSnapshot[p.player]
-        }
-
         root._lastSnapshot = newSnapshot
+        root._lastTracks = newTracks
 
         if (viewedPlayer !== "") {
             let foundIdx = -1
@@ -381,6 +415,8 @@ ColumnLayout {
 
                 delegate: Item {
                     required property string player
+                    required property string playerName
+                    required property string playerTarget
                     required property string title
                     required property string artist
                     required property string album
@@ -440,6 +476,7 @@ ColumnLayout {
                                 Text {
                                     Layout.fillWidth: true
                                     text: title
+                                    textFormat: Text.PlainText
                                     color: Colors.surfaceFg
                                     font.pixelSize: 15
                                     font.family: root.fontFamily
@@ -451,6 +488,7 @@ ColumnLayout {
                                     Layout.fillWidth: true
                                     visible: artist !== "" || album !== ""
                                     text: artist + (artist !== "" && album !== "" ? " • " : "") + album
+                                    textFormat: Text.PlainText
                                     color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6)
                                     font.pixelSize: 12
                                     font.family: root.fontFamily
@@ -459,7 +497,7 @@ ColumnLayout {
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: player + " · " + root.statusLabel(status)
+                                    text: playerName + " · " + root.statusLabel(status)
                                     color: status === root.statusPlaying ? Colors.primary : Colors.surfaceFg
                                     font.pixelSize: 10
                                     font.family: root.fontFamily
@@ -479,7 +517,7 @@ ColumnLayout {
                                 label: "Previous track"
                                 size: 21
                                 boxSize: 36
-                                command: ["playerctl", "-p", player, "previous"]
+                                command: ["playerctl", "-p", playerTarget, "previous"]
                                 onClicked: root.scheduleReconcile()
                             }
 
@@ -487,8 +525,8 @@ ColumnLayout {
                                 icon: root.statusIcon(status)
                                 label: status === root.statusPlaying ? "Pause" : "Play"
                                 size: 25
-                                boxSize: 42
-                                command: ["playerctl", "-p", player, "play-pause"]
+                                boxSize: root.controlsHeight
+                                command: ["playerctl", "-p", playerTarget, "play-pause"]
                                 onClicked: {
                                     root.optimisticToggle(player)
                                     root.scheduleReconcile()
@@ -500,7 +538,7 @@ ColumnLayout {
                                 label: "Next track"
                                 size: 21
                                 boxSize: 36
-                                command: ["playerctl", "-p", player, "next"]
+                                command: ["playerctl", "-p", playerTarget, "next"]
                                 onClicked: root.scheduleReconcile()
                             }
                         }

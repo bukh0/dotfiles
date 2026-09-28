@@ -1,5 +1,6 @@
 pragma Singleton
 import QtQuick
+import Quickshell
 
 // ── Theme ─────────────────────────────────────────────────────────────────
 // Single source of truth for all visual design tokens.
@@ -9,7 +10,7 @@ QtObject {
     // ── Fonts ──────────────────────────────────────────────────────────
     readonly property string fontMono: "CaskaydiaCove Nerd Font"
     readonly property string fontUI:   "sans-serif"
-    readonly property string sysmonPath: Qt.resolvedUrl("sysmon").toString().replace(/^file:\/\//, "")
+    readonly property string sysmonPath: Quickshell.shellPath("../shared/sysmon")
 
     // ── Font sizes ─────────────────────────────────────────────────────
     readonly property int fontSizeXS:   10
@@ -40,6 +41,7 @@ QtObject {
     readonly property int barSectionGap:   18
     readonly property bool floatingBar:    false
     readonly property int barOuterMargin:  0
+    readonly property int barTotalHeight: floatingBar ? barHeight + barOuterMargin * 2 : barHeight
     readonly property int barPillRadius:   5
     readonly property int barPillPaddingH: 0
     readonly property int centerPillMinWidth: 0

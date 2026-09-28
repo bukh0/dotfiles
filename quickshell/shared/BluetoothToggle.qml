@@ -1,286 +1,34 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
-import Quickshell.Io
 import "."
 
+// UI only. All state, processes and notifications live in BluetoothService
+// (a singleton), because this component is destroyed every time the control
+// panel closes.
 ColumnLayout {
     id: btRoot
     spacing: Theme.spacingSM
 
-    // ── State ──────────────────────────────────────────────────
-    property bool btOn: false
-    property string connectedName: ""
     property bool expanded: false
-    property var devices: []
-    property var discoveredDevices: []
 
-    property bool scanning: false
-    property string targetMac: ""
-    property bool actionInFlight: false
+    readonly property bool btOn: BluetoothService.powered
+    readonly property bool powerBusy: BluetoothService.busy && BluetoothService.actionKind === "power"
 
-    // Used for detecting connection changes
-    property var previousConnected: null
-    property var previousDeviceNames: ({})
+    onExpandedChanged: if (expanded) BluetoothService.refresh()
+    onBtOnChanged: if (!btOn) expanded = false
 
-    // ── Shared notification helper ─────────────────────────────
-    Process {
-        id: notifyProc
-        running: false
-    }
-
-    function notify(title, body) {
-        if (notifyProc.running) return
-        notifyProc.command = ["notify-send", "-a", "Bluetooth", "-u", "critical", title, body]
-        notifyProc.running = true
-    }
-
-    // ── Generic command runner (for power toggle etc.) ─────────
-    Process {
-        id: actionProc
-        running: false
-        stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
-        onRunningChanged: {
-            if (!running) btPoll.running = true   // refresh full state
+    // `kind` is BlueZ's Icon property (audio-headset, input-mouse, ...),
+    // more reliable than guessing from the device name.
+    function deviceIcon(name, kind) {
+        switch (kind) {
+        case "audio-headset":
+        case "audio-headphones": return "󰋋"
+        case "audio-card":       return "󰓃"
+        case "input-mouse":      return "󰍽"
+        case "input-keyboard":   return "󰌌"
+        case "phone":            return "󰏲"
         }
-    }
-
-    function runCommand(cmdArray) {
-        if (actionProc.running) return
-        actionProc.command = cmdArray
-        actionProc.running = true
-    }
-
-    // ── Main polling process — reads BlueZ's D-Bus state directly.
-    // NOTE: known open issue — some devices (e.g. non-standard-profile
-    // audio devices with a virtualized MAC like 00:00:00:00:03:80) can be
-    // actively connected at the audio layer while org.bluez.Device1's
-    // Connected property still reports false. Still investigating the
-    // root cause; UI will under-report "connected" for those devices
-    // until resolved.
-    Process {
-        id: btPoll
-        command: ["busctl", "--system", "-j", "call", "org.bluez", "/",
-                  "org.freedesktop.DBus.ObjectManager", "GetManagedObjects"]
-        stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let parsed
-                try {
-                    parsed = JSON.parse(text)
-                } catch (e) {
-                    console.warn("bluetooth: failed to parse busctl output:", e)
-                    btRoot._drainBtMonitor()
-                    return
-                }
-                const objs = (parsed.data && parsed.data[0]) || {}
-
-                let adapterPowered = false
-                const paired = []
-                const connectedMacs = []
-                const connectedNames = []
-
-                for (const path in objs) {
-                    const ifaces = objs[path]
-
-                    const adapter = ifaces["org.bluez.Adapter1"]
-                    if (adapter && adapter.Powered) adapterPowered = !!adapter.Powered.data
-
-                    const dev = ifaces["org.bluez.Device1"]
-                    if (!dev || !dev.Paired || !dev.Paired.data) continue
-
-                    const mac = dev.Address ? dev.Address.data : ""
-                    if (!mac) continue
-                    const name = (dev.Name && dev.Name.data) || (dev.Alias && dev.Alias.data) || mac
-                    const connected = !!(dev.Connected && dev.Connected.data)
-
-                    paired.push({ mac, name, connected })
-                    if (connected) {
-                        connectedMacs.push(mac)
-                        connectedNames.push(name)
-                    }
-                }
-
-                btRoot.btOn = adapterPowered
-
-                if (!adapterPowered) {
-                    btRoot.previousConnected = []
-                    btRoot.devices = []
-                    btRoot.connectedName = ""
-                    btRoot.discoveredDevices = []
-                    btRoot._drainBtMonitor()
-                    return
-                }
-
-                btRoot.connectedName = connectedNames.join(", ")
-                btRoot.devices = paired
-
-                // Clean up discovered list (remove newly paired devices)
-                if (btRoot.discoveredDevices.length > 0) {
-                    const pairedMacs = paired.map(d => d.mac)
-                    btRoot.discoveredDevices = btRoot.discoveredDevices.filter(d => !pairedMacs.includes(d.mac))
-                }
-
-                // Connection change notifications
-                if (btRoot.previousConnected !== null) {
-                    const prevMacs = btRoot.previousConnected
-                    const added = connectedMacs.filter(m => !prevMacs.includes(m))
-                    const removed = prevMacs.filter(m => !connectedMacs.includes(m))
-                    added.forEach(m => {
-                        const d = paired.find(x => x.mac === m)
-                        if (d) btRoot.notify("Bluetooth Connected", d.name)
-                    })
-                    removed.forEach(m => {
-                        const name = btRoot.previousDeviceNames[m] || "Device"
-                        btRoot.notify("Bluetooth Disconnected", name)
-                    })
-                }
-                btRoot.previousConnected = connectedMacs
-
-                const nameMap = {}
-                paired.forEach(d => { nameMap[d.mac] = d.name })
-                btRoot.previousDeviceNames = nameMap
-
-                btRoot._drainBtMonitor()
-            }
-        }
-    }
-
-    // ── Event-driven refresh ───────────────────────────────────
-    // dbus-monitor watches BlueZ's PropertiesChanged signals directly
-    // on the system bus. Unlike the old `bluetoothctl` interactive
-    // session (whose stdout was block-buffered when piped, causing
-    // events to silently stall), dbus-monitor is designed for pipe
-    // consumption and flushes immediately — so connections made by
-    // any process (blueman, bluetoothctl CLI, KDE Connect, etc.)
-    // are picked up within the debounce window.
-    Timer {
-        id: monitorDebounce
-        interval: 300
-        onTriggered: btPoll.running = true
-    }
-
-    // If a genuine event fires while btPoll/actionProc/an action is
-    // already busy, it used to just be dropped — remembered instead, and
-    // drained (via _drainBtMonitor) the moment whatever was busy finishes.
-    property bool _monitorPending: false
-
-    function _btBusy() {
-        return btPoll.running || actionProc.running || btRoot.actionInFlight
-    }
-
-    function _drainBtMonitor() {
-        if (btRoot._monitorPending && !btRoot._btBusy()) {
-            btRoot._monitorPending = false
-            monitorDebounce.restart()
-        }
-    }
-
-    Process {
-        id: btMonitor
-        command: ["dbus-monitor", "--system",
-            "type='signal',sender='org.bluez',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'"
-        ]
-        running: true
-        stdout: SplitParser {
-            onRead: (line) => {
-                if (!(line.includes("Connected") || line.includes("Powered") || line.includes("Paired"))) return
-                if (btRoot._btBusy()) {
-                    btRoot._monitorPending = true
-                    return
-                }
-                monitorDebounce.restart()
-            }
-        }
-        onRunningChanged: {
-            if (!running) btMonitorRestart.start()
-        }
-    }
-
-    Timer {
-        id: btMonitorRestart
-        interval: 2000
-        onTriggered: btMonitor.running = true
-    }
-
-    // ── Fallback poll ────────────────────────────────────────
-    Timer {
-        interval: 20000
-        running: true
-        repeat: true
-        onTriggered: {
-            if (!btPoll.running && !actionProc.running && !btRoot.actionInFlight)
-                btPoll.running = true
-        }
-    }
-
-    Component.onCompleted: btPoll.running = true
-
-    // ── Discovery helpers ──────────────────────────────────────
-    Process {
-        id: listAllPoll
-        command: ["sh", "-c",
-            "env NO_COLOR=1 bluetoothctl devices Paired; echo '==='; env NO_COLOR=1 bluetoothctl devices"
-        ]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const textOutput = text.replace(/\x1b\[[0-9;]*m/g, "").trim()
-                const sections = textOutput.split("===")
-                if (sections.length < 2) return
-
-                const pairedLines = sections[0].trim().split("\n").filter(l => l.includes("Device "))
-                const allLines = sections[1].trim().split("\n").filter(l => l.includes("Device "))
-
-                const pairedMacs = pairedLines.map(l => l.split(" ")[1]).filter(m => m)
-                const seen = {}
-                const unpaired = []
-                for (const l of allLines) {
-                    const parts = l.split(" ")
-                    const mac = parts[1]
-                    const name = parts.slice(2).join(" ").trim()
-                    if (!mac || seen[mac] || pairedMacs.includes(mac)) continue
-                    if (!name) continue
-                    seen[mac] = true
-                    unpaired.push({ mac, name })
-                }
-                btRoot.discoveredDevices = unpaired
-            }
-        }
-    }
-
-    Process {
-        id: btScanProc
-        command: ["bluetoothctl", "--timeout", "6", "scan", "on"]
-        onRunningChanged: {
-            if (!running) {
-                btRoot.scanning = false
-                listAllPoll.running = true
-            }
-        }
-    }
-
-    function listAll() {
-        if (!listAllPoll.running) listAllPoll.running = true
-    }
-
-    function rescan() {
-        if (btScanProc.running) return
-        scanning = true
-        btScanProc.running = true
-    }
-
-    // ── Internal error checker ─────────────────────────
-    function _checkError(rawText) {
-        const t = rawText.trim()
-        if (t.length === 0) return
-        if (t.toLowerCase().includes("error") || t.toLowerCase().includes("failed")) {
-            btRoot.notify("Bluetooth Warning", t)
-        }
-    }
-
-    // ── Icon mapping ───────────────────────────────────────────
-    function deviceIcon(name) {
-        const n = name.toLowerCase()
+        const n = (name || "").toLowerCase()
         if (n.includes("headphone") || n.includes("earphone") || n.includes("buds")) return "󰋋"
         if (n.includes("mouse")) return "󰍽"
         if (n.includes("keyboard")) return "󰌌"
@@ -289,35 +37,7 @@ ColumnLayout {
         return "󰂯"
     }
 
-    // ── Connection Actions ─────────────────────────────────────
-    Process {
-        id: rootConnectProc
-        running: false
-        stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
-        onRunningChanged: {
-            if (!running) {
-                btRoot.actionInFlight = false
-                btRoot.targetMac = ""
-                btPoll.running = true
-            }
-        }
-    }
-
-    Process {
-        id: rootPairProc
-        running: false
-        stderr: StdioCollector { onStreamFinished: btRoot._checkError(text) }
-        onRunningChanged: {
-            if (!running) {
-                btRoot.actionInFlight = false
-                btRoot.targetMac = ""
-                btPoll.running = true
-                listAllPoll.running = true
-            }
-        }
-    }
-
-    // ── Header toggle ──────────────────────────────────────────
+    // ── Header row ─────────────────────────────────────────────────────
     Rectangle {
         Layout.fillWidth: true
         implicitHeight: Theme.toggleHeight
@@ -331,42 +51,33 @@ ColumnLayout {
             anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
             spacing: 8
 
-            // Power button
             Rectangle {
                 width: Theme.toggleIconBox; height: Theme.toggleIconBox; radius: width / 2
                 color: "transparent"
                 Text {
                     anchors.centerIn: parent
-                    text: actionProc.running ? "󰔟" : "󰂯"
+                    text: btRoot.powerBusy ? "󰔟" : "󰂯"
                     color: btRoot.btOn ? Colors.secondary : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
                     font.pixelSize: Theme.toggleIconSize
                     font.family: Theme.fontMono
                 }
                 MouseArea {
                     anchors.fill: parent
-                    cursorShape: actionProc.running ? Qt.WaitCursor : Qt.PointingHandCursor
+                    cursorShape: BluetoothService.busy ? Qt.WaitCursor : Qt.PointingHandCursor
                     onClicked: {
-                        if (actionProc.running) return
-                        if (btRoot.btOn) {
-                            btRoot.expanded = false
-                            btRoot.runCommand(["bluetoothctl", "power", "off"])
-                        } else {
-                            btRoot.runCommand(["bluetoothctl", "power", "on"])
-                        }
+                        if (BluetoothService.busy) return
+                        if (btRoot.btOn) btRoot.expanded = false
+                        BluetoothService.setPower(!btRoot.btOn)
                     }
                 }
             }
 
-            // Expand / collapse area
             MouseArea {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    if (btRoot.btOn) {
-                        btRoot.expanded = !btRoot.expanded
-                        if (btRoot.expanded) btRoot.listAll()
-                    }
+                    if (btRoot.btOn) btRoot.expanded = !btRoot.expanded
                 }
 
                 RowLayout {
@@ -383,12 +94,14 @@ ColumnLayout {
                             font.family: Theme.fontMono
                         }
                         Text {
-                            visible: btRoot.btOn && btRoot.connectedName !== ""
-                            text: btRoot.connectedName
+                            visible: text !== ""
+                            text: !BluetoothService.hasAdapter ? "No adapter"
+                                : (btRoot.btOn ? BluetoothService.connectedName : "")
                             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.55)
                             font.pixelSize: 10
                             font.family: Theme.fontMono
                             elide: Text.ElideRight
+                            Layout.fillWidth: true
                         }
                     }
 
@@ -404,14 +117,16 @@ ColumnLayout {
         }
     }
 
-    // ── Expanded device list ───────────────────────────────────
+    // ── Expanded device list ───────────────────────────────────────────
     ColumnLayout {
         visible: btRoot.expanded && btRoot.btOn
         Layout.fillWidth: true
         spacing: 4
 
         Text {
-            visible: btRoot.devices.length === 0 && btRoot.discoveredDevices.length === 0 && !btRoot.scanning
+            visible: BluetoothService.devices.length === 0
+                     && BluetoothService.discovered.length === 0
+                     && !BluetoothService.scanning
             Layout.alignment: Qt.AlignHCenter
             text: "No paired devices"
             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
@@ -420,7 +135,7 @@ ColumnLayout {
         }
 
         Text {
-            visible: btRoot.scanning
+            visible: BluetoothService.scanning
             Layout.alignment: Qt.AlignHCenter
             text: "Scanning..."
             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
@@ -430,17 +145,16 @@ ColumnLayout {
 
         // Paired devices
         Repeater {
-            model: btRoot.devices
+            model: BluetoothService.devices
             delegate: Rectangle {
                 id: delegateRoot
                 Layout.fillWidth: true
                 implicitHeight: 38
                 radius: 8
 
-                property bool isProcessing: btRoot.actionInFlight && btRoot.targetMac === modelData.mac
-                property bool isConnecting: false
-                property bool isDisconnecting: false
-
+                property bool isProcessing: BluetoothService.busy && BluetoothService.targetMac === modelData.mac
+                // Derived, not latched, so a failed disconnect can't leave the row stuck.
+                readonly property bool isDisconnecting: isProcessing && modelData.connected
                 readonly property bool showConnected: modelData.connected && !isDisconnecting
 
                 color: showConnected
@@ -456,7 +170,7 @@ ColumnLayout {
                     spacing: 8
 
                     Text {
-                        text: btRoot.deviceIcon(modelData.name)
+                        text: btRoot.deviceIcon(modelData.name, modelData.icon)
                         color: delegateRoot.showConnected ? Colors.secondary : Colors.surfaceFg
                         font.pixelSize: 14
                         font.family: Theme.fontMono
@@ -484,22 +198,8 @@ ColumnLayout {
                     hoverEnabled: true
                     cursorShape: delegateRoot.isProcessing ? Qt.WaitCursor : Qt.PointingHandCursor
                     onClicked: {
-                        if (btRoot.actionInFlight) return
-
-                        const disconnecting = modelData.connected
-                        if (disconnecting) {
-                            delegateRoot.isDisconnecting = true
-                        } else {
-                            delegateRoot.isConnecting = true
-                        }
-
-                        btRoot.actionInFlight = true
-                        btRoot.targetMac = modelData.mac
-
-                        rootConnectProc.command = disconnecting
-                            ? ["bluetoothctl", "disconnect", modelData.mac]
-                            : ["bluetoothctl", "connect", modelData.mac]
-                        rootConnectProc.running = true
+                        if (BluetoothService.busy) return
+                        BluetoothService.toggleDevice(modelData.mac, modelData.connected)
                     }
                 }
             }
@@ -507,14 +207,14 @@ ColumnLayout {
 
         // Discovered (unpaired) devices
         Repeater {
-            model: btRoot.discoveredDevices
+            model: BluetoothService.discovered
             delegate: Rectangle {
                 id: pairDelegateRoot
                 Layout.fillWidth: true
                 implicitHeight: 38
                 radius: 8
 
-                property bool isProcessing: btRoot.actionInFlight && btRoot.targetMac === modelData.mac
+                property bool isProcessing: BluetoothService.busy && BluetoothService.targetMac === modelData.mac
 
                 color: pairMa.containsMouse
                     ? Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
@@ -527,7 +227,7 @@ ColumnLayout {
                     spacing: 8
 
                     Text {
-                        text: btRoot.deviceIcon(modelData.name)
+                        text: btRoot.deviceIcon(modelData.name, modelData.icon)
                         color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6)
                         font.pixelSize: 14
                         font.family: Theme.fontMono
@@ -566,13 +266,8 @@ ColumnLayout {
                     hoverEnabled: true
                     cursorShape: pairDelegateRoot.isProcessing ? Qt.WaitCursor : Qt.PointingHandCursor
                     onClicked: {
-                        if (btRoot.actionInFlight) return
-                        const mac = modelData.mac
-                        btRoot.actionInFlight = true
-                        btRoot.targetMac = mac
-                        rootPairProc.command = ["sh", "-c",
-                            "bluetoothctl pair '" + mac + "' && bluetoothctl trust '" + mac + "' && bluetoothctl connect '" + mac + "'"]
-                        rootPairProc.running = true
+                        if (BluetoothService.busy) return
+                        BluetoothService.pairDevice(modelData.mac)
                     }
                 }
             }
@@ -590,7 +285,7 @@ ColumnLayout {
 
             Text {
                 anchors.centerIn: parent
-                text: btRoot.scanning ? "󰑐  Scanning..." : "󰑐  Scan for devices"
+                text: BluetoothService.scanning ? "󰑐  Scanning..." : "󰑐  Scan for devices"
                 color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
                 font.pixelSize: 11
                 font.family: Theme.fontMono
@@ -600,7 +295,7 @@ ColumnLayout {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: btRoot.rescan()
+                onClicked: BluetoothService.scan()
             }
         }
     }

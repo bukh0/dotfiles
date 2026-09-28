@@ -10,16 +10,18 @@ RowLayout {
     property string icon: ""
     property color iconColor: Colors.primary
     property color trackColor: Colors.primary
-    property real value: 0.5      // committed value, 0..1 — owned by the CALLER, never assigned in here
+    property real value: 0.5
     property real minValue: 0.0
 
-    property bool isDragging: dragMa.pressed
+    // Own the interaction lifetime: MouseArea.pressed becomes false before
+    // released is delivered, which otherwise briefly restores the old value.
+    property bool isDragging: false
     property real dragValue: value
     readonly property real visualValue: isDragging ? dragValue : value
 
-    signal dragged(real val)    // continuous while dragging — caller debounces the command
-    signal committed(real val)  // fired once on release
-    signal iconTapped()         // optional — e.g. mute toggle
+    signal dragged(real val)
+    signal committed(real val)
+    signal iconTapped()
 
     Text {
         text: root.icon
@@ -35,7 +37,7 @@ RowLayout {
 
     Item {
         Layout.fillWidth: true
-        height: Theme.sliderThumbSize + 6
+        implicitHeight: Theme.sliderThumbSize + 6
 
         Rectangle {
             anchors.verticalCenter: parent.verticalCenter
@@ -45,7 +47,7 @@ RowLayout {
             color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
 
             Rectangle {
-                width: parent.width * Math.min(Math.max(root.visualValue, 0), 1)
+                width: Theme.sliderThumbSize / 2 + (parent.width - Theme.sliderThumbSize) * Math.min(Math.max(root.visualValue, 0), 1)
                 height: parent.height
                 radius: height / 2
                 color: root.trackColor
@@ -68,23 +70,31 @@ RowLayout {
             anchors.fill: parent
             cursorShape: Qt.SizeHorCursor
 
-            onPressed: mouse => setValue(mouse.x / width)
-            onPositionChanged: mouse => { if (pressed) setValue(mouse.x / width) }
+            onPressed: mouse => {
+                root.dragValue = valueAt(mouse.x)
+                root.isDragging = true
+                setValue(root.dragValue)
+            }
+            onPositionChanged: mouse => { if (pressed) setValue(valueAt(mouse.x)) }
             onReleased: mouse => {
-                const v = clamp(mouse.x / width)
+                const v = valueAt(mouse.x)
                 root.dragValue = v
                 root.committed(v)
-                // NOTE: no `root.value = v` here — the caller's onCommitted
-                // handler is responsible for updating the real source
-                // property (volume/brightness). Assigning root.value
-                // directly breaks the `value: volume` binding permanently.
+                root.isDragging = false
+            }
+            onCanceled: {
+                root.committed(root.dragValue)
+                root.isDragging = false
+            }
+
+            function valueAt(x) {
+                return clamp((x - Theme.sliderThumbSize / 2) / Math.max(1, width - Theme.sliderThumbSize))
             }
 
             function setValue(val) {
                 const v = clamp(val)
                 root.dragValue = v
                 root.dragged(v)
-                // same reasoning — dragValue only, never root.value
             }
 
             function clamp(v) {
@@ -98,6 +108,15 @@ RowLayout {
         color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.6)
         font.pixelSize: Theme.fontSizeSM
         font.family: Theme.fontMono
-        Layout.minimumWidth: 32
+        // Keep the track stationary when the label changes to/from 100%.
+        Layout.preferredWidth: percentMetrics.width
+        horizontalAlignment: Text.AlignRight
+    }
+
+    TextMetrics {
+        id: percentMetrics
+        text: "100%"
+        font.pixelSize: Theme.fontSizeSM
+        font.family: Theme.fontMono
     }
 }

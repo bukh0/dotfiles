@@ -8,32 +8,29 @@ import Quickshell.Services.Notifications
 QtObject {
     id: root
 
-    // Source of truth for the drawer. Roles per row: notifId, appName,
-    // summary, body, timeText, iconSource. Always mutate via
-    // insert/remove/setProperty — never reassign a whole new model — or
-    // you're back to the "everything replays its transition" problem
-    // this was fixed for.
     property ListModel notificationModel: ListModel {}
 
     property bool isDrawerOpen: false
     property var surfaceScreen: null
     property int hoverCloseDelay: 300
 
-    // Hard cap on retained notifications. Nothing expires on its own —
-    // once past this depth, oldest entries get evicted and their
-    // underlying Notification objects closed (releasing icon pixmaps
-    // etc.) so memory stays bounded even if you never touch "Clear All".
-    property int maxNotifications: 100
+    property int maxNotifications: 50
 
     signal newNotification(var data)
     signal dismissPopup()
+    signal notificationRemoved(int id)
 
     property int _nextId: 1
-    property var _closers: ({})   // notifId -> close() function
+    property var _closers: ({})
+    property var _serverIds: ({})
+    property var _serverObjects: ({})
 
     property Timer closeTimer: Timer {
         interval: root.hoverCloseDelay
-        onTriggered: root.isDrawerOpen = false
+        onTriggered: {
+            root.isDrawerOpen = false
+            root.surfaceScreen = null
+        }
     }
 
     function beginHoverOpen() {
@@ -57,9 +54,24 @@ QtObject {
     function _closeById(id) {
         const fn = root._closers[id]
         if (typeof fn === "function") {
-            try { fn() } catch(e) { console.warn(e) }
+            try {
+                fn()
+            } catch(e) {
+                console.warn("notifications: failed to close", id, e)
+            }
         }
         delete root._closers[id]
+    }
+
+    function _forgetLocalId(id) {
+        root.notificationRemoved(id)
+        delete root._closers[id]
+        for (const serverId in root._serverIds) {
+            if (root._serverIds[serverId] === id) {
+                delete root._serverIds[serverId]
+                delete root._serverObjects[serverId]
+            }
+        }
     }
 
     function clearAll() {
@@ -68,33 +80,52 @@ QtObject {
             const id = root.notificationModel.get(lastIndex).notifId
             root.notificationModel.remove(lastIndex)
             root._closeById(id)
+            root._forgetLocalId(id)
         }
     }
 
     function closeNotification(idx) {
         if (idx < 0 || idx >= root.notificationModel.count) return
         const id = root.notificationModel.get(idx).notifId
-        root.notificationModel.remove(idx)
-        root._closeById(id)
+        closeNotificationById(id)
+    }
+
+    function closeNotificationById(id) {
+        for (let i = 0; i < root.notificationModel.count; i++) {
+            if (root.notificationModel.get(i).notifId !== id) continue
+            root.notificationModel.remove(i)
+            root._closeById(id)
+            root._forgetLocalId(id)
+            return
+        }
     }
 
     function getIconSource(data) {
         if (!data) return ""
         if (data.image) {
             const img = data.image.toString()
+            if (img.startsWith("file://") || img.startsWith("image://")) return img
             return img.startsWith("/") ? "file://" + img : img
         }
         if (data.appIcon) {
             const icon = data.appIcon.toString()
+            if (icon.startsWith("file://") || icon.startsWith("image://")) return icon
             if (icon.startsWith("/")) return "file://" + icon
-            return Quickshell.iconPath(icon)
+            return Quickshell.iconPath(icon, true)
         }
         return ""
     }
 
     property NotificationServer server: NotificationServer {
+        bodySupported: true
+        bodyMarkupSupported: true
+        imageSupported: true
         onNotification: notif => {
-            const id = root._nextId++
+            notif.tracked = true
+            const serverId = notif.id
+            const alreadyConnected = root._serverObjects[serverId] === notif
+            const existingId = root._serverIds[notif.id]
+            const id = existingId || root._nextId++
             const data = {
                 summary: notif.summary || "",
                 body: notif.body || "",
@@ -102,41 +133,65 @@ QtObject {
                 time: new Date(),
                 appIcon: notif.appIcon || "",
                 image: notif.image || "",
+                urgency: notif.urgency,
+                expireTimeout: notif.expireTimeout,
                 close: () => {
-                    try { notif.close() } catch(e) {}
+                    try {
+                        // Notification has no close(); dismiss() is the
+                        // user-dismissed close that emits `closed`.
+                        notif.dismiss()
+                    } catch(e) {
+                        console.warn("notifications: failed to close server notification", notif.id, e)
+                    }
                 }
             }
 
             root._closers[id] = data.close
+            root._serverIds[notif.id] = id
+            root._serverObjects[notif.id] = notif
 
-            root.notificationModel.insert(0, {
+            const row = {
                 notifId: id,
                 appName: data.appName,
                 summary: data.summary,
-                body: data.body,
+                body: data.body.replace(/<img\b[^>]*>/gi, ""),
                 timeText: Qt.formatTime(data.time, "hh:mm"),
                 iconSource: root.getIconSource(data)
-            })
+            }
+            if (existingId) {
+                let replaced = false
+                for (let i = 0; i < root.notificationModel.count; i++) {
+                    if (root.notificationModel.get(i).notifId === id) {
+                        root.notificationModel.set(i, row)
+                        replaced = true
+                        break
+                    }
+                }
+                if (!replaced) root.notificationModel.insert(0, row)
+            } else {
+                root.notificationModel.insert(0, row)
+            }
 
-            // Evict oldest past the cap. Newest is always at index 0, so
-            // oldest is always at the tail.
             while (root.notificationModel.count > root.maxNotifications) {
                 const lastIdx = root.notificationModel.count - 1
                 const overflowId = root.notificationModel.get(lastIdx).notifId
                 root.notificationModel.remove(lastIdx)
                 root._closeById(overflowId)
+                root._forgetLocalId(overflowId)
             }
 
-            root.newNotification(data)
+            root.newNotification(Object.assign(data, { notifId: id }))
 
+            if (alreadyConnected) return
             notif.closed.connect(() => {
+                if (root._serverObjects[serverId] !== notif) return
                 for (let i = 0; i < root.notificationModel.count; i++) {
                     if (root.notificationModel.get(i).notifId === id) {
                         root.notificationModel.remove(i)
                         break
                     }
                 }
-                delete root._closers[id]
+                root._forgetLocalId(id)
             })
         }
     }
@@ -144,7 +199,9 @@ QtObject {
     property IpcHandler ipc: IpcHandler {
         target: "notifications"
 
-        function closeLatest(): void {
+        function closeLatest() {
+            if (root.notificationModel.count > 0)
+                root.closeNotification(0)
             root.dismissPopup()
         }
     }

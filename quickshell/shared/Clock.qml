@@ -5,25 +5,20 @@ import Quickshell.Services.Mpris
 import "."
 
 RowLayout {
+    id: root
     spacing: 8
 
     // ── Date / time ────────────────────────────────────────────
-    property string dateTimeText: "00:00 · ..."
+    property string dateTimeText: Qt.formatDateTime(clock.date, "hh:mm · ddd - dd/MM/yyyy")
 
-    // ── Playback state (manual loop to avoid .some() error) ────
-    readonly property bool isPlaying: {
-        for (let i = 0; i < Mpris.players.count; i++) {
-            if (Mpris.players.get(i).playbackState === 0) return true
-        }
-        return false
-    }
+    readonly property bool isPlaying: Mpris.players.values.some(
+        p => p.playbackState === MprisPlaybackState.Playing
+    )
 
-    Timer {
-        interval: 1000
-        running: true
-        repeat: true
-        onTriggered: dateTimeText = Qt.formatDateTime(new Date(), "hh:mm · ddd - dd/MM/yyyy")
-        Component.onCompleted: triggered()
+    SystemClock {
+        id: clock
+        precision: SystemClock.Minutes
+        onDateChanged: dateTimeText = Qt.formatDateTime(date, "hh:mm · ddd - dd/MM/yyyy")
     }
 
     // ── Equaliser animation ────────────────────────────────────
@@ -43,7 +38,7 @@ RowLayout {
             color: Colors.primary
 
             SequentialAnimation on height {
-                running: isPlaying && parent.visible
+                running: root.isPlaying && parent.visible
                 loops: Animation.Infinite
                 NumberAnimation { to: maxH; duration: dur; easing.type: Easing.InOutQuad }
                 NumberAnimation { to: minH; duration: dur; easing.type: Easing.InOutQuad }

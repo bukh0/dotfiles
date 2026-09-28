@@ -27,6 +27,13 @@ RowLayout {
             height: shouldShow ? 18 : 0
             visible: shouldShow
 
+            // display() needs a real parent window plus window-relative
+            // coordinates; passing null gives the menu nothing to anchor to.
+            function showMenu() {
+                const p = trayItem.mapToItem(null, 0, trayItem.height)
+                trayItem.modelData.display(trayItem.QsWindow.window, p.x, p.y)
+            }
+
             Image {
                 anchors.fill: parent
                 // Was unconditional — filtered items were decoding and
@@ -42,10 +49,16 @@ RowLayout {
                 anchors.fill: parent
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 onClicked: mouse => {
-                    if (mouse.button === Qt.LeftButton)
-                        trayItem.modelData.activate()
-                    else
+                    if (mouse.button === Qt.LeftButton) {
+                        if (trayItem.modelData.onlyMenu)
+                            trayItem.showMenu()
+                        else
+                            trayItem.modelData.activate()
+                    } else if (trayItem.modelData.hasMenu) {
+                        trayItem.showMenu()
+                    } else {
                         trayItem.modelData.secondaryActivate()
+                    }
                 }
                 cursorShape: Qt.PointingHandCursor
             }

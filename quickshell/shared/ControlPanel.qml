@@ -1,13 +1,18 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
 import Quickshell
+import Quickshell.Wayland
 import "."
 
 PanelWindow {
     id: controlPanel
 
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+
     property int barHeight: 42
     property bool isOpen: false
+    property bool pinned: false
 
     property int hoverCloseDelay: 300
     property int fadeOutDuration: 200
@@ -31,8 +36,6 @@ PanelWindow {
         right: true
     }
 
-    // Collapsed to 0-height when closed so it doesn't keep intercepting
-    // clicks below the bar for the ~200ms fade-out after isOpen goes false.
     mask: Region {
         x: 0
         y: controlPanel.barHeight
@@ -53,6 +56,10 @@ PanelWindow {
     }
 
     onIsOpenChanged: {
+        if (!isOpen) {
+            pinned = false
+            NetworkService.cancelPasswordPrompt()
+        }
         if (isOpen) {
             _fadingOut = false
             closeDelayTimer.stop()
@@ -69,7 +76,7 @@ PanelWindow {
     }
 
     function scheduleHoverClose() {
-        if (!isOpen) return
+        if (!isOpen || pinned || NetworkService.awaitingPasswordFor !== "") return
         closeDelayTimer.restart()
     }
 
@@ -100,8 +107,9 @@ PanelWindow {
 
     Rectangle {
         id: drawerBg
-        width: controlPanel.drawerWidth
-        height: contentLoader.implicitHeight + controlPanel.drawerTopMargin + controlPanel.drawerBottomMargin
+        width: Math.min(controlPanel.drawerWidth, Math.max(0, controlPanel.width - 16))
+        height: Math.min(contentLoader.implicitHeight + controlPanel.drawerTopMargin + controlPanel.drawerBottomMargin,
+                         Math.max(0, controlPanel.height - controlPanel.openY - 8))
 
         x: (parent.width - width) / 2
         y: controlPanel.isOpen ? controlPanel.openY : controlPanel.closedY
@@ -120,30 +128,41 @@ PanelWindow {
             NumberAnimation { duration: controlPanel.fadeOutDuration }
         }
 
-        TapHandler {
-            onTapped: {}
+        MouseArea {
+            anchors.fill: parent
+            onClicked: mouse => mouse.accepted = true
         }
 
         HoverHandler {
             onHoveredChanged: {
                 if (hovered) {
                     controlPanel.beginHoverOpen()
-                } else {
+                } else if (!controlPanel.pinned) {
                     controlPanel.scheduleHoverClose()
                 }
             }
         }
 
-        Loader {
-            id: contentLoader
+        ScrollView {
+            id: panelScroll
             anchors {
-                top: parent.top
-                left: parent.left
-                right: parent.right
-                margins: controlPanel.drawerTopMargin
+                fill: parent
+                topMargin: controlPanel.drawerTopMargin
+                bottomMargin: controlPanel.drawerBottomMargin
+                leftMargin: Theme.drawerPaddingH
+                rightMargin: Theme.drawerPaddingH
             }
-            active: controlPanel.isOpen || controlPanel._fadingOut
-            sourceComponent: panelContent
+            clip: true
+            contentWidth: availableWidth
+            contentHeight: contentLoader.implicitHeight
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+            Loader {
+                id: contentLoader
+                width: panelScroll.availableWidth
+                active: controlPanel.isOpen || controlPanel._fadingOut
+                sourceComponent: panelContent
+            }
         }
     }
 

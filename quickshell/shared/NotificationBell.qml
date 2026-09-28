@@ -9,11 +9,9 @@ Rectangle {
     property int count: NotificationDaemon.notificationModel.count
     property bool hasNotifs: count > 0
 
-    // ── Fonts ──────────────────────────────────────────────
     property string uiFont: Theme.fontUI
     property string iconFont: Theme.fontMono
 
-    // ── Dimensions & Styling ───────────────────────────────
     implicitWidth: row.implicitWidth + Theme.spacingMD
     implicitHeight: row.implicitHeight + Theme.spacingSM
     radius: Theme.radius
@@ -63,7 +61,11 @@ Rectangle {
     TapHandler {
         onTapped: {
             NotificationDaemon.surfaceScreen = root.screen
-            NotificationDaemon.toggleDrawer()
+            if (NotificationDaemon.isDrawerOpen) {
+                NotificationDaemon.cancelHoverClose()
+            } else {
+                NotificationDaemon.toggleDrawer()
+            }
         }
     }
 }

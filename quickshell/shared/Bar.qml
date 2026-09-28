@@ -43,106 +43,110 @@ PanelWindow {
         anchors.fill: parent
         anchors.margins: Theme.floatingBar ? Theme.barOuterMargin : 0
 
-        Rectangle {
-            visible: Theme.floatingBar
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            height: root.barHeight
-            width: leftLayout.implicitWidth + root.pillPaddingH
+        Loader {
+            anchors.fill: parent
+            sourceComponent: Theme.floatingBar ? floatingBarComponent : classicBarComponent
+        }
+    }
 
-            radius: root.pillRadius
-            color: root.pillBg
-            border.color: root.pillBorder
-            border.width: 1
+    Component {
+        id: floatingBarComponent
 
-            RowLayout {
-                id: leftLayout
-                anchors.centerIn: parent
-                spacing: 0
+        Item {
+            anchors.fill: parent
 
-                Workspaces { screen: root.screen }
+            Rectangle {
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                height: root.barHeight
+                width: leftLayout.implicitWidth + root.pillPaddingH
+                radius: root.pillRadius
+                color: root.pillBg
+                border.color: root.pillBorder
+                border.width: 1
 
-                Text {
-                    id: activeWindowTitle
-                    color: Colors.surfaceFg
-                    font.pixelSize: 13
-                    font.weight: Font.Normal
-                    text: {
-                        if (!ToplevelManager.activeToplevel) return ""
-                        const raw = ToplevelManager.activeToplevel.title ?? ""
-                        const parts = raw.split(" — ")
-                        const name = parts[parts.length - 1].trim()
-                        return name || raw
+                RowLayout {
+                    id: leftLayout
+                    anchors.centerIn: parent
+                    spacing: 0
+
+                    Workspaces { screen: root.screen }
+
+                    Text {
+                        color: Colors.surfaceFg
+                        font.pixelSize: 13
+                        font.weight: Font.Normal
+                        text: {
+                            if (!ToplevelManager.activeToplevel) return ""
+                            const raw = ToplevelManager.activeToplevel.title || ""
+                            const parts = raw.split(" — ")
+                            const name = parts[parts.length - 1].trim()
+                            return name || raw
+                        }
+                        visible: text !== ""
+                        Layout.leftMargin: 12
+                        Layout.maximumWidth: 350
+                        elide: Text.ElideRight
                     }
-                    visible: text !== ""
-                    Layout.leftMargin: 12
-                    Layout.maximumWidth: 350
-                    elide: Text.ElideRight
+                }
+            }
+
+            Item {
+                id: centerPillWrap
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
+                width: centerPill.width
+                height: centerPill.height
+                Pill {
+                    id: centerPill
+                    pillHeight: root.barHeight
+                    isActive: controlPanel.isOpen
+                    isHovered: centerMa.containsMouse
+                    width: Math.max(contentImplicitWidth + root.centerPillExtraWidth, root.centerPillMinWidth)
+                    Clock {}
+                }
+
+                MouseArea {
+                    id: centerMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onEntered: if (!controlPanel.pinned) controlPanel.beginHoverOpen()
+                    onExited: if (!controlPanel.pinned) controlPanel.scheduleHoverClose()
+                    onClicked: {
+                        controlPanel.pinned = !controlPanel.pinned
+                        controlPanel.isOpen = controlPanel.pinned
+                    }
+                }
+            }
+
+            Rectangle {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                height: root.barHeight
+                width: rightLayout.implicitWidth + root.pillPaddingH
+                radius: root.pillRadius
+                color: root.pillBg
+                border.color: root.pillBorder
+                border.width: 1
+
+                RowLayout {
+                    id: rightLayout
+                    anchors.centerIn: parent
+                    spacing: 13
+                    SystemTray {}
+                    NetworkIndicator {}
+                    BatteryIndicator {}
+                    NotificationBell { screen: root.screen }
                 }
             }
         }
+    }
 
-        // ── CENTER PILL ────────────────────────────────────────
-        Item {
-            visible: Theme.floatingBar
-            id: centerPillWrap
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.verticalCenter: parent.verticalCenter
-            width: centerPill.width
-            height: centerPill.height
-
-            property bool pinnedOpen: false
-
-            Pill {
-                id: centerPill
-                pillHeight: root.barHeight
-                isActive: controlPanel.isOpen
-                isHovered: centerMa.containsMouse
-                width: Math.max(contentImplicitWidth + root.centerPillExtraWidth, root.centerPillMinWidth)
-
-                Clock {}
-            }
-
-            MouseArea {
-                id: centerMa
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onEntered: if (!centerPillWrap.pinnedOpen) controlPanel.beginHoverOpen()
-                onExited: if (!centerPillWrap.pinnedOpen) controlPanel.scheduleHoverClose()
-                onClicked: {
-                    centerPillWrap.pinnedOpen = !centerPillWrap.pinnedOpen
-                    controlPanel.isOpen = centerPillWrap.pinnedOpen
-                }
-            }
-        }
-
-        // ── RIGHT PILL ─────────────────────────────────────────
-        Rectangle {
-            visible: Theme.floatingBar
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            height: root.barHeight
-            width: rightLayout.implicitWidth + root.pillPaddingH
-
-            radius: root.pillRadius
-            color: root.pillBg
-            border.color: root.pillBorder
-            border.width: 1
-
-            RowLayout {
-                id: rightLayout
-                anchors.centerIn: parent
-                spacing: 13
-                SystemTray {}
-                NetworkIndicator {}
-                BatteryIndicator {}
-                NotificationBell { screen: root.screen }
-            }
-        }
+    Component {
+        id: classicBarComponent
 
         Item {
-            visible: !Theme.floatingBar
             anchors.fill: parent
 
             RowLayout {
@@ -157,20 +161,19 @@ PanelWindow {
                 Workspaces { screen: root.screen }
 
                 Text {
-                    id: classicWindowTitle
                     color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, Theme.opacityMuted)
                     font.pixelSize: Theme.fontSizeBase
                     font.family: Theme.fontMono
                     font.weight: Font.Medium
                     text: {
                         if (!ToplevelManager.activeToplevel) return ""
-                        const raw = ToplevelManager.activeToplevel.title ?? ""
+                        const raw = ToplevelManager.activeToplevel.title || ""
                         const parts = raw.split(" — ")
                         const name = parts[parts.length - 1].trim()
                         return name || raw
                     }
                     visible: text !== ""
-                    width: Math.min(implicitWidth, 280)
+                    Layout.maximumWidth: 280
                     elide: Text.ElideRight
                 }
             }
@@ -180,9 +183,6 @@ PanelWindow {
                 anchors.centerIn: parent
                 width: classicClock.implicitWidth
                 height: classicClock.implicitHeight
-
-                property bool pinnedOpen: false
-
                 Clock {
                     id: classicClock
                     anchors.fill: parent
@@ -192,11 +192,11 @@ PanelWindow {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onEntered: if (!classicClockWrap.pinnedOpen) controlPanel.beginHoverOpen()
-                    onExited: if (!classicClockWrap.pinnedOpen) controlPanel.scheduleHoverClose()
+                    onEntered: if (!controlPanel.pinned) controlPanel.beginHoverOpen()
+                    onExited: if (!controlPanel.pinned) controlPanel.scheduleHoverClose()
                     onClicked: {
-                        classicClockWrap.pinnedOpen = !classicClockWrap.pinnedOpen
-                        controlPanel.isOpen = classicClockWrap.pinnedOpen
+                        controlPanel.pinned = !controlPanel.pinned
+                        controlPanel.isOpen = controlPanel.pinned
                     }
                 }
             }
@@ -209,7 +209,6 @@ PanelWindow {
                     verticalCenter: parent.verticalCenter
                 }
                 spacing: Theme.barSectionGap
-
                 SystemTray {}
                 NetworkIndicator {}
                 BatteryIndicator {}
@@ -221,9 +220,8 @@ PanelWindow {
     ControlPanel {
         id: controlPanel
         screen: root.screen
-        openY: root.implicitHeight + 4
+        openY: Theme.barTotalHeight + 4
         closedY: Theme.floatingBar ? root.implicitHeight - 20 : root.implicitHeight - 14
         barHeight: root.implicitHeight
     }
-
 }

@@ -2,14 +2,18 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
+import Quickshell.Wayland
 import "."
 
 PanelWindow {
     id: root
 
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+
     property bool isOpen: NotificationDaemon.isDrawerOpen
     property int fadeOutDuration: 200
-    property int drawerY: Theme.barHeight + 4
+    property int drawerY: Theme.barTotalHeight + 4
+    property int drawerRightMargin: 12
     property string uiFont: Theme.fontUI
     property string iconFont: Theme.fontMono
 
@@ -30,8 +34,8 @@ PanelWindow {
     // Collapsing to 0x0 when closed also stops it from eating clicks
     // during the ~200ms fade-out.
     mask: Region {
-        x: root.width - drawerBg.width - 12
-        y: root.drawerY
+        x: root.width - drawerBg.width - root.drawerRightMargin
+        y: drawerBg.y
         width: root.isOpen ? drawerBg.width : 0
         height: root.isOpen ? drawerBg.height : 0
     }
@@ -55,15 +59,16 @@ PanelWindow {
         }
         onClicked: (mouse) => {
             NotificationDaemon.isDrawerOpen = false
+            NotificationDaemon.surfaceScreen = null
         }
     }
 
     Rectangle {
         id: drawerBg
-        width: Theme.notificationWidth
-        height: Theme.notificationHeight
+        width: Math.min(Theme.notificationWidth, Math.max(0, root.width - root.drawerRightMargin * 2))
+        height: Math.min(Theme.notificationHeight, Math.max(0, root.height - root.drawerY - 8))
 
-        x: parent.width - width - 12
+        x: parent.width - width - root.drawerRightMargin
         y: root.isOpen ? root.drawerY : root.drawerY - 10
 
         Behavior on y {
@@ -165,9 +170,32 @@ PanelWindow {
                 clip: true
                 spacing: 10
                 model: NotificationDaemon.notificationModel
+                interactive: true
+                boundsBehavior: Flickable.StopAtBounds
+                flickDeceleration: 2500
+                maximumFlickVelocity: 2500
 
                 rightMargin: ScrollBar.vertical.visible ? 8 : 0
                 cacheBuffer: 300
+
+                WheelHandler {
+                    id: trackpadScroll
+                    target: null
+                    acceptedDevices: PointerDevice.TouchPad | PointerDevice.Mouse | PointerDevice.TouchScreen
+
+                    onWheel: function(wheelEvent) {
+                        const pixelDelta = wheelEvent.pixelDelta.y
+                        const angleDelta = wheelEvent.angleDelta.y
+                        const delta = pixelDelta !== 0
+                            ? pixelDelta
+                            : angleDelta / 120 * 80
+                        const minContentY = notifList.originY
+                        const maxContentY = minContentY + Math.max(0, notifList.contentHeight - notifList.height)
+
+                        notifList.contentY = Math.max(minContentY, Math.min(maxContentY, notifList.contentY - delta))
+                        wheelEvent.accepted = true
+                    }
+                }
 
                 add: Transition {
                     NumberAnimation { property: "opacity"; from: 0; to: 1.0; duration: 250 }
@@ -183,6 +211,7 @@ PanelWindow {
 
                 ScrollBar.vertical: ScrollBar {
                     policy: ScrollBar.AsNeeded
+                    interactive: true
                     width: 6
                     contentItem: Rectangle {
                         implicitWidth: 6
@@ -199,7 +228,6 @@ PanelWindow {
                     required property string body
                     required property string timeText
                     required property string iconSource
-                    required property int index
 
                     width: ListView.view.width - ListView.view.rightMargin
                     implicitHeight: notifContent.implicitHeight + 24
@@ -223,6 +251,7 @@ PanelWindow {
 
                             Text {
                                 text: delegateRoot.appName
+                                textFormat: Text.PlainText
                                 color: Colors.primary
                                 font.pixelSize: 11
                                 font.weight: Font.Bold
@@ -265,7 +294,7 @@ PanelWindow {
 
                                 TapHandler {
                                     onTapped: {
-                                        NotificationDaemon.closeNotification(delegateRoot.index)
+                                        NotificationDaemon.closeNotificationById(delegateRoot.notifId)
                                     }
                                 }
                             }
@@ -295,6 +324,7 @@ PanelWindow {
 
                                 Text {
                                     text: delegateRoot.summary
+                                    textFormat: Text.PlainText
                                     color: Colors.surfaceFg
                                     font.pixelSize: 13
                                     font.weight: Font.Medium
@@ -306,7 +336,7 @@ PanelWindow {
                                 }
 
                                 Text {
-                                    text: delegateRoot.body
+                                    text: delegateRoot.body.replace(/<img\b[^>]*>/gi, "")
                                     textFormat: Text.StyledText
                                     color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.7)
                                     font.pixelSize: 12

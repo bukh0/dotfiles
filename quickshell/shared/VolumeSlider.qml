@@ -1,15 +1,21 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
-import Quickshell.Io
+import Quickshell.Services.Pipewire
 import "."
 
 ColumnLayout {
     id: root
     spacing: 6
+    enabled: audio !== null
 
-    property real volume: 0.5
-    property bool muted: false
+    PwObjectTracker {
+        objects: Pipewire.defaultAudioSink ? [Pipewire.defaultAudioSink] : []
+    }
+
+    readonly property var audio: Pipewire.defaultAudioSink ? Pipewire.defaultAudioSink.audio : null
+    property real volume: audio ? audio.volume : 0.5
+    property bool muted: audio ? audio.muted : false
+    onAudioChanged: cmdDebounce.stop()
 
     readonly property string volIcon: {
         if (muted || slider.visualValue === 0) return "󰝟"
@@ -18,77 +24,8 @@ ColumnLayout {
         return "󰕾"
     }
 
-    // ── Single wpctl query — triggered by events, not a timer ──
-    Process {
-        id: volPoll
-        command: ["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const txt = text.trim()
-                const match = txt.match(/Volume:\s+([\d.]+)/)
-                if (match) volume = parseFloat(match[1])
-                muted = txt.includes("[MUTED]")
-            }
-        }
-    }
-
-    // ── Long-lived pactl subscribe: fires instantly on any
-    // PipeWire/PulseAudio sink event without spawning a process
-    // per second. Replaces the 1000ms polling timer entirely.
-    Process {
-        id: pactlSubscribe
-        command: ["pactl", "subscribe"]
-        running: true
-        stdout: SplitParser {
-            onRead: line => {
-                // Only react to sink or server events (covers volume + mute + default device changes)
-                if (!line.includes("sink") && !line.includes("server")) return
-                if (!volPollDebounce.running) volPollDebounce.start()
-            }
-        }
-        onRunningChanged: {
-            // pactl subscribe shouldn't die, but restart it if it does
-            if (!running) pactlRestart.start()
-        }
-    }
-
-    Timer {
-        id: pactlRestart
-        interval: 2000
-        onTriggered: pactlSubscribe.running = true
-    }
-
-    // Debounce: pactl subscribe fires multiple events for one user action
-    Timer {
-        id: volPollDebounce
-        interval: 50
-        onTriggered: { if (!volPoll.running) volPoll.running = true }
-    }
-
-    Process {
-        id: ctlProc
-        property real pendingValue: 0
-        property bool hasPendingValue: false
-
-        onRunningChanged: {
-            if (!running && hasPendingValue) {
-                const next = pendingValue
-                hasPendingValue = false
-                command = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", next.toFixed(2)]
-                running = true
-            }
-        }
-    }
-    Process { id: muteProc }
-
     function setVolume(value) {
-        if (ctlProc.running) {
-            ctlProc.pendingValue = value
-            ctlProc.hasPendingValue = true
-            return
-        }
-        ctlProc.command = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", value.toFixed(2)]
-        ctlProc.running = true
+        if (root.audio) root.audio.volume = value
     }
 
     Timer {
@@ -100,8 +37,6 @@ ColumnLayout {
         }
     }
 
-    Component.onCompleted: volPoll.running = true
-
     SliderRow {
         id: slider
         icon: volIcon
@@ -110,8 +45,7 @@ ColumnLayout {
         value: volume
 
         onIconTapped: {
-            muteProc.command = ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]
-            muteProc.running = true
+            if (root.audio) root.audio.muted = !root.audio.muted
         }
 
         onDragged: val => {
@@ -120,7 +54,6 @@ ColumnLayout {
         }
 
         onCommitted: val => {
-            volume = val
             cmdDebounce.stop()
             root.setVolume(val)
         }

@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
-import Quickshell.Io
 import "."
 
 RowLayout {
@@ -15,7 +14,8 @@ RowLayout {
     readonly property var persistentIds: [1, 2, 3]
 
     readonly property var monitor: Hyprland.monitorFor(root.screen)
-    readonly property int activeWsId: root.monitor?.activeWorkspace?.id ?? -1
+    readonly property int activeWsId: root.monitor && root.monitor.activeWorkspace
+        ? root.monitor.activeWorkspace.id : -1
 
     readonly property var extraIds: {
         const ids = []
@@ -23,7 +23,7 @@ RowLayout {
         const workspaces = root.workspaceList || []
         for (let i = 0; i < workspaces.length; ++i) {
             const ws = workspaces[i]
-            const toplevels = ws.toplevels?.values || []
+            const toplevels = ws.toplevels ? ws.toplevels.values : []
             if (ws.id > 3 && (toplevels.length > 0 || ws.id === focusedWsId))
                 ids.push(ws.id)
         }
@@ -36,7 +36,8 @@ RowLayout {
     // of workspace ids changes, not on every Hyprland toplevel event
     // anywhere, which recomputes extraIds with a new object even when its
     // contents are identical to before.
-    property var allIds: persistentIds.concat(extraIds)
+    property var allIds: []
+    Component.onCompleted: allIds = persistentIds.concat(extraIds)
 
     function _sameIds(a, b) {
         if (!a || !b) return false
@@ -60,27 +61,8 @@ RowLayout {
         return null
     }
 
-    property var _pendingWsId: null
-
-    Process {
-        id: switchProc
-        onRunningChanged: {
-            if (!running && root._pendingWsId !== null) {
-                const nextId = root._pendingWsId
-                root._pendingWsId = null
-                command = ["hyprctl", "dispatch", "workspace", String(nextId)]
-                running = true
-            }
-        }
-    }
-
     function switchWorkspace(id) {
-        if (!switchProc.running) {
-            switchProc.command = ["hyprctl", "dispatch", "workspace", String(id)]
-            switchProc.running = true
-        } else {
-            root._pendingWsId = id
-        }
+        Hyprland.dispatch("workspace " + id)
     }
 
     Repeater {

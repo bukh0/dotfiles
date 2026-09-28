@@ -17,37 +17,21 @@ ColumnLayout {
     readonly property bool scanning: NetworkService.scanning
 
     property bool expanded: false
-    property bool rescanPending: false
-    property bool actionInFlight: false
-    property string targetSsid: ""
+    readonly property bool actionInFlight: NetworkService.busy
+    readonly property string targetSsid: NetworkService.targetSsid
 
     onExpandedChanged: {
         if (!expanded) NetworkService.cancelPasswordPrompt()
     }
 
-    Process {
-        id: notifyProc
-        running: false
-    }
-
-    function notify(title, body) {
-        if (notifyProc.running) return
-        notifyProc.command = ["notify-send", "-a", "Network", "-u", "critical", title, body]
-        notifyProc.running = true
-    }
-
     Connections {
         target: NetworkService
         function onConnectionSettled() {
-            wifiRoot.actionInFlight = false
-            wifiRoot.targetSsid = ""
-            if (wifiRoot.rescanPending) {
-                wifiRoot.rescanPending = false
+            // Refresh the list so the active flags reflect the finished
+            // connect/disconnect/rescan. Skipped while a password prompt is
+            // open: scan() clears the model, which would destroy the field.
+            if (wifiRoot.expanded && wifiRoot.wifiOn && NetworkService.awaitingPasswordFor === "")
                 NetworkService.scan()
-            }
-        }
-        function onCommandError(message) {
-            wifiRoot.notify("Wi-Fi Error", message)
         }
     }
 
@@ -56,13 +40,12 @@ ColumnLayout {
     }
 
     function rescan() {
-        if (wifiRoot.actionInFlight) return
-        wifiRoot.actionInFlight = true
-        wifiRoot.rescanPending = true
-        NetworkService.runCommand(["nmcli", "dev", "wifi", "rescan"])
+        if (wifiRoot.actionInFlight || NetworkService.awaitingPasswordFor !== "") return
+        // Only lock the UI if the command actually started; a dropped
+        // command never fires connectionSettled and would lock it forever.
+        NetworkService.runCommand(["nmcli", "dev", "wifi", "list", "--rescan", "yes"])
     }
 
-    // ── Wi‑Fi header ───────────────────────────────────────────
     Rectangle {
         Layout.fillWidth: true
         implicitHeight: Theme.toggleHeight
@@ -91,9 +74,9 @@ ColumnLayout {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         if (wifiRoot.actionInFlight) return
-                        wifiRoot.actionInFlight = true
-                        if (wifiRoot.wifiOn) wifiRoot.expanded = false
-                        NetworkService.toggleWifiRadio()
+                        const wasOn = wifiRoot.wifiOn
+                        if (!NetworkService.toggleWifiRadio()) return
+                        if (wasOn) wifiRoot.expanded = false
                     }
                 }
             }
@@ -144,7 +127,6 @@ ColumnLayout {
         }
     }
 
-    // ── Network list ───────────────────────────────────────────
     ColumnLayout {
         visible: wifiRoot.expanded && wifiRoot.wifiOn
         Layout.fillWidth: true
@@ -235,26 +217,13 @@ ColumnLayout {
                             onClicked: {
                                 if (wifiRoot.actionInFlight) return
 
-                                const disconnecting = modelData.active
-                                wifiRoot.actionInFlight = true
-                                wifiRoot.targetSsid = modelData.ssid
-
-                                if (disconnecting) {
-                                    NetworkService.disconnectActive()
-                                } else {
-                                    // Tries without a secret first; NetworkService flips
-                                    // awaitingPasswordFor if one turns out to be required,
-                                    // which reveals the password row below.
-                                    NetworkService.connectToNetwork(modelData.ssid)
-                                }
+                                modelData.active
+                                    ? NetworkService.disconnectActive()
+                                    : NetworkService.connectToNetwork(modelData.ssid)
                             }
                         }
                     }
 
-                    // Password entry — shown when NetworkService reports this SSID
-                    // rejected a connection attempt for lacking a secret. Previously
-                    // there was no UI path for this at all: a new secured network
-                    // would just silently fail to connect.
                     RowLayout {
                         visible: delegateRoot.needsPassword
                         Layout.fillWidth: true
@@ -280,9 +249,9 @@ ColumnLayout {
 
                             function doConnect() {
                                 if (pwField.text.length === 0) return
-                                wifiRoot.actionInFlight = true
-                                wifiRoot.targetSsid = modelData.ssid
-                                NetworkService.connectToNetwork(modelData.ssid, pwField.text)
+                                if (NetworkService.connectToNetwork(modelData.ssid, pwField.text)) {
+                                    pwField.clear()
+                                }
                             }
 
                             TapHandler {
@@ -295,7 +264,6 @@ ColumnLayout {
             }
         }
 
-        // Rescan button
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 32

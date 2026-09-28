@@ -1,15 +1,15 @@
 import QtQuick
-import Quickshell.Io
+import Quickshell.Services.UPower
 import "."
 
 Item {
     id: root
     width: label.implicitWidth
     height: label.implicitHeight
+    visible: hasBattery
 
     property int capacity: 100
     property string status: "Unknown"
-    property string battPath: ""
 
     readonly property var icons: ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
 
@@ -31,72 +31,39 @@ Item {
         return Colors.surfaceFg
     }
 
-    // ── Resolve the battery's sysfs path once (BAT0 vs BAT1 etc.) ──
-    Process {
-        id: battDiscover
-        command: ["sh", "-c", "ls -d /sys/class/power_supply/BAT* 2>/dev/null | head -1"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const p = text.trim()
-                if (p) root.battPath = p
-            }
-        }
+    readonly property var device: UPower.displayDevice
+    readonly property bool hasBattery: !!(device && device.ready && device.isPresent)
+    readonly property real normalizedPercentage: {
+        if (!root.hasBattery) return 1.0
+        const value = Number(root.device.percentage)
+        if (!isFinite(value)) return 0.0
+        // Quickshell already normalizes UPower's percentage to 0..1.
+        return Math.max(0, Math.min(1, value))
     }
 
-    function _parseUevent(content) {
-        const lines = content.split("\n")
-        for (const line of lines) {
-            if (line.startsWith("POWER_SUPPLY_CAPACITY="))
-                {
-                    const value = parseInt(line.split("=")[1])
-                    if (!isNaN(value)) root.capacity = Math.max(0, Math.min(100, value))
-                }
-            else if (line.startsWith("POWER_SUPPLY_STATUS="))
-                root.status = line.split("=")[1].trim() || root.status
-        }
+    Binding {
+        target: root
+        property: "capacity"
+        value: Math.round(root.normalizedPercentage * 100)
     }
-
-    // ── Event-driven: the kernel emits a uevent (and thus an inotify
-    // hit on this file) whenever capacity or charge status changes.
-    FileView {
-        id: uevent
-        path: root.battPath !== "" ? root.battPath + "/uevent" : ""
-        watchChanges: true
-        onFileChanged: reload()
-        onLoaded: root._parseUevent(text())
-    }
-
-    // ── Fallback poll ────────────────────────────────────────
-    // Backstop only, in case a driver doesn't emit uevents reliably.
-    Process {
-        id: battPoll
-        command: ["sh", "-c", "cat " + root.battPath + "/capacity 2>/dev/null ; cat " + root.battPath + "/status 2>/dev/null"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const lines = text.trim().split("\n")
-                if (lines.length >= 2) {
-                    const value = parseInt(lines[0])
-                    if (!isNaN(value)) root.capacity = Math.max(0, Math.min(100, value))
-                    root.status = lines[1].trim()
-                }
-            }
+    Binding {
+        target: root
+        property: "status"
+        value: {
+            if (!root.hasBattery) return "Full"
+            if (root.device.state === UPowerDeviceState.Charging) return "Charging"
+            if (root.device.state === UPowerDeviceState.FullyCharged) return "Full"
+            if (root.device.state === UPowerDeviceState.PendingCharge) return "Not charging"
+            return "Discharging"
         }
     }
 
     Timer {
-        interval: 30000
-        running: root.battPath !== ""
-        repeat: true
-        onTriggered: battPoll.running = true
-    }
-
-    SequentialAnimation {
+        interval: 1000
         running: root.isCritical
-        loops: Animation.Infinite
-        NumberAnimation { target: label; property: "opacity"; to: 0.3; duration: 500 }
-        NumberAnimation { target: label; property: "opacity"; to: 1.0; duration: 500 }
-        onStopped: label.opacity = 1.0 
+        repeat: true
+        onTriggered: label.opacity = label.opacity === 1 ? 0.3 : 1
+        onRunningChanged: if (!running) label.opacity = 1
     }
 
     Text {

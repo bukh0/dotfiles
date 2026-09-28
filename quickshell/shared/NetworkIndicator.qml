@@ -7,6 +7,8 @@ Item {
     width: label.implicitWidth
     height: label.implicitHeight
 
+    readonly property bool disconnected: NetworkService.connectionType === "none"
+
     // ── Connection icon ─────────────────────────────────────
     readonly property string status: {
         if (NetworkService.connectionType === "wifi") return NetworkService.signalIcon(NetworkService.signalStrength)
@@ -27,7 +29,7 @@ Item {
     Text {
         id: label
         text: root.status
-        color: root.status === "󰤭"
+        color: root.disconnected
             ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
             : mouseArea.containsMouse
                 ? Colors.surfaceFg

@@ -121,6 +121,7 @@ alias ta="tmux attach || tmux new"
 alias tl="tmux ls"
 alias tk="tmux kill-session -t"
 alias nvp="nvim ~/Documents/Pracs/"
+alias catal='find . -type f -exec sh -c '\''for f; do echo "==> $f <=="; cat "$f"; done'\'' _ {} +'
 
 #export PATH=$PATH:/home/bukh0/.spicetify
 export PATH="$HOME/.local/bin:$PATH"

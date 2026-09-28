@@ -1,10 +1,11 @@
 pragma Singleton
 import QtQuick
+import Quickshell
 
 QtObject {
     readonly property string fontMono: "JetBrainsMono Nerd Font"
     readonly property string fontUI: "sans-serif"
-    readonly property string sysmonPath: Qt.resolvedUrl("sysmon").toString().replace(/^file:\/\//, "")
+    readonly property string sysmonPath: Quickshell.shellPath("../shared/sysmon")
 
     readonly property int fontSizeXS: 10
     readonly property int fontSizeSM: 11
@@ -31,6 +32,7 @@ QtObject {
     readonly property int barSectionGap: 18
     readonly property bool floatingBar: true
     readonly property int barOuterMargin: 7
+    readonly property int barTotalHeight: floatingBar ? barHeight + barOuterMargin * 2 : barHeight
     readonly property int barPillRadius: 8
     readonly property int barPillPaddingH: 24
     readonly property int centerPillMinWidth: 180

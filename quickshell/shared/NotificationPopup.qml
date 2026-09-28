@@ -1,18 +1,16 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Services.Notifications
 import "."
 
 PanelWindow {
     id: popup
 
     property var notificationData: null
-    property int displayDuration: 3000
+    property int displayDuration: 4000
     property bool isVisible: false
 
-    // ── Queue ────────────────────────────────────────────────
-    // A second notification arriving while one is still showing used to
-    // silently overwrite it. Queue recent items, with a cap for bursts.
     property var _queue: []
     property int maxQueueLength: 20
 
@@ -28,7 +26,7 @@ PanelWindow {
     }
 
     margins {
-        top: 50
+        top: Theme.barTotalHeight + 1
         right: 10
     }
 
@@ -42,8 +40,6 @@ PanelWindow {
         repeat: false
     }
 
-    // Small gap after the fade-out so the next toast doesn't pop in
-    // while the current one is still animating away.
     Timer {
         id: advanceTimer
         interval: 220
@@ -57,28 +53,71 @@ PanelWindow {
     Connections {
         target: NotificationDaemon
         function onDismissPopup() {
-            popup.isVisible = false
-            hideTimer.stop()
+            popup.dismiss()
         }
+        function onNotificationRemoved(id) {
+            popup._queue = popup._queue.filter(data => data.notifId !== id)
+            if (popup.notificationData && popup.notificationData.notifId === id)
+                popup.dismiss()
+        }
+    }
+
+    function _durationFor(data) {
+        const requested = data ? Number(data.expireTimeout) : 0
+        if (data && data.urgency === NotificationUrgency.Critical) return 0
+        if (requested >= 0) return requested
+        return 4000
+    }
+
+    function restartTimeout() {
+        hideTimer.stop()
+        if (popup.displayDuration > 0) hideTimer.start()
     }
 
     function _advanceQueue() {
         if (popup._queue.length === 0) return
         const next = popup._queue[0]
         popup._queue = popup._queue.slice(1)
+        popup.displayDuration = _durationFor(next)
         popup.notificationData = next
         popup.isVisible = true
-        hideTimer.restart()
+        restartTimeout()
     }
 
     function showNotification(data) {
-        if (popup.isVisible) {
+        if (popup.notificationData && popup.notificationData.notifId === data.notifId && popup.isVisible) {
+            popup.notificationData = data
+            popup.displayDuration = _durationFor(data)
+            restartTimeout()
+            return
+        }
+        const queuedIndex = popup._queue.findIndex(item => item.notifId === data.notifId)
+        if (queuedIndex >= 0) {
+            const updated = popup._queue.slice()
+            updated[queuedIndex] = data
+            popup._queue = updated
+            return
+        }
+        if (popup.isVisible || advanceTimer.running) {
             popup._queue = popup._queue.concat([data]).slice(-popup.maxQueueLength)
             return
         }
+        popup.displayDuration = _durationFor(data)
         popup.notificationData = data
         popup.isVisible = true
-        hideTimer.restart()
+        restartTimeout()
+    }
+
+    function dismiss() {
+        hideTimer.stop()
+        popup.isVisible = false
+    }
+
+    function dismissAll() {
+        advanceTimer.stop()
+        popup._queue = []
+        popup.isVisible = false
+        hideTimer.stop()
     }
 
     Rectangle {
@@ -126,7 +165,8 @@ PanelWindow {
                     spacing: 6
 
                     Text {
-                        text: popup.notificationData?.appName || "App"
+                        text: popup.notificationData ? (popup.notificationData.appName || "App") : "App"
+                        textFormat: Text.PlainText
                         color: Colors.primary
                         font.pixelSize: 11
                         font.weight: Font.Bold
@@ -143,22 +183,56 @@ PanelWindow {
                         font.weight: Font.Bold
                         font.family: popup.uiFont
                     }
+
+                    Rectangle {
+                        id: dismissButton
+                        z: 1
+                        Layout.alignment: Qt.AlignVCenter
+                        width: 24
+                        height: 24
+                        radius: 12
+                        color: dismissHover.hovered ? Qt.rgba(Colors.error.r, Colors.error.g, Colors.error.b, 0.15) : "transparent"
+
+                        Behavior on color { ColorAnimation { duration: 150 } }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "󰅖"
+                            color: dismissHover.hovered ? Colors.error : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
+                            font.pixelSize: 14
+                            font.family: popup.iconFont
+
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
+
+                        HoverHandler {
+                            id: dismissHover
+                            cursorShape: Qt.PointingHandCursor
+                        }
+
+                        TapHandler {
+                            onTapped: popup.dismiss()
+                        }
+                    }
                 }
 
                 Text {
-                    text: popup.notificationData?.summary || ""
+                    text: popup.notificationData ? (popup.notificationData.summary || "") : ""
+                    textFormat: Text.PlainText
                     color: Colors.surfaceFg
                     font.pixelSize: 13
                     font.weight: Font.Medium
                     font.family: popup.uiFont
                     wrapMode: Text.Wrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
                     visible: text !== ""
                 }
 
                 Text {
-                    text: popup.notificationData?.body || ""
+                    text: (popup.notificationData ? (popup.notificationData.body || "") : "").replace(/<img\b[^>]*>/gi, "")
                     textFormat: Text.StyledText
                     color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.7)
                     font.pixelSize: 12
@@ -173,19 +247,13 @@ PanelWindow {
             }
         }
 
-        MouseArea {
-            anchors.fill: parent
-            hoverEnabled: true
-
-            onEntered: hideTimer.stop()
-            onExited: {
-                if (popup.isVisible) hideTimer.start()
-            }
-
-            onClicked: (mouse) => {
-                popup.isVisible = false
-                hideTimer.stop()
+        HoverHandler {
+            onHoveredChanged: {
+                if (hovered) hideTimer.stop()
+                else if (popup.isVisible) popup.restartTimeout()
             }
         }
+
+        TapHandler { onTapped: popup.dismiss() }
     }
 }
