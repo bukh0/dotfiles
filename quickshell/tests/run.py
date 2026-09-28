@@ -55,11 +55,11 @@ elif "set" in sys.argv:
     notify.write_text("#!/bin/sh\nexit 0\n")
     notify.chmod(0o755)
     for name in ("BrightnessService.qml", "BrightnessSlider.qml", "SliderRow.qml", "Colors.qml"):
-        text = (ROOT / "shared" / name).read_text()
+        text = (ROOT / "components" / name).read_text()
         if name == "BrightnessService.qml":
             text = text.replace('"/sys/class/backlight/"', f'"{backlight.parent}/"')
         (profile / name).write_text(text)
-    theme = (ROOT / "default" / "Theme.qml").read_text()
+    theme = (ROOT / "profiles" / "default" / "Theme.qml").read_text()
     theme = "\n".join(line for line in theme.splitlines()
                       if line != "import Quickshell" and "sysmonPath:" not in line)
     (profile / "Theme.qml").write_text(theme)
@@ -93,7 +93,7 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE" in args:
 ''')
     nmcli.chmod(0o755)
     for name in ("NetworkService.qml", "NotificationDaemon.qml", "NotificationPopup.qml"):
-        text = (ROOT / "shared" / name).read_text()
+        text = (ROOT / "components" / name).read_text()
         if name == "NotificationPopup.qml":
             # Offscreen Qt has no layer-shell backend. Exercise the real popup
             # state machine and layout using a Rectangle as its window host.
@@ -106,7 +106,7 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE" in args:
                      "singleton NotificationDaemon 1.0 NotificationDaemon.qml\n"
                      "NotificationPopup 1.0 NotificationPopup.qml\n")
     for name in ("BatteryIndicator.qml", "ControlPanel.qml", "MusicWidget.qml", "Divider.qml", "VDivider.qml", "VolumeSlider.qml", "SystemResourceRow.qml", "WifiToggle.qml", "BluetoothToggle.qml", "BluetoothService.qml"):
-        text = (ROOT / "shared" / name).read_text()
+        text = (ROOT / "components" / name).read_text()
         if name == "BatteryIndicator.qml":
             text = text.replace("readonly property var device: UPower.displayDevice", "property var device: null")
         if name == "ControlPanel.qml":
@@ -124,14 +124,14 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE" in args:
         executable.chmod(0o755)
     module_text = (profile / "qmldir").read_text()
     shutil.copyfile(ROOT / "tests" / "services.qml", stage / "services.qml")
-    slider_test = (ROOT / "tests" / "tst_slider.qml").read_text().replace('"../default"', '"profile"')
+    slider_test = (ROOT / "tests" / "tst_slider.qml").read_text().replace('"../profiles/default"', '"profile"')
     (stage / "tst_slider.qml").write_text(slider_test)
     for theme_name in ("default", "alt"):
         print(f"Testing {theme_name} theme", flush=True)
-        theme = (ROOT / theme_name / "Theme.qml").read_text()
+        theme = (ROOT / "profiles" / theme_name / "Theme.qml").read_text()
         theme = "\n".join(line for line in theme.splitlines()
                           if line != "import Quickshell" and "sysmonPath:" not in line)
-        theme = theme.replace("QtObject {", 'QtObject {\n readonly property string sysmonPath: "' + str(ROOT / "shared/sysmon") + '"', 1)
+        theme = theme.replace("QtObject {", 'QtObject {\n readonly property string sysmonPath: "' + str(ROOT / "native/sysmon") + '"', 1)
         (profile / "Theme.qml").write_text(theme)
         (profile / "qmldir").write_text(module_text)
         run(["quickshell", "-p", str(stage / "services.qml")], env, "REGRESSION PASS: services")

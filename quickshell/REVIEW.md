@@ -1,4 +1,4 @@
-Review completed on 2026-09-28. Changes are in `shared/`, so both `default` and `alt` receive them through their existing symlinks.
+Review completed on 2026-09-28. Shared QML now lives in `components/`; `profiles/default/` and `profiles/alt/` hold profile themes and symlinked module entry points. The native monitor helper and build files live in `native/`.
 
 | Area | Finding and implemented fix |
 | --- | --- |

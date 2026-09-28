@@ -1,0 +1,1 @@
+../../components/SystemTray.qml

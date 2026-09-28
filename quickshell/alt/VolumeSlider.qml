@@ -1,1 +1,0 @@
-../shared/VolumeSlider.qml

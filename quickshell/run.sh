@@ -10,7 +10,7 @@ case "$PROFILE_NAME" in
         ;;
 esac
 
-SCRIPT_DIR="$CONFIG_DIR/$PROFILE_NAME"
+SCRIPT_DIR="$CONFIG_DIR/profiles/$PROFILE_NAME"
 PID_FILE="${XDG_RUNTIME_DIR:-/tmp}/quickshell-${UID}-${PROFILE_NAME}.pid"
 
 if [ ! -f "$SCRIPT_DIR/shell.qml" ] || [ ! -f "$SCRIPT_DIR/Theme.qml" ]; then
@@ -18,7 +18,7 @@ if [ ! -f "$SCRIPT_DIR/shell.qml" ] || [ ! -f "$SCRIPT_DIR/Theme.qml" ]; then
     exit 1
 fi
 
-make -C "$CONFIG_DIR/shared" --silent || echo "sysmon build failed; continuing" >&2
+make -C "$CONFIG_DIR/native" --silent || echo "sysmon build failed; continuing" >&2
 
 command -v quickshell >/dev/null || { echo "quickshell is not installed" >&2; exit 1; }
 mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}" "$(dirname "$PID_FILE")"

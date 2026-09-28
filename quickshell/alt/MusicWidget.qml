@@ -1,1 +1,0 @@
-../shared/MusicWidget.qml

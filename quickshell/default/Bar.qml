@@ -1,1 +1,0 @@
-../shared/Bar.qml

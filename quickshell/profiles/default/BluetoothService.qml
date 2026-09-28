@@ -1,0 +1,1 @@
+../../components/BluetoothService.qml

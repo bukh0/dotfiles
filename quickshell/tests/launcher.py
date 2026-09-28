@@ -11,11 +11,11 @@ ROOT = Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix="quickshell-launcher-") as directory:
     stage = Path(directory)
     shutil.copyfile(ROOT / "run.sh", stage / "run.sh")
-    (stage / "default").mkdir()
+    (stage / "profiles" / "default").mkdir(parents=True)
     for name in ("shell.qml", "Theme.qml"):
-        (stage / "default" / name).touch()
-    (stage / "shared").mkdir()
-    (stage / "shared" / "Makefile").write_text("all:\n\t@true\n")
+        (stage / "profiles" / "default" / name).touch()
+    (stage / "native").mkdir()
+    (stage / "native" / "Makefile").write_text("all:\n\t@true\n")
     binary_dir = stage / "bin"
     binary_dir.mkdir()
     binary = binary_dir / "quickshell"
