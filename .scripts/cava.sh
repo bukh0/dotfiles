@@ -9,12 +9,12 @@ clean=1 # Default to clean (hides when silent)
 usage() {
     local fd=1
     (( ${1:-0} )) && fd=2
-    printf 'Usage: %s [--vert] [--clean] [--bars N | --N]\n' "${0##*/}" >&$fd
+    printf 'Usage: %s [--vert] [--clean|--no-clean] [--bars N | --N]\n' "${0##*/}" >&$fd
     exit "${1:-0}"
 }
 
 validate_bars() {
-    [[ $1 =~ ^[0-9]+$ ]] && (( $1 >= 1 )) || {
+    [[ $1 =~ ^[0-9]{1,3}$ ]] && (( 10#$1 >= 1 && 10#$1 <= 256 )) || {
         printf 'Invalid bar count: %s\n' "$1" >&2
         exit 1
     }
@@ -25,6 +25,7 @@ while [[ $# -gt 0 ]]; do
         -h|--help) usage 0 ;;
         --vert)    vert=1 ;;
         --clean)   clean=1 ;;
+        --no-clean) clean=0 ;;
         --bars)
             [[ -n ${2+x} ]] || { printf 'Missing value for --bars\n' >&2; exit 1; }
             bars="$2"; shift
@@ -50,8 +51,6 @@ command -v cava >/dev/null 2>&1 || {
     printf 'cava: command not found\n' >&2
     exit 1
 }
-
-trap 'kill 0 2>/dev/null' EXIT
 
 # We set the background to 'none' in cava config to prevent clashing with your pills
 cava -p <(printf '%s\n' \

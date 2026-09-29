@@ -15,7 +15,9 @@ with tempfile.TemporaryDirectory(prefix="quickshell-launcher-") as directory:
     for name in ("shell.qml", "Theme.qml"):
         (stage / "profiles" / "default" / name).touch()
     (stage / "native").mkdir()
-    (stage / "native" / "Makefile").write_text("all:\n\t@true\n")
+    (stage / "native" / "Makefile").write_text(
+        "all:\n\t@if ! mkdir build-lock 2>/dev/null; then touch build-race; exit 1; fi\n"
+        "\t@sleep 0.2\n\t@rmdir build-lock\n")
     binary_dir = stage / "bin"
     binary_dir.mkdir()
     binary = binary_dir / "quickshell"
@@ -34,6 +36,7 @@ with tempfile.TemporaryDirectory(prefix="quickshell-launcher-") as directory:
         second = subprocess.Popen(["bash", str(stage / "run.sh")], env=env)
         assert first.wait(timeout=8) == 0
         assert second.wait(timeout=8) == 0
+        assert not (stage / "native" / "build-race").exists(), "concurrent native builds"
         pid = int(pid_file.read_text())
         os.kill(pid, 0)
         assert b"quickshell" in Path(f"/proc/{pid}/cmdline").read_bytes()

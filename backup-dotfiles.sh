@@ -31,7 +31,30 @@ HISTORY_EXCLUDES=()
 for p in "${HISTORY_FILES[@]}"; do HISTORY_EXCLUDES+=(--exclude "$p"); done
 
 MODE="backup"
-if [ "${1:-}" == "--restore" ]; then MODE="restore"; fi
+if (( $# > 1 )); then
+  echo "Error: expected at most one option." >&2
+  echo "Usage: $0 [--push | --restore]" >&2
+  exit 2
+fi
+case "${1:-}" in
+  "")
+    ;;
+  --push)
+    MODE="push"
+    ;;
+  --restore)
+    MODE="restore"
+    ;;
+  --help|-h)
+    sed -n '1,9p' "$0"
+    exit 0
+    ;;
+  *)
+    echo "Error: unknown option: $1" >&2
+    echo "Usage: $0 [--push | --restore]" >&2
+    exit 2
+    ;;
+esac
 
 # --- Map of source -> destination inside dotfiles repo -----------------
 # Add/remove lines here as your setup evolves.
@@ -54,11 +77,10 @@ declare -A SYNC_MAP=(
   ["$CONFIG/gtk-4.0/settings.ini"]="$DOTFILES/gtk-4.0/settings.ini"
   ["$HOME/.icons/default/index.theme"]="$DOTFILES/icons/default/index.theme"
 
-  # --- Newly added theme architecture paths ---
-  ["$HOME/.scripts"]="$DOTFILES/scripts"
+  # ~/.scripts is a symlink to $DOTFILES/.scripts, so it is already tracked
+  # in this repository and must not be mirrored into a second scripts/ tree.
   ["$CONFIG/wal"]="$DOTFILES/wal"
   ["$CONFIG/wlogout"]="$DOTFILES/wlogout"
-  ["$CONFIG/vesktop/themes"]="$DOTFILES/vesktop/themes"
 
   #  ["$WALLPAPERS"]="$DOTFILES/Wallpapers"
 )
@@ -79,11 +101,22 @@ if [ ! -d "$DOTFILES/.git" ]; then
   exit 1
 fi
 
+# Serialize the staged-change check, sync and commit as one operation.
+exec 9>"$DOTFILES/.git/backup-dotfiles.lock"
+flock -x 9
+
+if [ "$MODE" != "restore" ] && ! git -C "$DOTFILES" diff --cached --quiet; then
+  echo "Error: the repository already has staged changes." >&2
+  echo "Review or commit them before running this script." >&2
+  exit 1
+fi
+
 # Backup mirrors deletions into the repo; restore must never delete live files.
 DELETE_FLAG=(--delete)
 if [ "$MODE" == "restore" ]; then DELETE_FLAG=(); fi
 
 echo "==> Syncing configs ($MODE)"
+SYNCED_DESTS=()
 for entry in "${!SYNC_MAP[@]}"; do
   src="$entry"
   dest="${SYNC_MAP[$entry]}"
@@ -113,6 +146,7 @@ for entry in "${!SYNC_MAP[@]}"; do
       cp -f "$src" "$dest"
     fi
     echo "  synced: $src -> $dest"
+    SYNCED_DESTS+=("$dest")
   else
     echo "  skipped (not found): $src"
   fi
@@ -130,7 +164,21 @@ for p in "${HISTORY_FILES[@]}"; do
   grep -qxF "$p" .gitignore 2>/dev/null || echo "$p" >> .gitignore
 done
 
-git add -A
+# Stage only files managed by this script. This prevents --push from
+# committing unrelated work already present in the repository.
+STAGE_PATHS=(.gitignore)
+# These files already live in the repo, so rsync does not visit them.
+# Include the scripts only when this is the live ~/.scripts directory.
+if [[ -d "$HOME/.scripts" && -d "$DOTFILES/.scripts" && "$HOME/.scripts" -ef "$DOTFILES/.scripts" ]]; then
+  STAGE_PATHS+=(.scripts)
+fi
+if [[ "$0" -ef "$DOTFILES/backup-dotfiles.sh" ]]; then
+  STAGE_PATHS+=(backup-dotfiles.sh)
+fi
+for dest in "${SYNCED_DESTS[@]}"; do
+  STAGE_PATHS+=("${dest#"$DOTFILES/"}")
+done
+git add -A -- "${STAGE_PATHS[@]}" ':(exclude,glob).scripts/*.o' ':(exclude,glob).scripts/*.d'
 
 # Fail-safe: unstage any history file that slipped through, warn if one is already tracked.
 specs=()
@@ -142,7 +190,7 @@ if [ -n "$tracked" ]; then
   echo "$tracked" | sed 's/^/  /'
 fi
 
-if [ "${1:-}" == "--push" ]; then
+if [ "$MODE" == "push" ]; then
   ts=$(date "+%Y-%m-%d %H:%M:%S")
   if git diff --cached --quiet; then
     echo "==> Nothing new to commit"
@@ -152,15 +200,27 @@ if [ "${1:-}" == "--push" ]; then
 
   # Push only when local commits are ahead of the remote (covers commits left
   # over from prior runs, and doesn't try to push when the remote is ahead).
-  git fetch origin --quiet || true
-  AHEAD=$(git rev-list --count '@{u}..@' 2>/dev/null || echo 0)
+  if ! git fetch origin --quiet; then
+    echo "Error: could not fetch origin; refusing to claim the remote is current." >&2
+    exit 1
+  fi
+
+  if ! git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+    echo "Error: current branch has no upstream configured; refusing to push blindly." >&2
+    exit 1
+  fi
+
+  AHEAD=$(git rev-list --count '@{u}..@')
+  BEHIND=$(git rev-list --count '@..@{u}')
   if [ "$AHEAD" -gt 0 ]; then
     git push
     echo "==> Pushed to remote"
+  elif [ "$BEHIND" -gt 0 ]; then
+    echo "==> Nothing to push; local branch is $BEHIND commit(s) behind upstream"
   else
     echo "==> Nothing to push, already up to date with remote"
   fi
 else
   echo "==> Synced and staged. Review with 'git status' / 'git diff --cached', then commit+push manually,"
-  echo "    or re-run with --push to do it automatically."
+  echo "    or use --push instead of a plain backup next time (requires an empty staging area)."
 fi

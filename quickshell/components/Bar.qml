@@ -73,6 +73,7 @@ PanelWindow {
                     Workspaces { screen: root.screen }
 
                     Text {
+                        textFormat: Text.PlainText
                         color: Colors.surfaceFg
                         font.pixelSize: 13
                         font.weight: Font.Normal
@@ -161,6 +162,7 @@ PanelWindow {
                 Workspaces { screen: root.screen }
 
                 Text {
+                    textFormat: Text.PlainText
                     color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, Theme.opacityMuted)
                     font.pixelSize: Theme.fontSizeBase
                     font.family: Theme.fontMono

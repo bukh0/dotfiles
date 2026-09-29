@@ -65,7 +65,9 @@ int main() {
     if (!homeDir) return 1;
     
     std::string wallRoot = std::string(homeDir) + "/Pictures/Wallpapers";
-    std::string rofiTheme = std::string(homeDir) + "/.config/rofi/wallpaper.rasi";
+    const char* configEnv = std::getenv("XDG_CONFIG_HOME");
+    const std::string configDir = configEnv ? configEnv : std::string(homeDir) + "/.config";
+    std::string rofiTheme = configDir + "/rofi/wallpaper.rasi";
 
     std::vector<Wallpaper> wallpapers;
     DIR* dir = opendir(wallRoot.c_str());
@@ -76,7 +78,7 @@ int main() {
             if (hasImageExt(name)) {
                 std::string path = wallRoot + "/" + name;
                 struct stat st;
-                if (stat(path.c_str(), &st) == 0) {
+                if (stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
                     Wallpaper w; w.filename = name; w.mtime = st.st_mtime;
                     wallpapers.push_back(w);
                 }
@@ -107,7 +109,7 @@ int main() {
     wout.close();
 
     // Optimization: Use native file redirection '<' instead of spawning a 'cat |' subshell pipeline
-    std::string rofiCmd = "rofi -dmenu -i -show-icons -theme " + escapeShellArg(rofiTheme) +
+    std::string rofiCmd = "rofi -dmenu -i -no-custom -show-icons -theme " + escapeShellArg(rofiTheme) +
         " -p '  Wallpaper' < " + escapeShellArg(menuFile) +
         " > " + escapeShellArg(choiceFile);
     system(rofiCmd.c_str());
@@ -117,7 +119,6 @@ int main() {
     std::getline(wf, selectedWall);
     wf.close();
     
-    selectedWall = trim(selectedWall);
     std::remove(menuFile.c_str());
     std::remove(choiceFile.c_str());
     if (selectedWall.empty()) return 0;
@@ -136,9 +137,15 @@ int main() {
 
     std::string fullPath = wallRoot + "/" + selectedWall;
 
-    system(("swww img " + escapeShellArg(fullPath) + " --transition-type grow --transition-duration 2 --transition-fps 60 &").c_str());
-    if (system(("matugen image " + escapeShellArg(fullPath) + " --source-color-index 0 -q").c_str()) != 0) {
+    const std::string matugenConfig = configDir + "/hypr/themes/matugen/config.toml";
+    if (system(("matugen image " + escapeShellArg(fullPath) + " -c " + escapeShellArg(matugenConfig) + " --source-color-index 0 -q").c_str()) != 0) {
         std::cerr << "Error: failed to generate theme from wallpaper." << std::endl;
+        return 1;
+    }
+    system(("swww img " + escapeShellArg(fullPath) + " --transition-type grow --transition-duration 2 --transition-fps 60 >/dev/null 2>&1 &").c_str());
+    const std::string themeSwitcher = std::string(homeDir) + "/.scripts/theme.switcher";
+    if (system((escapeShellArg(themeSwitcher) + " --install-matugen").c_str()) != 0) {
+        std::cerr << "Error: failed to install generated theme outputs." << std::endl;
         return 1;
     }
 

@@ -1,15 +1,15 @@
-#!/bin/bash
-FLAG="/tmp/waybar_hidden"
+#!/usr/bin/env bash
+set -euo pipefail
 
-hyprctl dispatch fullscreen 0
-sleep 0.05
+command -v hyprctl >/dev/null && command -v jq >/dev/null || exit 1
+FLAG="${XDG_RUNTIME_DIR:-/tmp}/waybar-hidden-${UID}"
+# false is a valid state; jq -e would make set -e abort before restoring Waybar.
+fullscreen=$(hyprctl activewindow -j | jq -r '(.fullscreen // 0) != 0')
 
-FS=$(hyprctl activewindow -j | jq '.fullscreen')
-
-if [ "$FS" = "1" ] && [ ! -f "$FLAG" ]; then
-    pkill -SIGUSR1 waybar
-    touch "$FLAG"
-elif [ "$FS" = "0" ] && [ -f "$FLAG" ]; then
-    pkill -SIGUSR1 waybar
-    rm "$FLAG"
+if [[ "$fullscreen" == true && ! -e "$FLAG" ]]; then
+    pkill -u "$UID" -USR1 -x waybar || exit 1
+    : > "$FLAG"
+elif [[ "$fullscreen" == false && -e "$FLAG" ]]; then
+    pkill -u "$UID" -USR1 -x waybar || exit 1
+    rm -f -- "$FLAG"
 fi

@@ -4,6 +4,12 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 make
 
+SLSTATUS_BIN=slstatus
+if [[ -f "$HOME/slstatus/Makefile" ]]; then
+    make -C "$HOME/slstatus"
+    SLSTATUS_BIN="$HOME/slstatus/slstatus"
+fi
+
 : "${DISPLAY:=:0}"
 export DISPLAY
 unset WAYLAND_DISPLAY
@@ -29,7 +35,7 @@ fi
 ./dwm &
 DWM_PID=$!
 
-slstatus &
+"$SLSTATUS_BIN" &
 SLSTATUS_PID=$!
 
 wait "$DWM_PID"

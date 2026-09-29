@@ -64,8 +64,12 @@ ShellRoot {
                     check(root.networkErrors.length === 0, "network command failed: " + root.networkErrors.join("; "))
                     check(!network.busy, "connect did not release shared busy state")
                     check(network.disconnectActive(), "disconnect failed to start")
+                    panel.pinned = false
+                    panel.scheduleHoverClose()
+                    panel.pinned = true
                     break
                 case 2:
+                    check(panel.isOpen && panel.pinned, "pending hover timer closed a pinned panel")
                     check(root.networkErrors.length === 0, "disconnect failed: " + root.networkErrors.join("; "))
                     check(!network.busy, "disconnect did not settle")
                     popup.showNotification({notifId: 1, summary: "first", expireTimeout: 0})

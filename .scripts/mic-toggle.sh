@@ -1,17 +1,15 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# 1. Toggle the default microphone (survives reboots)
+command -v wpctl >/dev/null && command -v brightnessctl >/dev/null && command -v swayosd-client >/dev/null
 wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
-
-# 2. Check the true mute state
-MUTE=$(wpctl get-volume @DEFAULT_AUDIO_SOURCE@ | grep -c MUTED)
-
-# 3. Sync the ThinkPad hardware LED (no sudo required)
-brightnessctl --device='platform::micmute' set $MUTE > /dev/null
-
-# 4. Trigger the custom SwayOSD notification
-if [ "$MUTE" -eq 1 ]; then
-    swayosd-client --custom-message "Mic Muted" --custom-icon "microphone-sensitivity-muted"
+volume=$(wpctl get-volume @DEFAULT_AUDIO_SOURCE@)
+if [[ "$volume" == *MUTED* ]]; then
+    muted=1
+    label=("Mic Muted" "microphone-sensitivity-muted")
 else
-    swayosd-client --custom-message "Mic Active" --custom-icon "microphone-sensitivity-high"
+    muted=0
+    label=("Mic Active" "microphone-sensitivity-high")
 fi
+brightnessctl --device=platform::micmute set "$muted" >/dev/null 2>&1 || true
+swayosd-client --custom-message "${label[0]}" --custom-icon "${label[1]}"

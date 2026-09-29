@@ -81,6 +81,7 @@ readonly PYTHON_BIN="$VENV_DIR/bin/python"
 readonly RUNNER_SCRIPT="$BASE_DIR/runner.py"
 readonly CONFIG_DIR="$HOME/.config/wayclick"
 readonly STATE_FILE="$HOME/.config/dusky/settings/wayclick"
+readonly RUN_LOCK="${XDG_RUNTIME_DIR:-/tmp}/wayclick-${UID}.lock"
 
 # --- ANSI COLORS ---
 readonly C_RED=$'\033[1;31m'
@@ -118,53 +119,79 @@ notify_user() {
 
 trap cleanup EXIT INT TERM
 
-# --- 0. ROOT CHECK ---
 if (( EUID == 0 )); then
     printf "%b[CRITICAL]%b Do not run this script as root.\n" "${C_RED}" "${C_RESET}"
     exit 1
 fi
 
+# Serialize the toggle/reset check, but release this lock once the runner is
+# live so a second keypress can stop it.
+umask 077
+exec 9>"$RUN_LOCK"
+umask 022
+flock -x 9
+
+wayclick_pids() {
+    local cmdfile arg pid
+    local -a args
+    for cmdfile in /proc/[0-9]*/cmdline; do
+        [[ -r "$cmdfile" ]] || continue
+        args=()
+        mapfile -d '' -t args < "$cmdfile" || continue
+        [[ "${args[0]:-}" == "$PYTHON_BIN" ]] || continue
+        for arg in "${args[@]:1}"; do
+            if [[ "$arg" == "$RUNNER_SCRIPT" ]]; then
+                pid="${cmdfile#/proc/}"
+                printf '%s\n' "${pid%/cmdline}"
+                break
+            fi
+        done
+    done
+}
+
+wayclick_stop() {
+    local pid
+    local -a pids
+    mapfile -t pids < <(wayclick_pids)
+    for pid in "${pids[@]}"; do kill -TERM "$pid" 2>/dev/null || true; done
+    for _ in {1..20}; do
+        [[ -z "$(wayclick_pids)" ]] && return 0
+        sleep 0.1
+    done
+    mapfile -t pids < <(wayclick_pids)
+    for pid in "${pids[@]}"; do kill -KILL "$pid" 2>/dev/null || true; done
+    for _ in {1..20}; do
+        [[ -z "$(wayclick_pids)" ]] && return 0
+        sleep 0.1
+    done
+    printf '[ERROR] WayClick did not stop.\n' >&2
+    return 1
+}
+
 # --- 1. RESET MODE ---
 if [[ "$RUN_MODE" == "reset" ]]; then
-    if pgrep -u "$USER" -f "$RUNNER_SCRIPT" >/dev/null 2>&1; then
+    if [[ -n "$(wayclick_pids)" ]]; then
         printf "%b[RESET]%b Stopping running instance...\n" "${C_YELLOW}" "${C_RESET}"
         notify_user "Disabled"
 
-        pkill -TERM -u "$USER" -f "$RUNNER_SCRIPT" 2>/dev/null || true
-
-        wait_count=0
-        while pgrep -u "$USER" -f "$RUNNER_SCRIPT" >/dev/null 2>&1 && (( wait_count++ < 20 )); do
-            sleep 0.1
-        done
-
-        pkill -KILL -u "$USER" -f "$RUNNER_SCRIPT" 2>/dev/null || true
+        wayclick_stop
     fi
 
-    if [[ -d "$VENV_DIR" ]]; then
-        rm -rf "$VENV_DIR"
-        rm -f "$BASE_DIR"/.build_marker_*
-        rm -f "$RUNNER_SCRIPT"
-        printf "%b[RESET]%b Environment deleted successfully.\n" "${C_GREEN}" "${C_RESET}"
-    else
-        printf "%b[RESET]%b Nothing to clean (environment not found).\n" "${C_BLUE}" "${C_RESET}"
-    fi
+    rm -rf -- "$VENV_DIR"
+    rm -f -- "$BASE_DIR"/.build_marker_v* "$RUNNER_SCRIPT"
+    update_state "False"
+    printf "%b[RESET]%b Environment deleted successfully.\n" "${C_GREEN}" "${C_RESET}"
     exit 0
 fi
 
 # --- 2. TOGGLE (run mode only) ---
 if [[ "$RUN_MODE" == "run" ]]; then
-    if pgrep -u "$USER" -f "$RUNNER_SCRIPT" >/dev/null 2>&1; then
+    if [[ -n "$(wayclick_pids)" ]]; then
         printf "%b[TOGGLE]%b Stopping active instance...\n" "${C_YELLOW}" "${C_RESET}"
         notify_user "Disabled"
 
-        pkill -TERM -u "$USER" -f "$RUNNER_SCRIPT" 2>/dev/null || true
-
-        wait_count=0
-        while pgrep -u "$USER" -f "$RUNNER_SCRIPT" >/dev/null 2>&1 && (( wait_count++ < 20 )); do
-            sleep 0.1
-        done
-
-        pkill -KILL -u "$USER" -f "$RUNNER_SCRIPT" 2>/dev/null || true
+        wayclick_stop
+        update_state "False"
         exit 0
     fi
 fi
@@ -408,8 +435,23 @@ print(f"{C_BLUE}[INFO]{C_RESET}  Pack:   {ASSET_DIR}")
 try:
     with open(CONFIG_FILE, 'r') as f:
         config_data = json.load(f)
-        RAW_KEY_MAP = {int(k): v for k, v in config_data.get("mappings", {}).items()}
-        DEFAULTS = config_data.get("defaults", [])
+        mappings = config_data.get("mappings", {})
+        defaults = config_data.get("defaults", [])
+        if not isinstance(mappings, dict) or not isinstance(defaults, list):
+            raise ValueError("mappings must be an object and defaults must be a list")
+        RAW_KEY_MAP = {}
+        for raw_code, filename in mappings.items():
+            code = int(raw_code)
+            valid_name = (isinstance(filename, str) and filename not in ("", ".", "..")
+                          and os.path.basename(filename) == filename and filename.lower().endswith(".wav"))
+            if 0 <= code < 1024 and valid_name:
+                RAW_KEY_MAP[code] = filename
+            else:
+                print(f"{C_YELLOW}[WARN]{C_RESET} Ignoring invalid mapping: {raw_code!r}")
+        DEFAULTS = [name for name in defaults if isinstance(name, str) and name not in ("", ".", "..")
+                    and os.path.basename(name) == name and name.lower().endswith(".wav")]
+        if len(DEFAULTS) != len(defaults):
+            print(f"{C_YELLOW}[WARN]{C_RESET} Ignoring invalid default sound path(s)")
 except Exception as e:
     sys.exit(f"{C_RED}[CONFIG ERROR]{C_RESET} Failed to load {CONFIG_FILE}: {e}")
 
@@ -418,7 +460,11 @@ SOUND_FILES = set(RAW_KEY_MAP.values()) | set(DEFAULTS)
 SOUNDS = {}
 
 for filename in SOUND_FILES:
-    path = os.path.join(ASSET_DIR, filename)
+    asset_root = os.path.realpath(ASSET_DIR)
+    path = os.path.realpath(os.path.join(asset_root, filename))
+    if os.path.commonpath((asset_root, path)) != asset_root:
+        print(f"{C_YELLOW}[WARN]{C_RESET} Ignoring sound outside the audio pack: {filename}")
+        continue
     if os.path.exists(path):
         try:
             snd = pygame.mixer.Sound(path)
@@ -440,7 +486,7 @@ SOUND_CACHE = [None] * MAX_KEYCODE
 DEFAULT_SOUND_OBJS = tuple(SOUNDS[f] for f in DEFAULTS if f in SOUNDS)
 
 for code, filename in RAW_KEY_MAP.items():
-    if code < MAX_KEYCODE and filename in SOUNDS:
+    if 0 <= code < MAX_KEYCODE and filename in SOUNDS:
         SOUND_CACHE[code] = SOUNDS[filename]
 
 # === HOT PATH PRE-BINDING ===
@@ -647,6 +693,11 @@ WC_MIX_CHANNELS="$AUDIO_MIX_CHANNELS" \
 WC_POLL_INTERVAL="$HOTPLUG_POLL_SECONDS" \
 WC_DEBUG="$DEBUG_MODE" \
 PIPEWIRE_LATENCY="${AUDIO_BUFFER_SIZE}/${AUDIO_SAMPLE_RATE}" \
-"$PYTHON_BIN" -OO -B "$RUNNER_SCRIPT" "$CONFIG_DIR" "$AUDIO_PACK"
+"$PYTHON_BIN" -OO -B "$RUNNER_SCRIPT" "$CONFIG_DIR" "$AUDIO_PACK" &
+RUNNER_PID=$!
+flock -u 9
+RUNNER_STATUS=0
+wait "$RUNNER_PID" || RUNNER_STATUS=$?
 
 printf "\n%b[INFO]%b WayClick stopped.\n" "${C_BLUE}" "${C_RESET}"
+exit "$RUNNER_STATUS"

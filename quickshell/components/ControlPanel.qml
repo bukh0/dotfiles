@@ -46,7 +46,10 @@ PanelWindow {
     Timer {
         id: closeDelayTimer
         interval: controlPanel.hoverCloseDelay
-        onTriggered: controlPanel.isOpen = false
+        onTriggered: {
+            if (!controlPanel.pinned && NetworkService.awaitingPasswordFor === "")
+                controlPanel.isOpen = false
+        }
     }
 
     Timer {

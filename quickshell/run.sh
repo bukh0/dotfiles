@@ -18,13 +18,14 @@ if [ ! -f "$SCRIPT_DIR/shell.qml" ] || [ ! -f "$SCRIPT_DIR/Theme.qml" ]; then
     exit 1
 fi
 
-make -C "$CONFIG_DIR/native" --silent || echo "sysmon build failed; continuing" >&2
-
 command -v quickshell >/dev/null || { echo "quickshell is not installed" >&2; exit 1; }
 mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}" "$(dirname "$PID_FILE")"
 # Serialize profile switches so concurrent reloads cannot leave two bars.
 exec 9>"${XDG_RUNTIME_DIR:-/tmp}/quickshell-${UID}.lock"
 flock -x 9
+
+# Protect the shared binary from concurrent compiler/linker writes too.
+make -C "$CONFIG_DIR/native" --silent || echo "sysmon build failed; continuing" >&2
 
 stop_existing() {
     shopt -s nullglob

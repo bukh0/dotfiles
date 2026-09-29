@@ -1,90 +1,48 @@
-/* See LICENSE file for copyright and license details. */
-
-/* interval between updates (in ms) */
+/* Catppuccin Mocha status bar for dwm's status2d renderer. */
 const unsigned int interval = 2000;
-
-/* text to show if no value can be retrieved */
-static const char unknown_str[] = "[n/a]";
-
-/* maximum output string length */
+static const char unknown_str[] = "—";
 #define MAXLEN 2048
 
-/*
- * function            description                     argument (example)
- *
- * battery_perc        battery percentage              battery name (BAT0)
- *                                                     NULL on OpenBSD/FreeBSD
- * battery_remaining   battery remaining HH:MM         battery name (BAT0)
- *                                                     NULL on OpenBSD/FreeBSD
- * battery_state       battery charging state          battery name (BAT0)
- *                                                     NULL on OpenBSD/FreeBSD
- * cat                 read arbitrary file             path
- * cpu_freq            cpu frequency in MHz            NULL
- * cpu_perc            cpu usage in percent            NULL
- * datetime            date and time                   format string (%F %T)
- * disk_free           free disk space in GB           mountpoint path (/)
- * disk_perc           disk usage in percent           mountpoint path (/)
- * disk_total          total disk space in GB          mountpoint path (/)
- * disk_used           used disk space in GB           mountpoint path (/)
- * entropy             available entropy               NULL
- * gid                 GID of current user             NULL
- * hostname            hostname                        NULL
- * ipv4                IPv4 address                    interface name (eth0)
- * ipv6                IPv6 address                    interface name (eth0)
- * kernel_release      `uname -r`                      NULL
- * keyboard_indicators caps/num lock indicators        format string (c?n?)
- *                                                     see keyboard_indicators.c
- * keymap              layout (variant) of current     NULL
- *                     keymap
- * load_avg            load average                    NULL
- * netspeed_rx         receive network speed           interface name (wlp3s0)
- * netspeed_tx         transfer network speed          interface name (wlp3s0)
- * num_files           number of files in a directory  path
- *                                                     (/home/foo/Inbox/cur)
- * ram_free            free memory in GB               NULL
- * ram_perc            memory usage in percent         NULL
- * ram_total           total memory size in GB         NULL
- * ram_used            used memory in GB               NULL
- * run_command         custom shell command            command (echo foo)
- * swap_free           free swap in GB                 NULL
- * swap_perc           swap usage in percent           NULL
- * swap_total          total swap size in GB           NULL
- * swap_used           used swap in GB                 NULL
- * temp                temperature in degree celsius   sensor file
- *                                                     (/sys/class/thermal/...)
- *                                                     NULL on OpenBSD
- *                                                     thermal zone on FreeBSD
- *                                                     (tz0, tz1, etc.)
- * uid                 UID of current user             NULL
- * up                  interface is running            interface name (eth0)
- * uptime              system uptime                   NULL
- * username            username of current user        NULL
- * vol_perc            OSS/ALSA volume in percent      mixer file (/dev/mixer)
- *                                                     NULL on OpenBSD/FreeBSD
- * wifi_essid          WiFi ESSID                      interface name (wlp3s0)
- * wifi_perc           WiFi signal in percent          interface name (wlp3s0)
- */
-/*
- * Requires:
- * 1. dwm patched with statuscolors (^c#hex^ and ^d^)
- * 2. Nerd Font installed (e.g. JetBrainsMono Nerd Font)
- */
+/* Battery colour changes for low charge; charging has its own icon. */
+static const char *
+battery_badge(const char *battery)
+{
+    static char badge[160];
+    const char *value = battery_perc(battery), *state, *icon, *colour;
+    int percent;
+
+    if (!value)
+        return "^c#6c7086^󰂑 —^d^";
+    percent = atoi(value);
+    state = battery_state(battery);
+    colour = percent <= 15 ? "#f38ba8" : percent <= 30 ? "#f9e2af" : "#a6e3a1";
+    icon = percent <= 15 ? "󰁺" : percent <= 30 ? "󰁼" :
+           percent <= 60 ? "󰁿" : percent <= 85 ? "󰂁" : "󰁹";
+    if (state && !strcmp(state, "+")) {
+        icon = "󰂄";
+        colour = "#a6e3a1";
+    }
+    snprintf(badge, sizeof badge, "^c%s^%s %d%%^d^", colour, icon, percent);
+    return badge;
+}
+
+#define RESET "^d^"
+#define SEP RESET "^f10^^c#585b70^|" RESET "^f10^"
+
 static const struct arg args[] = {
-    /* function      format                           argument */
-
-    /* Date & Time */
-    { datetime,      "^c#89b4fa^󰸗 ^d^ %s  ",           "%a %d %b" },
-    { datetime,      "^c#cba6f7^󱑎 ^d^ %s  ",           "%H:%M" },
-
-    /* Hardware: RAM */
-    { ram_perc,      "^c#585b70^│ ^d^^c#f5c2e7^ ^d^ %s%%  ", NULL },
-
-    /* Battery (Uses icon + percent) */
-    { battery_perc,  "^c#585b70^│ ^d^^c#a6e3a1^󰁹^d^ %s%%  ", "BAT0" },
-
-    /* Dynamic WiFi */
-    { run_command,   "^c#585b70^│ ^d^^c#74c7ec^󰤨 ^d^ %s  ", "ssid=$(iwgetid -r 2>/dev/null); if [ -n \"$ssid\" ]; then printf '%s' \"$ssid\"; else nmcli -t -f active,ssid dev wifi 2>/dev/null | awk -F: '$1 == \"yes\" { print $2; found=1; exit } END { if (!found) print \"Offline\" }'; fi" },
-
-    /* Bluetooth */
-    { run_command,   "^c#585b70^│ ^d^^c#89dceb^󰂯^d^ %s  ", "bluetoothctl show 2>/dev/null | grep -q '^\\s*Powered: yes' && printf 'On' || printf 'Off'" },
+    /* Compact clock and date, with a consistent divider between metrics. */
+    { datetime, "^c#89b4fa^%s" SEP, "%H:%M · %a %d/%m" },
+    { cpu_perc, "^c#cba6f7^CPU " RESET "%s%%" SEP, NULL },
+    { ram_perc, "^c#f9e2af^RAM " RESET "%s%%" SEP, NULL },
+    { battery_badge, "%s" SEP, "BAT0" },
+    /* Preserve colons in SSIDs, avoid rescans, and replace markup carets. */
+    { run_command, "^c#74c7ec^󰤨 ^c#a6adc8^%s" SEP,
+      "ssid=$(timeout 1s iwgetid -r 2>/dev/null); "
+      "if [ -z \"$ssid\" ]; then "
+      "ssid=$(timeout 1s nmcli -e no -t -f active,ssid dev wifi --rescan no 2>/dev/null "
+      "| awk 'substr($0,1,4) == \"yes:\" { print substr($0,5); exit }'); fi; "
+      "printf '%s' \"${ssid:-Offline}\" | tr '^' '?'" },
+    { run_command, "%s",
+      "if timeout 1s bluetoothctl show 2>/dev/null | grep -q '^[[:space:]]*Powered: yes'; "
+      "then printf '^c#89dceb^󰂯 On^d^'; else printf '^c#6c7086^󰂲 Off^d^'; fi" },
 };

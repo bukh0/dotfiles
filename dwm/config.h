@@ -1,45 +1,29 @@
 /* See LICENSE file for copyright and license details. */
 
-/* appearance */
-static const unsigned int borderpx  = 1;        /* border pixel of windows */
-static const unsigned int snap      = 32;       /* snap pixel */
-static const int showbar            = 1;        /* 0 means no bar */
-static const int topbar             = 1;        /* 0 means bottom bar */
-
-/* Fonts: Added Nerd Font fallback for clean glyph rendering */
+/* appearance: Catppuccin Mocha, with quiet surfaces and a blue accent */
+static const unsigned int borderpx  = 2;
+static const unsigned int snap      = 32;
+static const int showbar            = 1;
+static const int topbar             = 1;
+static const unsigned int barpadding = 10; /* extra vertical space */
+static const unsigned int sidepadding = 22; /* total horizontal text padding */
 static const char *fonts[]          = { "JetBrainsMono Nerd Font:size=10", "sans-serif:size=10" };
-static const char dmenufont[]       = "JetBrainsMono Nerd Font:size=11";
+static const char dmenufont[]        = "JetBrainsMono Nerd Font:size=11";
 
-static const char col_gray1[]       = "#1e1e2e";
+static const char col_gray1[]       = "#181825";
 static const char col_gray2[]       = "#313244";
-static const char col_gray3[]       = "#bac2de";
+static const char col_gray3[]       = "#a6adc8";
 static const char col_gray4[]       = "#cdd6f4";
-
-// ADDED COLOURS. PURE
-static const char col_black1[]      = "#000000";
-static const char col_white1[]      = "#ffffff";
-static const char col_red1[]        = "#ff0000";
-static const char col_green1[]      = "#00ff00";
-static const char col_blue1[]       = "#0000ff";
-static const char col_yellow1[]     = "#ffff00";
-static const char col_cyan1[]       = "#00ffff";
-static const char col_magenta1[]    = "#ff00ff";
 static const char col_cyan[]        = "#89b4fa";
-
-// ADDED COLOURS, LIGHTER (DIM?)
-static const char col_black2[]      = "#1e1e2e";
-static const char col_white2[]      = "#cdd6f4";
-static const char col_red2[]        = "#f38ba8";
-static const char col_green2[]      = "#a6e3a1";
-static const char col_blue2[]       = "#89b4fa";
-static const char col_yellow2[]     = "#f9e2af";
-static const char col_cyan2[]       = "#94e2d5";
-static const char col_magenta2[]    = "#cba6f7";
+static const char col_black2[]      = "#181825";
 
 static const char *colors[][3]      = {
-    /*               fg           bg          border   */
-    [SchemeNorm] = { col_gray3,   col_gray1, col_gray2 },
-    [SchemeSel]  = { col_gray4,   col_gray2, col_blue2 },
+    /*                  fg          bg          border */
+    [SchemeNorm]     = { col_gray3,  col_gray1,  col_gray2 },
+    [SchemeSel]      = { col_cyan,   "#252539",  col_cyan  },
+    [SchemeOccupied] = { col_gray4,  col_gray1,  col_gray2 },
+    [SchemeTitle]    = { col_gray4,  col_gray1,  col_gray2 },
+    [SchemeUrgent]   = { "#f38ba8",  "#302331",  "#f38ba8" },
 };
 
 /* tagging: all 9 workspaces */

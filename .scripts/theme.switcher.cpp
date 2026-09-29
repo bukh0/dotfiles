@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <unistd.h>
 #include <ctime>
+#include <filesystem>
 
 std::string escapeShellArg(const std::string& arg) {
     std::string escaped = "'";
@@ -68,9 +69,16 @@ bool runCommand(const std::string& command) {
     return std::system(command.c_str()) == 0;
 }
 
-std::string sourceName(const std::string& choice, const std::string& name) {
-    if (choice == "Matugen" && name == "gtk.css") return "gtk-3.css";
+std::string sourceName(const std::string&, const std::string& name) {
     return name;
+}
+
+std::string themeSource(const std::string& directory, const std::string& choice,
+                        const std::string& name) {
+    std::string path = directory + "/" + sourceName(choice, name);
+    if (choice == "Matugen" && name == "gtk.css" && !fileExists(path))
+        path = directory + "/gtk-3.css";
+    return path;
 }
 
 std::string makeTempFile(const std::string& prefix) {
@@ -106,15 +114,13 @@ bool atomicCopy(const std::string& src, const std::string& dest) {
     if (!fileExists(src)) return false;
     std::string tmp = makeTempFileAt(dest + ".tmp.XXXXXX");
     if (tmp.empty()) return false;
-    std::ifstream is(src.c_str(), std::ios::binary);
-    std::ofstream os(tmp.c_str(), std::ios::binary);
-    if (!is || !os) {
+    std::error_code error;
+    // copy_file reports read/write/close failures and handles empty files.
+    std::filesystem::copy_file(src, tmp, std::filesystem::copy_options::overwrite_existing, error);
+    if (error) {
         std::remove(tmp.c_str());
         return false;
     }
-    os << is.rdbuf();
-    is.close();
-    os.close();
     if (std::rename(tmp.c_str(), dest.c_str()) == 0) return true;
     std::remove(tmp.c_str());
     return false;
@@ -126,19 +132,90 @@ std::string getThumbPath(const std::string& thumbDir, const std::string& srcPath
     return thumbDir + "/" + safeName + ".jpg";
 }
 
-int main() {
+bool isFreshThumbnail(const std::string& source, const std::string& thumbnail) {
+    struct stat sourceStat, thumbnailStat;
+    return stat(source.c_str(), &sourceStat) == 0 &&
+           stat(thumbnail.c_str(), &thumbnailStat) == 0 &&
+           thumbnailStat.st_mtime >= sourceStat.st_mtime;
+}
+
+bool installMatugenOutputs(const std::string& home) {
+    const std::string config = std::getenv("XDG_CONFIG_HOME") ? std::getenv("XDG_CONFIG_HOME") : home + "/.config";
+    const std::string generated = config + "/hypr/themes/matugen/generated";
+    const std::vector<std::pair<std::string, std::string> > routes = {
+        {"rofi.rasi", config + "/rofi/colors.rasi"},
+        {"kitty.conf", config + "/kitty/theme.conf"},
+        {"waybar.css", config + "/waybar/theme.css"},
+        {"gtk.css", config + "/gtk-3.0/gtk.css"},
+        {"swaync.css", config + "/swaync/colors.css"},
+        {"hyprlock.conf", config + "/hypr/hyprlock-colors.conf"},
+        {"wlogout.css", config + "/wlogout/colors.css"},
+        {"quickshell-colors.qml", config + "/quickshell/components/Colors.qml"}
+    };
+    // Validate the whole generated set before replacing any live theme file.
+    for (const auto& route : routes) {
+        const std::string source = themeSource(generated, "Matugen", route.first);
+        std::error_code error;
+        if (!std::filesystem::is_regular_file(source, error)) {
+            std::cerr << "Error: missing Matugen output " << source << std::endl;
+            return false;
+        }
+    }
+    for (size_t i = 0; i < routes.size(); ++i) {
+        std::string source = generated + "/" + routes[i].first;
+        if (routes[i].first == "gtk.css" && !fileExists(source)) source = generated + "/gtk-3.css";
+        if (!fileExists(source)) {
+            std::cerr << "Error: missing Matugen output " << source << std::endl;
+            return false;
+        }
+        const std::string destination = routes[i].second;
+        const size_t slash = destination.find_last_of('/');
+        if (slash != std::string::npos) {
+            std::error_code error;
+            std::filesystem::create_directories(destination.substr(0, slash), error);
+            if (error) {
+                std::cerr << "Error: cannot create " << destination.substr(0, slash) << std::endl;
+                return false;
+            }
+        }
+        if (!atomicCopy(source, destination)) {
+            std::cerr << "Error: failed to install " << routes[i].first << std::endl;
+            return false;
+        }
+    }
+    return true;
+}
+
+int main(int argc, char** argv) {
     const char* homeDir = std::getenv("HOME");
     if (!homeDir) return 1;
     std::string home(homeDir);
 
-    std::string themeDir = home + "/.config/hypr/themes";
+    const std::string configDir = std::getenv("XDG_CONFIG_HOME") ? std::getenv("XDG_CONFIG_HOME") : home + "/.config";
+    std::string themeDir = configDir + "/hypr/themes";
     std::string wallRoot = home + "/Pictures/Wallpapers";
+    // Keep the historical cache location/key so existing thumbnails are reused.
     std::string thumbDir = home + "/.cache/wall-thumbs";
-    std::string rofiConf = home + "/.config/rofi/config.rasi";
-    std::string rofiWall = home + "/.config/rofi/wallpaper.rasi";
+    std::string rofiConf = configDir + "/rofi/config.rasi";
+    const std::string rofiWall = configDir + "/rofi/wallpaper.rasi";
 
-    if (!runCommand("mkdir -p " + escapeShellArg(thumbDir))) {
-        std::cerr << "Error: failed to prepare theme directories." << std::endl;
+    if (argc == 2 && std::string(argv[1]) == "--install-matugen") {
+        if (!installMatugenOutputs(home)) return 1;
+        const std::string helper = home + "/.scripts/quickshell-common.sh";
+        const std::string reload = home + "/.scripts/switch_quickshell.sh";
+        if (runCommand("bash -c 'source \"$1\" && quickshell_running' _ " + escapeShellArg(helper)))
+            runCommand(escapeShellArg(reload) + " reload");
+        return 0;
+    }
+    if (argc != 1) {
+        std::cerr << "Usage: theme.switcher [--install-matugen]" << std::endl;
+        return 2;
+    }
+
+    std::error_code dirError;
+    std::filesystem::create_directories(thumbDir, dirError);
+    if (dirError) {
+        std::cerr << "Error: failed to prepare thumbnail cache." << std::endl;
         return 1;
     }
 
@@ -174,7 +251,7 @@ int main() {
     mout << menu;
     mout.close();
 
-    runCommand("rofi -dmenu -i -p '󰃟 Theme' -config " + escapeShellArg(rofiConf) +
+    runCommand("rofi -dmenu -i -no-custom -p '󰃟 Theme' -config " + escapeShellArg(rofiConf) +
                " < " + escapeShellArg(menuFile) + " > " + escapeShellArg(choiceFile));
 
     std::ifstream cf(choiceFile.c_str());
@@ -182,11 +259,15 @@ int main() {
     std::getline(cf, choice);
     cf.close();
     
-    choice = trim(choice);
     if (choice.empty()) {
         std::remove(menuFile.c_str());
         std::remove(choiceFile.c_str());
         return 0;
+    }
+    if (choice != "Matugen" && choice != "pywal" &&
+        std::find(presets.begin(), presets.end(), choice) == presets.end()) {
+        std::cerr << "Error: Rofi returned an unknown theme." << std::endl;
+        return 1;
     }
     std::remove(menuFile.c_str());
     std::remove(choiceFile.c_str());
@@ -204,7 +285,7 @@ int main() {
                 if (hasImageExt(name)) {
                     std::string path = wallRoot + "/" + name;
                     struct stat st;
-                    if (stat(path.c_str(), &st) == 0) {
+                    if (stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
                         Wallpaper w; w.filename = name; w.fullPath = path; w.mtime = st.st_mtime;
                         wallpapers.push_back(w);
                     }
@@ -214,7 +295,7 @@ int main() {
         }
 
         if (wallpapers.empty()) {
-            system(("notify-send -a 'Theme Engine' 'No wallpapers in " + escapeShellArg(wallRoot) + "'").c_str());
+            runCommand("notify-send -a 'Theme Engine' -- " + escapeShellArg("No wallpapers in " + wallRoot));
             return 1;
         }
 
@@ -231,7 +312,9 @@ int main() {
 
         if (!thumbQueue.empty()) {
             std::string mkThumbCmd = "printf '%s\\0' " + thumbQueue + " | xargs -0 -n1 -P\"$(nproc)\" bash -c 'REPLY=\"" + thumbDir + "/${1//\\//+}.jpg\"; magick -limit thread 1 -define jpeg:size=1280x720 \"$1[0]\" -thumbnail 640x -strip -quality 85 \"jpg:$REPLY.part\" 2>/dev/null && mv -f \"$REPLY.part\" \"$REPLY\"' _";
-            system(mkThumbCmd.c_str());
+            // Generate cache misses asynchronously. Rofi opens immediately and
+            // reuses these thumbnails the next time the picker runs.
+            system((mkThumbCmd + " </dev/null >/dev/null 2>&1 &").c_str());
         }
 
         std::string wallMenuFile = makeTempFile("quickshell-wall-menu.");
@@ -244,11 +327,15 @@ int main() {
 
         std::ofstream wout(wallMenuFile.c_str());
         for (size_t i = 0; i < wallpapers.size(); ++i) {
-            wout << wallpapers[i].filename << '\0' << "icon\x1f" << getThumbPath(thumbDir, wallpapers[i].fullPath) << '\n';
+            wout << wallpapers[i].filename;
+            const std::string thumb = getThumbPath(thumbDir, wallpapers[i].fullPath);
+            if (isFreshThumbnail(wallpapers[i].fullPath, thumb))
+                wout << '\0' << "icon\x1f" << thumb;
+            wout << '\n';
         }
         wout.close();
 
-        runCommand("rofi -dmenu -i -show-icons -theme " + escapeShellArg(rofiWall) +
+        runCommand("rofi -dmenu -i -no-custom -show-icons -theme " + escapeShellArg(rofiWall) +
                    " -p ' Wallpaper' < " + escapeShellArg(wallMenuFile) +
                    " > " + escapeShellArg(wallChoiceFile));
 
@@ -257,7 +344,6 @@ int main() {
         std::getline(wf, selectedWall);
         wf.close();
         
-        selectedWall = trim(selectedWall);
         std::remove(wallMenuFile.c_str());
         std::remove(wallChoiceFile.c_str());
         if (selectedWall.empty()) return 0;
@@ -282,7 +368,7 @@ int main() {
     }
 
     if (!fullPath.empty() && fileExists(fullPath)) {
-        system(("swww img " + escapeShellArg(fullPath) + " --transition-type center --transition-fps 60 --transition-duration 0.8 &>/dev/null &").c_str());
+        system(("swww img " + escapeShellArg(fullPath) + " --transition-type center --transition-fps 60 --transition-duration 0.8 >/dev/null 2>&1 &").c_str());
     }
 
     if (choice == "Matugen") {
@@ -294,8 +380,10 @@ int main() {
             return 1;
         }
     } else if (choice == "pywal") {
-        srcDir = home + "/.cache/wal";
-        std::string thumbTarget = fileExists(getThumbPath(thumbDir, fullPath)) ? getThumbPath(thumbDir, fullPath) : fullPath;
+        const char* cacheEnv = std::getenv("XDG_CACHE_HOME");
+        srcDir = (cacheEnv ? cacheEnv : home + "/.cache") + std::string("/wal");
+        const std::string cachedThumb = getThumbPath(thumbDir, fullPath);
+        std::string thumbTarget = isFreshThumbnail(fullPath, cachedThumb) ? cachedThumb : fullPath;
         if (!runCommand("wal --backend colorthief -i " + escapeShellArg(thumbTarget) + " -n -e -s -t -q")) {
             std::cerr << "Error: theme generation failed." << std::endl;
             return 1;
@@ -305,17 +393,21 @@ int main() {
     }
 
     std::vector<std::pair<std::string, std::string> > routes;
-    routes.push_back(std::make_pair("rofi.rasi", home + "/.config/rofi/colors.rasi"));
-    routes.push_back(std::make_pair("kitty.conf", home + "/.config/kitty/theme.conf"));
-    routes.push_back(std::make_pair("waybar.css", home + "/.config/waybar/theme.css"));
-    routes.push_back(std::make_pair("gtk.css", home + "/.config/gtk-3.0/gtk.css"));
-    routes.push_back(std::make_pair("swaync.css", home + "/.config/swaync/colors.css"));
-    routes.push_back(std::make_pair("hyprlock.conf", home + "/.config/hypr/hyprlock-colors.conf"));
-    routes.push_back(std::make_pair("wlogout.css", home + "/.config/wlogout/colors.css"));
-    routes.push_back(std::make_pair("quickshell-colors.qml", home + "/.config/quickshell/shared/Colors.qml"));
+    routes.push_back(std::make_pair("rofi.rasi", configDir + "/rofi/colors.rasi"));
+    routes.push_back(std::make_pair("kitty.conf", configDir + "/kitty/theme.conf"));
+    routes.push_back(std::make_pair("waybar.css", configDir + "/waybar/theme.css"));
+    routes.push_back(std::make_pair("gtk.css", configDir + "/gtk-3.0/gtk.css"));
+    routes.push_back(std::make_pair("swaync.css", configDir + "/swaync/colors.css"));
+    routes.push_back(std::make_pair("hyprlock.conf", configDir + "/hypr/hyprlock-colors.conf"));
+    routes.push_back(std::make_pair("wlogout.css", configDir + "/wlogout/colors.css"));
+    routes.push_back(std::make_pair("quickshell-colors.qml", configDir + "/quickshell/components/Colors.qml"));
+    const std::string discordSource = srcDir + "/midnight-discord.css";
+    if (fileExists(discordSource))
+        routes.push_back(std::make_pair("midnight-discord.css", configDir + "/vesktop/themes/midnight-discord.css"));
 
     for (size_t i = 0; i < routes.size(); ++i) {
-        std::string source = srcDir + "/" + sourceName(choice, routes[i].first);
+        std::string source = themeSource(srcDir, choice, routes[i].first);
+        if (routes[i].first == "midnight-discord.css") source = discordSource;
         if (!fileExists(source)) {
             std::cerr << "Error: missing theme output " << source << std::endl;
             return 1;
@@ -337,7 +429,8 @@ int main() {
     std::vector<bool> hadDestination(routes.size(), false);
     std::vector<bool> touched(routes.size(), false);
     for (size_t i = 0; i < routes.size(); ++i) {
-        std::string source = srcDir + "/" + sourceName(choice, routes[i].first);
+        std::string source = themeSource(srcDir, choice, routes[i].first);
+        if (routes[i].first == "midnight-discord.css") source = discordSource;
         if (fileExists(routes[i].second)) {
             hadDestination[i] = true;
             if (!atomicCopy(routes[i].second, backupDir + "/" + toStr(i))) {
@@ -352,7 +445,8 @@ int main() {
     }
 
     for (size_t i = 0; i < routes.size(); ++i) {
-        std::string source = srcDir + "/" + sourceName(choice, routes[i].first);
+        std::string source = themeSource(srcDir, choice, routes[i].first);
+        if (routes[i].first == "midnight-discord.css") source = discordSource;
         if (!atomicCopy(source, routes[i].second)) {
             std::cerr << "Error: failed to install " << routes[i].first << std::endl;
             for (size_t j = 0; j <= i; ++j) {
@@ -373,12 +467,14 @@ int main() {
         std::remove((backupDir + "/" + toStr(i)).c_str());
     rmdir(backupDir.c_str());
 
-    system("pkill -USR1 -x kitty");
-    system("pkill -USR2 -x waybar");
-    system("pkill -0 swaync && swaync-client -rs &>/dev/null &");
-    if (!runCommand("\"" + home + "/.scripts/switch_quickshell.sh\" reload")) {
-        std::cerr << "Warning: Quickshell reload failed." << std::endl;
-        return 1;
+    system("pkill -USR1 -x kitty 2>/dev/null || true");
+    system("pkill -USR2 -x waybar 2>/dev/null || true");
+    system("pgrep -x swaync >/dev/null && swaync-client -rs >/dev/null 2>&1 &");
+    const std::string quickshellHelper = home + "/.scripts/quickshell-common.sh";
+    if (runCommand("bash -c 'source \"$1\" && quickshell_running' _ " + escapeShellArg(quickshellHelper))) {
+        const std::string switcher = home + "/.scripts/switch_quickshell.sh";
+        if (!runCommand(escapeShellArg(switcher) + " reload"))
+            std::cerr << "Warning: Quickshell reload failed." << std::endl;
     }
 
     std::string notifyCmd = "notify-send -a 'Theme Engine' " + escapeShellArg("Theme updated to " + choice);

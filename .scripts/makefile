@@ -1,32 +1,22 @@
-# Compiler & Flags
-CXX = g++
-CXXFLAGS = -std=c++98 -O3 -Wall -Wextra -Werror
-
-# Paths
-HOME_DIR = $(HOME)
-QS_DIR = $(HOME_DIR)/.config/quickshell
-QS_SHARED_DIR = $(QS_DIR)/shared
-
-# Binaries to generate
-TARGETS = theme.switcher sysmon wallpick
-
-all: $(TARGETS)
-
-# 1. Compile Theme Switcher
-theme.switcher: theme.switcher.cpp
-	$(CXX) $(CXXFLAGS) -o $@ $<
-
-# 2. Compile Wallpick (Only if the file exists)
-wallpick: wallpick.cpp
-	$(CXX) $(CXXFLAGS) -o $@ $<
-
-# 3. Compile standard sysmon daemon
-sysmon: $(QS_SHARED_DIR)/sysmon.cpp
-	$(CXX) $(CXXFLAGS) -o $(QS_SHARED_DIR)/sysmon $<
-
-# Clean compiled binaries
-clean:
-	rm -f theme.switcher wallpick
-	rm -f $(QS_SHARED_DIR)/sysmon
+CXX ?= g++
+CXXFLAGS ?= -std=c++17 -O3 -Wall -Wextra -Wpedantic -Werror
+LDFLAGS ?=
+QS_DIR ?= $(if $(XDG_CONFIG_HOME),$(XDG_CONFIG_HOME),$(HOME)/.config)/quickshell
+TARGETS = theme.switcher wallpick sysmon
 
 .PHONY: all clean
+all: $(TARGETS)
+
+theme.switcher: theme.switcher.cpp
+	$(CXX) $(CXXFLAGS) -MMD -MP -MF $@.d -MT $@ $(LDFLAGS) -o $@ $<
+
+wallpick: wallpick.cpp
+	$(CXX) $(CXXFLAGS) -MMD -MP -MF $@.d -MT $@ $(LDFLAGS) -o $@ $<
+
+sysmon: $(QS_DIR)/native/sysmon.cpp
+	$(CXX) $(CXXFLAGS) -MMD -MP -MF $@.d -MT $@ $(LDFLAGS) -o $@ $<
+
+clean:
+	rm -f $(TARGETS) theme.switcher.d wallpick.d sysmon.d
+
+-include theme.switcher.d wallpick.d sysmon.d

@@ -40,7 +40,9 @@ int main(int argc, char* argv[]) {
     std::string tempPath = (argc > 1) ? argv[1] : "";
     std::string cpuModel = getCpuModel();
     const char* homeDir = std::getenv("HOME");
-    std::string perfPath = homeDir ? std::string(homeDir) + "/.cache/perf-mode" : "";
+    const char* cacheDir = std::getenv("XDG_CACHE_HOME");
+    std::string perfPath = cacheDir && *cacheDir ? std::string(cacheDir) + "/perf-mode"
+        : homeDir ? std::string(homeDir) + "/.cache/perf-mode" : "";
 
     std::uint64_t lastIdle = 0, lastTotal = 0;
     std::uint64_t lastRx = 0, lastTx = 0;
