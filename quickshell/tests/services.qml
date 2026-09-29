@@ -14,7 +14,8 @@ ShellRoot {
         if (!condition) throw new Error(message)
     }
     Window { id: scene; width: 800; height: 600; visible: true }
-    Config.NotificationPopup { id: popup; parent: scene.contentItem }
+    // Keep the synthetic pointer outside the popup so hover does not pause timers.
+    Config.NotificationPopup { id: popup; parent: scene.contentItem; x: scene.width + 10 }
     Config.BatteryIndicator { id: battery; parent: scene.contentItem }
     Config.ControlPanel { id: panel; parent: scene.contentItem; width: 800; height: 600; isOpen: true; pinned: true }
     function descendants(item) {
@@ -87,6 +88,32 @@ ShellRoot {
                     break
                 case 3:
                     check(!popup.isVisible, "timed notification did not expire")
+                    popup.dismissAll()
+                    popup.persistentDisplayDuration = 100
+                    popup.showNotification({notifId: 70, summary: "persistent", expireTimeout: 0})
+                    popup.showNotification({notifId: 71, summary: "queued", expireTimeout: -1})
+                    popup.showNotification({notifId: 71, summary: "promoted to critical", urgency: 2, expireTimeout: 0})
+                    check(popup.notificationData.notifId === 71, "critical alert was blocked by persistent popup")
+                    check(popup._queue.length === 0, "critical replacement stayed duplicated in queue")
+                    check(popup.displayDuration === 0, "critical alert acquired expiration timeout")
+                    popup.showNotification({notifId: 72, summary: "ordinary successor", expireTimeout: 5000})
+                    break
+                case 4:
+                    check(popup.notificationData.notifId === 72, "persistent alert starved queued notification")
+                    popup.persistentDisplayDuration = 2000
+                    popup.showNotification({notifId: 73, summary: "waiting", expireTimeout: 5000})
+                    popup.dismiss()  // schedules advanceTimer
+                    popup.showNotification({notifId: 74, summary: "interrupt during fade", urgency: 2, expireTimeout: 0})
+                    check(popup.notificationData.notifId === 74, "urgent alert failed during fade")
+                    break
+                case 5:
+                    check(popup.notificationData.notifId === 74, "old advance timer overwrote critical alert")
+                    check(popup._queue.length === 1 && popup._queue[0].notifId === 73, "preemption lost queued alert")
+                    popup.dismiss()
+                    break
+                case 6:
+                    check(popup.notificationData.notifId === 73, "queue failed to resume after critical dismissal")
+                    popup.dismissAll()
                     console.log("REGRESSION PASS: services")
                     Qt.quit()
                 }

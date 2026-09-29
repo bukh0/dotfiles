@@ -105,7 +105,14 @@ PanelWindow {
             onClicked: controlPanel.isOpen = false
         }
 
-        Keys.onEscapePressed: controlPanel.isOpen = false
+        // A window shortcut also receives Escape while a child text field
+        // owns focus; a Keys handler on this sibling background does not.
+        Shortcut {
+            sequence: "Escape"
+            context: Qt.WindowShortcut
+            enabled: controlPanel.isOpen
+            onActivated: controlPanel.isOpen = false
+        }
     }
 
     Rectangle {

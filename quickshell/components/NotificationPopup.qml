@@ -13,6 +13,9 @@ PanelWindow {
 
     property var _queue: []
     property int maxQueueLength: 20
+    // Persistent notifications stay in history, but must not monopolize the
+    // one popup slot when other notifications are waiting.
+    property int persistentDisplayDuration: 4000
 
     property string uiFont: Theme.fontUI
     property string iconFont: Theme.fontMono
@@ -44,6 +47,21 @@ PanelWindow {
         id: advanceTimer
         interval: 220
         onTriggered: popup._advanceQueue()
+    }
+
+    Timer {
+        id: yieldTimer
+        interval: popup.persistentDisplayDuration
+        onTriggered: popup._advanceQueue()
+    }
+
+    on_QueueChanged: _scheduleYield()
+
+    function _scheduleYield() {
+        if (!popup.isVisible || popup.displayDuration !== 0 || popup._queue.length === 0 || popupHover.hovered)
+            yieldTimer.stop()
+        else if (!yieldTimer.running)
+            yieldTimer.start()
     }
 
     onIsVisibleChanged: {
@@ -78,10 +96,17 @@ PanelWindow {
         if (popup._queue.length === 0) return
         const next = popup._queue[0]
         popup._queue = popup._queue.slice(1)
-        popup.displayDuration = _durationFor(next)
-        popup.notificationData = next
+        popup._show(next)
+    }
+
+    function _show(data) {
+        advanceTimer.stop()
+        yieldTimer.stop()
+        popup.displayDuration = _durationFor(data)
+        popup.notificationData = data
         popup.isVisible = true
         restartTimeout()
+        _scheduleYield()
     }
 
     function showNotification(data) {
@@ -89,6 +114,14 @@ PanelWindow {
             popup.notificationData = data
             popup.displayDuration = _durationFor(data)
             restartTimeout()
+            _scheduleYield()
+            return
+        }
+        // Urgent alerts interrupt immediately, including queued replacements
+        // promoted to critical. The previous alert remains in the drawer.
+        if (data.urgency === NotificationUrgency.Critical) {
+            popup._queue = popup._queue.filter(item => item.notifId !== data.notifId)
+            popup._show(data)
             return
         }
         const queuedIndex = popup._queue.findIndex(item => item.notifId === data.notifId)
@@ -102,19 +135,18 @@ PanelWindow {
             popup._queue = popup._queue.concat([data]).slice(-popup.maxQueueLength)
             return
         }
-        popup.displayDuration = _durationFor(data)
-        popup.notificationData = data
-        popup.isVisible = true
-        restartTimeout()
+        popup._show(data)
     }
 
     function dismiss() {
         hideTimer.stop()
+        yieldTimer.stop()
         popup.isVisible = false
     }
 
     function dismissAll() {
         advanceTimer.stop()
+        yieldTimer.stop()
         popup._queue = []
         popup.isVisible = false
         hideTimer.stop()
@@ -248,9 +280,15 @@ PanelWindow {
         }
 
         HoverHandler {
+            id: popupHover
             onHoveredChanged: {
-                if (hovered) hideTimer.stop()
-                else if (popup.isVisible) popup.restartTimeout()
+                if (hovered) {
+                    hideTimer.stop()
+                    yieldTimer.stop()
+                } else if (popup.isVisible) {
+                    popup.restartTimeout()
+                    popup._scheduleYield()
+                }
             }
         }
 

@@ -27,6 +27,30 @@ flock -x 9
 # Protect the shared binary from concurrent compiler/linker writes too.
 make -C "$CONFIG_DIR/native" --silent || echo "sysmon build failed; continuing" >&2
 
+is_profile_process() {
+    local pid="$1" expected="$2" i candidate
+    local -a args=()
+    [[ "$pid" =~ ^[0-9]+$ && -r /proc/$pid/cmdline ]] || return 1
+    mapfile -d '' -t args < "/proc/$pid/cmdline" || return 1
+    # Also allow an interpreted quickshell wrapper, as used by the tests.
+    local program="${args[0]:-}"
+    [[ "${program##*/}" == quickshell || "${args[1]:-}" == */quickshell ]] || return 1
+    expected=$(realpath -m -- "$expected") || return 1
+    for ((i=1; i<${#args[@]}; i++)); do
+        case "${args[i]}" in
+            -p|--path) candidate="${args[i+1]:-}" ;;
+            --path=*) candidate="${args[i]#--path=}" ;;
+            *) continue ;;
+        esac
+        [[ -n "$candidate" ]] || return 1
+        # Interpret relative config paths in the process's working directory.
+        [[ "$candidate" == /* ]] || candidate="/proc/$pid/cwd/$candidate"
+        [[ "${candidate##*/}" != shell.qml ]] || candidate="${candidate%/*}"
+        [[ "$(realpath -m -- "$candidate")" == "$expected" ]] && return 0
+    done
+    return 1
+}
+
 stop_existing() {
     shopt -s nullglob
     local pid_files=("${XDG_RUNTIME_DIR:-/tmp}"/quickshell-"${UID}"-*.pid)
@@ -35,11 +59,13 @@ stop_existing() {
     local pf
     for pf in "${pid_files[@]}"; do
         [ -r "$pf" ] || continue
-        local old_pid
+        local old_pid profile
         old_pid="$(cat "$pf")"
-        if [[ "$old_pid" =~ ^[0-9]+$ ]] &&
-           [ -r "/proc/$old_pid/cmdline" ] &&
-           tr '\0' ' ' < "/proc/$old_pid/cmdline" | grep -qE '(^|/)quickshell([[:space:]]|$)'; then
+        profile="${pf##*/}"
+        profile="${profile#quickshell-${UID}-}"
+        profile="${profile%.pid}"
+        case "$profile" in ''|.|..|*[!A-Za-z0-9._-]*) continue ;; esac
+        if is_profile_process "$old_pid" "$CONFIG_DIR/profiles/$profile"; then
             kill "$old_pid" 2>/dev/null || true
             for _ in {1..30}; do
                 kill -0 "$old_pid" 2>/dev/null || break

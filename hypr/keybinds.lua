@@ -52,8 +52,8 @@ hl.bind(mod .. " + ALT + 9", hl.dsp.exec_cmd("~/.scripts/toggle_quickshell-alt.s
 hl.bind(mod .. " + ALT + 0", hl.dsp.exec_cmd("~/.scripts/switch_quickshell.sh"))
 
 -- Audio & Brightness
-hl.bind("XF86AudioRaiseVolume",  hl.dsp.exec_cmd("swayosd-client --output-volume raise"), { locked = true})
-hl.bind("XF86AudioLowerVolume",  hl.dsp.exec_cmd("swayosd-client --output-volume lower"), {locked = true})
+hl.bind("XF86AudioRaiseVolume",  hl.dsp.exec_cmd("swayosd-client --output-volume raise"), { locked = true, repeating = true })
+hl.bind("XF86AudioLowerVolume",  hl.dsp.exec_cmd("swayosd-client --output-volume lower"), {locked = true, repeating = true})
 hl.bind("XF86AudioMute",    hl.dsp.exec_cmd("/usr/local/bin/mute-toggle.sh"),    { locked = true })
 hl.bind("XF86AudioMicMute", hl.dsp.exec_cmd("/usr/local/bin/micmute-toggle.sh"), { locked = true })
 hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("swayosd-client --brightness raise"), {locked = true})
