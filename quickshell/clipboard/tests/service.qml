@@ -28,9 +28,13 @@ ShellRoot {
             }
             if (step === 12) {
                 if (!service.error || service.copies) throw new Error("Copy failure closed the popup")
+                service.refresh()
+            }
+            if (step === 14) {
+                if (service.error) throw new Error("Successful refresh left stale error banner")
                 service.choose("2", false)
             }
-            if (step === 15) {
+            if (step === 18) {
                 if (service.error || service.copies !== 1) throw new Error("Copy recovery failed")
                 console.log("CLIPBOARD SERVICE PASS")
                 Qt.quit()

@@ -37,10 +37,11 @@ PanelWindow {
     }
 
     mask: Region {
-        x: 0
-        y: controlPanel.barHeight
-        width: controlPanel.isOpen ? controlPanel.width : 0
-        height: controlPanel.isOpen ? controlPanel.height - controlPanel.barHeight : 0
+        readonly property bool full: controlPanel.pinned || NetworkService.awaitingPasswordFor !== ""
+        x: full ? 0 : drawerBg.x
+        y: full ? controlPanel.barHeight : drawerBg.y
+        width: !controlPanel.isOpen ? 0 : full ? controlPanel.width : drawerBg.width
+        height: !controlPanel.isOpen ? 0 : full ? controlPanel.height - controlPanel.barHeight : drawerBg.height
     }
 
     Timer {
@@ -124,6 +125,10 @@ PanelWindow {
         x: (parent.width - width) / 2
         y: controlPanel.isOpen ? controlPanel.openY : controlPanel.closedY
 
+        Behavior on height {
+            enabled: controlPanel.isOpen
+            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+        }
         Behavior on y {
             NumberAnimation { duration: controlPanel.slideDuration; easing.type: Easing.OutQuart }
         }

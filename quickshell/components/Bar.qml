@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import Quickshell.Io
 import "."
@@ -49,6 +50,31 @@ PanelWindow {
         }
     }
 
+    readonly property string activeTitle: {
+        if (!ToplevelManager.activeToplevel || !Hyprland.focusedMonitor || !root.screen || Hyprland.focusedMonitor.name !== root.screen.name) return ""
+        const raw = ToplevelManager.activeToplevel.title || ""
+        return raw.split(" — ").pop().trim() || raw
+    }
+
+    component ClockInteraction: MouseArea {
+        id: interaction
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        Timer {
+            id: openDelay
+            interval: 120
+            onTriggered: if (interaction.containsMouse && !controlPanel.pinned) controlPanel.beginHoverOpen()
+        }
+        onEntered: openDelay.restart()
+        onExited: { openDelay.stop(); if (!controlPanel.pinned) controlPanel.scheduleHoverClose() }
+        onClicked: {
+            openDelay.stop()
+            controlPanel.pinned = !controlPanel.pinned
+            controlPanel.isOpen = controlPanel.pinned
+        }
+    }
+
     Component {
         id: floatingBarComponent
 
@@ -77,13 +103,7 @@ PanelWindow {
                         color: Colors.surfaceFg
                         font.pixelSize: 13
                         font.weight: Font.Normal
-                        text: {
-                            if (!ToplevelManager.activeToplevel) return ""
-                            const raw = ToplevelManager.activeToplevel.title || ""
-                            const parts = raw.split(" — ")
-                            const name = parts[parts.length - 1].trim()
-                            return name || raw
-                        }
+                        text: root.activeTitle
                         visible: text !== ""
                         Layout.leftMargin: 12
                         Layout.maximumWidth: 350
@@ -107,18 +127,7 @@ PanelWindow {
                     Clock {}
                 }
 
-                MouseArea {
-                    id: centerMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onEntered: if (!controlPanel.pinned) controlPanel.beginHoverOpen()
-                    onExited: if (!controlPanel.pinned) controlPanel.scheduleHoverClose()
-                    onClicked: {
-                        controlPanel.pinned = !controlPanel.pinned
-                        controlPanel.isOpen = controlPanel.pinned
-                    }
-                }
+                ClockInteraction { id: centerMa }
             }
 
             Rectangle {
@@ -167,13 +176,7 @@ PanelWindow {
                     font.pixelSize: Theme.fontSizeBase
                     font.family: Theme.fontMono
                     font.weight: Font.Medium
-                    text: {
-                        if (!ToplevelManager.activeToplevel) return ""
-                        const raw = ToplevelManager.activeToplevel.title || ""
-                        const parts = raw.split(" — ")
-                        const name = parts[parts.length - 1].trim()
-                        return name || raw
-                    }
+                    text: root.activeTitle
                     visible: text !== ""
                     Layout.maximumWidth: 280
                     elide: Text.ElideRight
@@ -190,17 +193,7 @@ PanelWindow {
                     anchors.fill: parent
                 }
 
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onEntered: if (!controlPanel.pinned) controlPanel.beginHoverOpen()
-                    onExited: if (!controlPanel.pinned) controlPanel.scheduleHoverClose()
-                    onClicked: {
-                        controlPanel.pinned = !controlPanel.pinned
-                        controlPanel.isOpen = controlPanel.pinned
-                    }
-                }
+                ClockInteraction {}
             }
 
             RowLayout {

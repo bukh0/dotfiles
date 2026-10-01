@@ -27,9 +27,8 @@ ShellRoot {
         onPasted: Qt.quit()
         onErrorChanged: {
             if (root.closing && error) {
-                root.closing = false
-                window.visible = true
-                Qt.callLater(() => content.focusSearch())
+                Quickshell.execDetached(["notify-send", "-a", "Clipboard", "--", "Clipboard", error])
+                Qt.quit()
             }
         }
     }

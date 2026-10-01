@@ -11,8 +11,21 @@ QtObject {
     property ListModel notificationModel: ListModel {}
 
     property bool isDrawerOpen: false
+    property bool drawerPinned: false
+    property bool doNotDisturb: false
+    property int actionRevision: 0
+    onIsDrawerOpenChanged: if (!isDrawerOpen) { drawerPinned = false; surfaceScreen = null }
+    onDoNotDisturbChanged: {
+        _dndStore.setText(doNotDisturb ? "1\n" : "0\n")
+        if (doNotDisturb) root.dismissPopup()
+    }
     property var surfaceScreen: null
     property int hoverCloseDelay: 300
+
+    property FileView _dndStore: FileView {
+        path: (Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")) + "/quickshell_dnd"
+        onLoaded: root.doNotDisturb = text().trim() === "1"
+    }
 
     property int maxNotifications: 50
 
@@ -39,7 +52,7 @@ QtObject {
     }
 
     function scheduleHoverClose() {
-        closeTimer.restart()
+        if (!drawerPinned) closeTimer.restart()
     }
 
     function cancelHoverClose() {
@@ -48,7 +61,16 @@ QtObject {
 
     function toggleDrawer() {
         closeTimer.stop()
-        isDrawerOpen = !isDrawerOpen
+        if (isDrawerOpen && drawerPinned) isDrawerOpen = false
+        else { drawerPinned = true; isDrawerOpen = true }
+    }
+
+    function toggleDnd() {
+        doNotDisturb = !doNotDisturb
+    }
+
+    function setDnd(enabled) {
+        doNotDisturb = !!enabled
     }
 
     function _closeById(id) {
@@ -64,7 +86,9 @@ QtObject {
     }
 
     function _forgetLocalId(id) {
+        if (!Object.values(root._serverIds).includes(id)) return
         root.notificationRemoved(id)
+        root.actionRevision++
         delete root._closers[id]
         for (const serverId in root._serverIds) {
             if (root._serverIds[serverId] === id) {
@@ -100,6 +124,26 @@ QtObject {
         }
     }
 
+    function actionsFor(id) {
+        const revision = root.actionRevision
+        for (const serverId in root._serverIds) {
+            if (root._serverIds[serverId] === id) {
+                const notif = root._serverObjects[serverId]
+                return notif ? Array.from(notif.actions).map(a => ({text: a.text})) : []
+            }
+        }
+        return []
+    }
+
+    function invokeAction(id, index) {
+        for (const serverId in root._serverIds) {
+            if (root._serverIds[serverId] !== id) continue
+            const notif = root._serverObjects[serverId]
+            if (notif && index >= 0 && index < notif.actions.length) notif.actions[index].invoke()
+            return
+        }
+    }
+
     function getIconSource(data) {
         if (!data) return ""
         if (data.image) {
@@ -117,6 +161,7 @@ QtObject {
     }
 
     property NotificationServer server: NotificationServer {
+        actionsSupported: true
         bodySupported: true
         bodyMarkupSupported: true
         imageSupported: true
@@ -133,8 +178,9 @@ QtObject {
                 time: new Date(),
                 appIcon: notif.appIcon || "",
                 image: notif.image || "",
-                urgency: notif.urgency,
+                urgency: Number(notif.urgency),
                 expireTimeout: notif.expireTimeout,
+                actions: Array.from(notif.actions).map(a => ({text: a.text})),
                 close: () => {
                     try {
                         // Notification has no close(); dismiss() is the
@@ -149,6 +195,7 @@ QtObject {
             root._closers[id] = data.close
             root._serverIds[notif.id] = id
             root._serverObjects[notif.id] = notif
+            root.actionRevision++
 
             const row = {
                 notifId: id,
@@ -156,6 +203,8 @@ QtObject {
                 summary: data.summary,
                 body: data.body.replace(/<img\b[^>]*>/gi, ""),
                 timeText: Qt.formatTime(data.time, "hh:mm"),
+                timestamp: data.time.getTime(),
+                urgency: data.urgency,
                 iconSource: root.getIconSource(data)
             }
             if (existingId) {
@@ -180,7 +229,8 @@ QtObject {
                 root._forgetLocalId(overflowId)
             }
 
-            root.newNotification(Object.assign(data, { notifId: id }))
+            if (!root.doNotDisturb || data.urgency === NotificationUrgency.Critical)
+                root.newNotification(Object.assign(data, { notifId: id }))
 
             if (alreadyConnected) return
             notif.closed.connect(() => {
@@ -203,6 +253,14 @@ QtObject {
             if (root.notificationModel.count > 0)
                 root.closeNotification(0)
             root.dismissPopup()
+        }
+
+        function toggleDnd() {
+            root.toggleDnd()
+        }
+
+        function setDnd(enabled: bool) {
+            root.setDnd(enabled)
         }
     }
 }

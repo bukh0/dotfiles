@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Small byte-safe cliphist bridge. Clipboard content never enters a shell command."""
 import base64
+import codecs
 import json
 import os
 from pathlib import Path
@@ -87,10 +88,23 @@ def preview(entry_id):
         mime = image_type(head)
         stream.seek(0)
         if mime:
-            # Keep large images out of QML/JSON; they can still be copied intact.
-            if size > 12 * 1024 * 1024:
-                return {"image": "", "text": "Image is too large to preview. You can still copy or paste it.", "size": size, "mime": mime}
-            return {"image": f"data:{mime};base64," + base64.b64encode(stream.read()).decode(), "text": "", "size": size, "mime": mime}
+            # Bound the JSON payload; copying still reads the untouched original.
+            if size <= 256 * 1024:
+                return {"image": f"data:{mime};base64," + base64.b64encode(stream.read()).decode(), "text": "", "size": size, "mime": mime}
+            try:
+                with tempfile.TemporaryDirectory(prefix="qs-clipboard-preview-") as directory:
+                    target = Path(directory) / "preview.jpg"
+                    run(["vipsthumbnail", "--vips-concurrency=1", "--size", "1024x768>",
+                         "--path", str(target).replace("%", "%%") + "[Q=80,keep=none]", "--",
+                         f"/proc/self/fd/{stream.fileno()}"],
+                        pass_fds=(stream.fileno(),), stdout=subprocess.DEVNULL)
+                    with target.open("rb") as thumbnail:
+                        data = thumbnail.read(512 * 1024 + 1)
+                    if len(data) > 512 * 1024:
+                        raise RuntimeError("Preview exceeds payload limit")
+                return {"image": "data:image/jpeg;base64," + base64.b64encode(data).decode(), "text": "", "size": size, "mime": mime}
+            except (RuntimeError, OSError):
+                return {"image": "", "text": "Image preview unavailable. You can still copy or paste it.", "size": size, "mime": mime}
         data = stream.read(32768)
         try:
             value = data.decode("utf-8")
@@ -107,6 +121,21 @@ def copy(entry_id):
     with tempfile.TemporaryFile(buffering=0) as stream:
         decode(entry_id, stream)
         mime = image_type(stream.read(32))
+        if not mime:
+            # Validate incrementally: preserve binary data and avoid a second
+            # full-size allocation for large text entries.
+            stream.seek(0)
+            decoder = codecs.getincrementaldecoder("utf-8")()
+            try:
+                while chunk := stream.read(65536):
+                    if b"\0" in chunk:
+                        break
+                    decoder.decode(chunk)
+                else:
+                    decoder.decode(b"", final=True)
+                    mime = "text/plain;charset=utf-8"
+            except UnicodeDecodeError:
+                pass
         stream.seek(0)
         args = ["wl-copy"] + (["--type", mime] if mime else [])
         # The background Wayland owner retains stderr after the parent exits.

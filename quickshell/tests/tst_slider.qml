@@ -17,6 +17,17 @@ Item {
     TestCase {
         name: "Slider"
         when: windowShown
+        function test_wheelMapping() {
+            const track = slider.children[1]
+            slider.value = 0.5
+            mouseWheel(track, track.width / 2, track.height / 2, 0, 120)
+            fuzzyCompare(slider.value, 0.55, 0.001)
+            mouseWheel(track, track.width / 2, track.height / 2, 0, 0)
+            fuzzyCompare(slider.value, 0.55, 0.001)
+            slider.value = slider.minValue
+            mouseWheel(track, track.width / 2, track.height / 2, 0, -120)
+            compare(slider.value, slider.minValue)
+        }
         function test_pointerMapping() {
             const track = slider.children[1]
             mousePress(track, track.width / 2, track.height / 2)

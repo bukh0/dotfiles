@@ -74,7 +74,7 @@ plugins=(
 	git 
 	zsh-autosuggestions
 	zsh-syntax-highlighting
-  zsh-vi-mode
+  # zsh-vi-mode
 )
 # Plugin Edit
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=6'

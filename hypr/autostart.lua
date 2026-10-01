@@ -18,5 +18,5 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("wlsunset -l -25.74 -L 28.18 -t 4500 -T 6500 &")
 
   -- Clipboard history (guard on wl-paste: cliphist itself is short-lived)
-  hl.exec_cmd("pidof wl-paste || (wl-paste --type text --watch cliphist store & wl-paste --type image --watch cliphist store &)")
+  hl.exec_cmd("pidof wl-paste || (wl-paste --type text --watch ~/.scripts/clipboard-store.sh & wl-paste --type image --watch ~/.scripts/clipboard-store.sh &)")
 end)

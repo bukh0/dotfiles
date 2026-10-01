@@ -11,8 +11,12 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def run(command, env, marker=None):
-    result = subprocess.run(command, env=env, text=True, stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT, timeout=25)
+    try:
+        result = subprocess.run(command, env=env, text=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, timeout=25)
+    except subprocess.TimeoutExpired as error:
+        print(error.stdout.decode() if isinstance(error.stdout, bytes) else error.stdout, flush=True)
+        raise
     print(result.stdout, end="")
     if result.returncode or (marker and marker not in result.stdout):
         raise SystemExit(f"Failed: {command}")
@@ -66,17 +70,26 @@ elif "set" in sys.argv:
     (profile / "qmldir").write_text("singleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton BrightnessService 1.0 BrightnessService.qml\nSliderRow 1.0 SliderRow.qml\nBrightnessSlider 1.0 BrightnessSlider.qml\n")
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen", XDG_RUNTIME_DIR=str(runtime),
                TEST_BACKLIGHT=str(backlight.parent), TEST_WRITES=str(writes),
-               TEST_FAILURE=str(failure), PATH=str(binaries) + os.pathsep + os.environ["PATH"])
+               TEST_FAILURE=str(failure), TEST_NETWORK_FAILURE=str(stage / "network-failure"), PATH=str(binaries) + os.pathsep + os.environ["PATH"])
     env.pop("WAYLAND_DISPLAY", None)
     shutil.copyfile(ROOT / "tests" / "brightness.qml", stage / "brightness.qml")
     run(["quickshell", "-p", str(stage / "brightness.qml")], env, "REGRESSION PASS: brightness")
     nmcli = binaries / "nmcli"
     nmcli.write_text('''#!/usr/bin/env python3
-import sys, time
+import sys, time, os, pathlib
 args = sys.argv[1:]
+flag = pathlib.Path(os.environ["TEST_NETWORK_FAILURE"])
+if args == ["test-status-failure"]:
+    flag.touch()
+    sys.exit(0)
+if flag.exists() and "monitor" not in args:
+    sys.exit(1)
 if "monitor" in args:
     time.sleep(20)
 elif "connect" in args:
+    if args[-1] == "needs-password":
+        print("Error: Secrets were required, but not provided.", file=sys.stderr)
+        sys.exit(10)
     if "--ask" in args:
         assert sys.stdin.read() == "test-password\\n"
     time.sleep(0.1)
@@ -105,7 +118,7 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE" in args:
         module.write("singleton NetworkService 1.0 NetworkService.qml\n"
                      "singleton NotificationDaemon 1.0 NotificationDaemon.qml\n"
                      "NotificationPopup 1.0 NotificationPopup.qml\n")
-    for name in ("BatteryIndicator.qml", "ControlPanel.qml", "MusicWidget.qml", "Divider.qml", "VDivider.qml", "VolumeSlider.qml", "SystemResourceRow.qml", "WifiToggle.qml", "BluetoothToggle.qml", "BluetoothService.qml"):
+    for name in ("BatteryIndicator.qml", "ControlPanel.qml", "MusicWidget.qml", "MusicService.qml", "SysmonService.qml", "NotificationActions.qml", "Divider.qml", "VDivider.qml", "VolumeSlider.qml", "SystemResourceRow.qml", "WifiToggle.qml", "BluetoothToggle.qml", "BluetoothService.qml"):
         text = (ROOT / "components" / name).read_text()
         if name == "BatteryIndicator.qml":
             text = text.replace("readonly property var device: UPower.displayDevice", "property var device: null")
@@ -115,10 +128,11 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE" in args:
             text = re.sub(r"    anchors \{.*?\n    \}", "", text, count=1, flags=re.S)
             text = re.sub(r"    mask: Region \{.*?\n    \}", "", text, count=1, flags=re.S)
         (profile / name).write_text(text)
-        prefix = "singleton " if name == "BluetoothService.qml" else ""
+        prefix = "singleton " if name in ("BluetoothService.qml", "MusicService.qml", "SysmonService.qml") else ""
         with (profile / "qmldir").open("a") as module:
             module.write(f"{prefix}{Path(name).stem} 1.0 {name}\n")
-    for name, script in {"busctl": "echo '{\"data\":[{}]}'", "dbus-monitor": "sleep 20", "playerctl": "exit 0"}.items():
+    for name, script in {"busctl": "echo '{\"data\":[{}]}'", "dbus-monitor": "sleep 20", "playerctl": "exit 0",
+                         "sysmon": "printf '%b\\n' '50%\\0037RAM\\003737%\\0037CPU\\00371 B/s\\00372 B/s\\0037Net\\003745°C\\00370\\0037Temp\\0037auto\\n'; exec sleep 20"}.items():
         executable = binaries / name
         executable.write_text("#!/bin/sh\n" + script + "\n")
         executable.chmod(0o755)
@@ -128,10 +142,11 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE" in args:
     (stage / "tst_slider.qml").write_text(slider_test)
     for theme_name in ("default", "alt"):
         print(f"Testing {theme_name} theme", flush=True)
+        (stage / "network-failure").unlink(missing_ok=True)
         theme = (ROOT / "profiles" / theme_name / "Theme.qml").read_text()
         theme = "\n".join(line for line in theme.splitlines()
                           if line != "import Quickshell" and "sysmonPath:" not in line)
-        theme = theme.replace("QtObject {", 'QtObject {\n readonly property string sysmonPath: "' + str(ROOT / "native/sysmon") + '"', 1)
+        theme = theme.replace("QtObject {", 'QtObject {\n readonly property string sysmonPath: "' + str(binaries / "sysmon") + '"', 1)
         (profile / "Theme.qml").write_text(theme)
         (profile / "qmldir").write_text(module_text)
         run(["quickshell", "-p", str(stage / "services.qml")], env, "REGRESSION PASS: services")

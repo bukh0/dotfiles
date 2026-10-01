@@ -10,6 +10,8 @@ ShellRoot {
     // the control panel is closed (Bluetooth notifications, backlight
     // discovery) so they start with the shell.
     Component.onCompleted: {
+        MusicService.initialize()
+        SysmonService.initialize()
         BluetoothService.refresh()
         BrightnessService.discover()
     }

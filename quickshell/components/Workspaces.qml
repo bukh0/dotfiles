@@ -65,6 +65,23 @@ RowLayout {
         Hyprland.dispatch("workspace " + id)
     }
 
+    WheelHandler {
+        target: null
+        property real accumulated: 0
+        onWheel: event => {
+            const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y * 3 : event.angleDelta.y
+            if (!delta) { event.accepted = false; return }
+            // A notch per workspace; small touchpad deltas must accumulate.
+            accumulated += delta
+            if (Math.abs(accumulated) >= 120) {
+                if (root.monitor) Hyprland.dispatch("focusmonitor " + root.monitor.name)
+                Hyprland.dispatch(accumulated > 0 ? "workspace e-1" : "workspace e+1")
+                accumulated %= 120
+            }
+            event.accepted = true
+        }
+    }
+
     Repeater {
         model: root.allIds
 

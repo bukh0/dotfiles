@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Io
 import "."
 
 ColumnLayout {
@@ -16,7 +15,6 @@ ColumnLayout {
     readonly property int rowGap: 10
     readonly property int pageHeight: artSize + rowGap + controlsHeight
 
-    property int pollingInterval: 2000         // ms between automatic polls
     property int scrollThreshold: 30           // pixels/delta for page change
 
     // Centralized status strings
@@ -51,7 +49,6 @@ ColumnLayout {
         property string label: ""
         property int size: 17
         property int         boxSize: Theme.mediaControlSize
-        property var command: []
         property string iconFont: root.fontFamily
         signal clicked()
 
@@ -83,17 +80,6 @@ ColumnLayout {
             font.family: btn.iconFont
         }
 
-        Process {
-            id: proc
-            command: btn.command
-            stderr: StdioCollector {
-                onStreamFinished: {
-                    const err = text.trim()
-                    if (err.length > 0) console.warn("playerctl control error:", err)
-                }
-            }
-        }
-
         HoverHandler {
             id: hover
             cursorShape: Qt.PointingHandCursor
@@ -105,249 +91,11 @@ ColumnLayout {
         }
 
         function activate() {
-            if (btn.command.length > 0 && !proc.running) {
-                proc.running = true
-                btn.clicked()
-            }
+            if (btn.enabled) btn.clicked()
         }
     }
 
-    // ── Data model ─────────────────────────────────────────────
-    ListModel { id: playersListModel }
-
-    // ── Playerctl process ──────────────────────────────────────
-    Process {
-        id: metaPoll
-        // Metadata can contain newlines; use a separate record terminator.
-        command: ["playerctl", "-a", "metadata", "--format", "{{playerName}}\u001f{{playerInstance}}\u001f{{title}}\u001f{{artist}}\u001f{{album}}\u001f{{status}}\u001f{{mpris:artUrl}}\u001e"]
-        stdout: StdioCollector {
-            onStreamFinished: root.applyPollResult(text)
-        }
-        stderr: StdioCollector {
-            onStreamFinished: {
-                const err = text.trim()
-                if (err.length > 0 && !err.includes("No players found")) console.warn("playerctl poll error:", err)
-            }
-        }
-        onRunningChanged: {
-            if (!running && root._pollPending) {
-                root._pollPending = false
-                root.pollNow()
-            }
-        }
-    }
-
-    // ── Model update (with Spotify Priority & Smart fallback) ──
-    property var _lastSnapshot: ({})
-    property var _lastTracks: ({})
-    property bool _pollPending: false
-
-    property string _pendingPlayer: ""
-    property string _pendingStatus: ""
-    property real _pendingSince: 0
-    readonly property int pendingTimeoutMs: 1200
-
-    function applyPollResult(rawText) {
-        const trimmed = rawText.trim()
-        if (trimmed === "") {
-            playersListModel.clear()
-            root._lastSnapshot = ({})
-            root._lastTracks = ({})
-            root._pendingPlayer = ""
-            pager.currentIndex = 0
-            return
-        }
-
-        const parsed = []
-        const lines = trimmed.split("\u001e")
-        const now = Date.now()
-        const isLockActive = root._pendingPlayer !== "" && (now - root._pendingSince) < root.pendingTimeoutMs
-        if (root._pendingPlayer !== "" && !isLockActive) {
-            root._pendingPlayer = ""
-        }
-
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].trim() === "") continue
-
-            const parts = lines[i].split("\u001f")
-            if (parts.length < 6) continue
-
-            const playerName = parts[0].trim()
-            const playerInstance = parts[1].trim()
-            const player = playerName + "\u001e" + playerInstance
-            const playerTarget = playerInstance || playerName
-            const title = parts[2].trim() || "Nothing playing"
-            const artist = parts[3].trim()
-            const album = parts[4].trim()
-            const artUrl = parts.slice(6).join("\u001f").trim()
-
-            const rawStatus = parts[5].trim()
-            const actualStatus = rawStatus !== ""
-                ? rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase()
-                : root.statusStopped
-
-            let effectiveStatus = actualStatus
-
-            if (isLockActive && player === root._pendingPlayer) {
-                effectiveStatus = root._pendingStatus
-            }
-
-            parsed.push({ player, playerName, playerTarget, title, artist, album, status: effectiveStatus, artUrl })
-        }
-
-        parsed.sort((a, b) => {
-            const aIsSpotify = a.playerName.toLowerCase().includes("spotify")
-            const bIsSpotify = b.playerName.toLowerCase().includes("spotify")
-            if (aIsSpotify && !bIsSpotify) return -1
-            if (!aIsSpotify && bIsSpotify) return 1
-
-            const wA = root.statusWeight(a.status)
-            const wB = root.statusWeight(b.status)
-            if (wA > wB) return -1
-            if (wA < wB) return 1
-
-            return 0
-        })
-
-        let viewedPlayer = ""
-        if (playersListModel.count > 0 && pager.currentIndex >= 0 && pager.currentIndex < playersListModel.count) {
-            viewedPlayer = playersListModel.get(pager.currentIndex).player
-        }
-
-        const newSnapshot = ({})
-        const newTracks = ({})
-
-        const parsedPlayers = ({})
-        for (const p of parsed) {
-            parsedPlayers[p.player] = p
-            newTracks[p.player] = JSON.stringify([p.title, p.artist, p.album])
-            if (p.artUrl !== "") newSnapshot[p.player] = p.artUrl
-            else if (root._lastTracks[p.player] === newTracks[p.player] && root._lastSnapshot[p.player])
-                newSnapshot[p.player] = root._lastSnapshot[p.player]
-        }
-
-        // Update the model in place so the page delegates (and their
-        // controls) survive routine metadata polls.
-        for (let i = playersListModel.count - 1; i >= 0; i--) {
-            const player = playersListModel.get(i).player
-            if (!parsedPlayers[player]) playersListModel.remove(i)
-        }
-
-        for (let i = 0; i < parsed.length; i++) {
-            const player = parsed[i]
-            let currentIndex = -1
-            for (let j = 0; j < playersListModel.count; j++) {
-                if (playersListModel.get(j).player === player.player) {
-                    currentIndex = j
-                    break
-                }
-            }
-
-            if (currentIndex === -1) {
-                playersListModel.insert(i, player)
-            } else {
-                if (currentIndex !== i) playersListModel.move(currentIndex, i, 1)
-                const updatedIndex = i
-                for (const role of ["playerName", "playerTarget", "title", "artist", "album", "status", "artUrl"]) {
-                    if (playersListModel.get(updatedIndex)[role] !== player[role])
-                        playersListModel.setProperty(updatedIndex, role, player[role])
-                }
-            }
-        }
-
-        root._lastSnapshot = newSnapshot
-        root._lastTracks = newTracks
-
-        if (viewedPlayer !== "") {
-            let foundIdx = -1
-            for (let i = 0; i < playersListModel.count; i++) {
-                if (playersListModel.get(i).player === viewedPlayer) {
-                    foundIdx = i
-                    break
-                }
-            }
-            if (foundIdx !== -1 && foundIdx !== pager.currentIndex) {
-                pager.currentIndex = foundIdx
-            }
-        }
-
-        if (pager.currentIndex >= playersListModel.count) {
-            pager.currentIndex = Math.max(0, playersListModel.count - 1)
-        }
-    }
-
-    // ── Polling control ────────────────────────────────────────
-    function pollNow() {
-        if (metaPoll.running) {
-            root._pollPending = true
-            return
-        }
-        metaPoll.running = true
-    }
-
-    Timer {
-        id: debounceTimer
-        interval: 120
-        onTriggered: root.pollNow()
-    }
-
-    function scheduleRefresh() {
-        debounceTimer.restart()
-    }
-
-    Timer {
-        id: autoPollTimer
-        interval: root.pollingInterval
-        running: root.visible
-        repeat: true
-        onTriggered: root.pollNow()
-    }
-
-    onVisibleChanged: {
-        if (visible) {
-            scheduleRefresh()
-            autoPollTimer.restart()
-        } else {
-            autoPollTimer.stop()
-            debounceTimer.stop()
-        }
-    }
-
-    // ── Post-action reconciliation ───────────────────────────────
-    Timer {
-        id: reconcileTimer
-        interval: 300
-        repeat: true
-        property int triesLeft: 0
-        onTriggered: {
-            triesLeft -= 1
-            root.pollNow()
-            if (triesLeft <= 0) stop()
-        }
-    }
-
-    function scheduleReconcile() {
-        root.pollNow()
-        reconcileTimer.triesLeft = 4 // Polls at 300ms, 600ms, 900ms, 1200ms
-        reconcileTimer.restart()
-    }
-
-    function optimisticToggle(player) {
-        for (let i = 0; i < playersListModel.count; i++) {
-            if (playersListModel.get(i).player === player) {
-                const cur = playersListModel.get(i).status
-                const next = cur === root.statusPlaying ? root.statusPaused : root.statusPlaying
-
-                playersListModel.setProperty(i, "status", next)
-                root._pendingPlayer = player
-                root._pendingStatus = next
-                root._pendingSince = Date.now()
-                break
-            }
-        }
-    }
-
-    Component.onCompleted: root.pollNow()
+    readonly property var playersListModel: MusicService.model
 
     // ── Empty state placeholder ────────────────────────────────
     Item {
@@ -393,11 +141,11 @@ ColumnLayout {
         clip: true
         focus: true
 
-        property int currentIndex: 0
+        readonly property int currentIndex: MusicService.selectedIndex
         readonly property int pageCount: playersListModel.count
 
         function goTo(index) {
-            currentIndex = Math.max(0, Math.min(pageCount - 1, index))
+            if (pageCount > 0) MusicService.selectedPlayer = playersListModel.get(Math.max(0, Math.min(pageCount - 1, index))).player
         }
 
         TapHandler {
@@ -416,7 +164,7 @@ ColumnLayout {
                 delegate: Item {
                     required property string player
                     required property string playerName
-                    required property string playerTarget
+                    readonly property var backend: MusicService.findPlayer(player)
                     required property string title
                     required property string artist
                     required property string album
@@ -460,7 +208,7 @@ ColumnLayout {
                                     cache: true
                                     sourceSize: Qt.size(root.artSize * 2, root.artSize * 2)
 
-                                    property string stableArt: root.normalizeArt(artUrl !== "" ? artUrl : (root._lastSnapshot[player] || ""))
+                                    property string stableArt: root.normalizeArt(artUrl)
                                     source: stableArt
 
                                     Behavior on opacity { NumberAnimation { duration: 200 } }
@@ -498,6 +246,7 @@ ColumnLayout {
                                 Text {
                                     Layout.fillWidth: true
                                     text: playerName + " · " + root.statusLabel(status)
+                                    textFormat: Text.PlainText
                                     color: status === root.statusPlaying ? Colors.primary : Colors.surfaceFg
                                     font.pixelSize: 10
                                     font.family: root.fontFamily
@@ -517,8 +266,8 @@ ColumnLayout {
                                 label: "Previous track"
                                 size: 21
                                 boxSize: 36
-                                command: ["playerctl", "-p", playerTarget, "previous"]
-                                onClicked: root.scheduleReconcile()
+                                enabled: backend && backend.canGoPrevious
+                                onClicked: backend.previous()
                             }
 
                             MediaButton {
@@ -526,11 +275,8 @@ ColumnLayout {
                                 label: status === root.statusPlaying ? "Pause" : "Play"
                                 size: 25
                                 boxSize: root.controlsHeight
-                                command: ["playerctl", "-p", playerTarget, "play-pause"]
-                                onClicked: {
-                                    root.optimisticToggle(player)
-                                    root.scheduleReconcile()
-                                }
+                                enabled: backend && backend.canTogglePlaying
+                                onClicked: backend.togglePlaying()
                             }
 
                             MediaButton {
@@ -538,8 +284,8 @@ ColumnLayout {
                                 label: "Next track"
                                 size: 21
                                 boxSize: 36
-                                command: ["playerctl", "-p", playerTarget, "next"]
-                                onClicked: root.scheduleReconcile()
+                                enabled: backend && backend.canGoNext
+                                onClicked: backend.next()
                             }
                         }
                     }

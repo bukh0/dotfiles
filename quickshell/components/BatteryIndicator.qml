@@ -13,13 +13,13 @@ Item {
 
     readonly property var icons: ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
 
-    readonly property bool isCharging: status === "Charging" || status === "Full" || status === "Not charging"
+    readonly property bool isCharging: status === "Charging" || status === "Full"
     readonly property bool isCritical: !isCharging && capacity <= 10
     readonly property bool isLow: !isCharging && capacity <= 20
 
     readonly property string icon: {
         if (status === "Charging") return "󰂄"
-        if (status === "Full" || status === "Not charging") return "󰚥"
+        if (status === "Full") return "󰚥"
         const idx = Math.min(9, Math.max(0, Math.floor(capacity / 10)))
         return icons[idx]
     }

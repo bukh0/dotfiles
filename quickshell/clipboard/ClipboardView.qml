@@ -30,6 +30,7 @@ Rectangle {
         })
         const found = filtered.findIndex(entry => entry.id === oldId)
         selected = found >= 0 ? found : Math.min(selected, Math.max(0, filtered.length - 1))
+        Qt.callLater(() => history.positionViewAtIndex(selected, ListView.Contain))
     }
     function move(amount) {
         selected = Math.max(0, Math.min(filtered.length - 1, selected + amount))
@@ -182,7 +183,8 @@ Rectangle {
                 radius: 14
                 border.color: Qt.alpha(Colors.outline, 0.12)
                 ListView {
-                    id: history
+                id: history
+                objectName: "clipboardHistory"
                     anchors.fill: parent
                     anchors.margins: 7
                     clip: true

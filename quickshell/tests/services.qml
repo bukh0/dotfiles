@@ -1,9 +1,23 @@
 import QtQuick
 import Quickshell
+import Quickshell.Services.UPower
+import Quickshell.Services.Mpris
 import "profile" as Config
 
 ShellRoot {
     id: root
+    property QtObject mockPlayer: QtObject {
+        property string dbusName: "org.mpris.MediaPlayer2.mock"
+        property string identity: "Mock"
+        property string trackTitle: "First\nTitle"
+        property string trackArtist: "Artist"
+        property string trackAlbum: "Album"
+        property string trackArtUrl: ""
+        property int playbackState: MprisPlaybackState.Playing
+        property bool canGoPrevious: false
+        property bool canGoNext: false
+        property bool canTogglePlaying: false
+    }
     property int step: 0
     property var networkErrors: []
     Connections {
@@ -36,17 +50,18 @@ ShellRoot {
                     battery.device = {ready: true, isPresent: true, percentage: 0.75, state: 2}
                     check(battery.capacity === 75, "battery percentage scaled twice")
                     check(battery.visible, "present battery hidden")
+                    battery.device = {ready: true, isPresent: true, percentage: 0.05, state: UPowerDeviceState.PendingCharge}
+                    check(battery.isCritical, "pending charge concealed low battery")
                     battery.device = {ready: true, isPresent: false, percentage: 0, state: 0}
                     check(!battery.visible, "absent battery displayed as full")
                     const wifi = descendants(panel).find(item => item.toString().startsWith("WifiToggle_"))
                     check(!!wifi, "control panel did not instantiate content")
                     wifi.expanded = true
                     const music = descendants(panel).find(item => item.toString().startsWith("MusicWidget_"))
-                    music.applyPollResult("mock\u001finstance\u001fFirst\nTitle\u001fArtist\u001fAlbum\u001fPlaying\u001fimage://test/art\u001e\n")
-                    check(Object.keys(music._lastTracks).length === 1, "multiline music metadata broke the player record")
-                    check(music._lastTracks["mock\u001einstance"].includes("First\\nTitle"), "multiline title was truncated")
-                    music.applyPollResult("mock\u001finstance\u001fNext title\u001fArtist\u001fAlbum\u001fPlaying\u001f\u001e\n")
-                    check(Object.keys(music._lastSnapshot).length === 0, "previous track's artwork leaked into next track")
+                    Config.MusicService.sourcePlayers = [root.mockPlayer]
+                    check(Config.MusicService.model.count === 1, "native music model not populated")
+                    check(Config.MusicService.model.get(0).title === "First\nTitle", "multiline title lost")
+                    root.mockPlayer.trackTitle = "Next title"
                     check(network.parseNmcliFields("a\\:b:c\\\\d").join("|") === "a:b|c\\d", "nmcli escaping failed")
                     check(network.wifiOn, "Wi-Fi radio state failed")
                     check(network.connectionType === "wifi", "connection state failed")
@@ -60,6 +75,7 @@ ShellRoot {
                     check(!network.toggleWifiRadio(), "radio operation raced with connection")
                     break
                 case 1:
+                    check(Config.MusicService.model.get(0).title === "Next title", "MPRIS metadata change was not applied")
                     const rectangles = descendants(panel).filter(item => item.toString().startsWith("QQuickRectangle"))
                     check(rectangles[0].height <= panel.height - panel.openY, "expanded panel grew off screen")
                     check(root.networkErrors.length === 0, "network command failed: " + root.networkErrors.join("; "))
@@ -114,6 +130,27 @@ ShellRoot {
                 case 6:
                     check(popup.notificationData.notifId === 73, "queue failed to resume after critical dismissal")
                     popup.dismissAll()
+                    check(network.connectToNetwork("needs-password", ""), "failed to start missing-password test")
+                    break
+                case 7:
+                    check(!network.busy, "failed connection stayed busy")
+                    check(network.awaitingPasswordFor === "needs-password", "stderr secrets error did not open password prompt")
+                    check(Config.SysmonService.cpuPercent === "37%", "sysmon sample missing: " + Config.SysmonService.cpuPercent)
+                    panel.isOpen = false
+                    break
+                case 8:
+                    panel.isOpen = true
+                    check(Config.MusicService.model.count === 1, "closing panel discarded music state")
+                    check(Config.SysmonService.cpuPercent === "37%", "closing panel discarded resource state")
+                    check(network.runCommand(["/nonexistent/nmcli"]), "missing executable test failed to start")
+                    break
+                case 9:
+                    check(!network.busy, "missing executable left busy state")
+                    check(root.networkErrors.includes("Could not start network command"), "missing executable had no error")
+                    check(network.runCommand(["nmcli", "test-status-failure"]), "status failure setup did not start")
+                    break
+                case 10:
+                    check(network.connectionType === "none" && !network.wifiOn && network.ssid === "" && network.activeWifiDevice === "" && network.signalStrength === 0, "failed network poll left stale state")
                     console.log("REGRESSION PASS: services")
                     Qt.quit()
                 }

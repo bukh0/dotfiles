@@ -2,13 +2,14 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
+import Quickshell.Services.Notifications
 import Quickshell.Wayland
 import "."
 
 PanelWindow {
     id: root
 
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+    WlrLayershell.keyboardFocus: NotificationDaemon.drawerPinned ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     property bool isOpen: NotificationDaemon.isDrawerOpen
     property int fadeOutDuration: 200
@@ -27,23 +28,27 @@ PanelWindow {
         right: true
     }
 
-    // Without this the whole full-screen window (it spans top/bottom/
-    // left/right) is the input region for as long as it's visible — every
-    // click anywhere on the monitor gets captured here instead of reaching
-    // whatever's underneath, even though only the 380x560 box is drawn.
-    // Collapsing to 0x0 when closed also stops it from eating clicks
-    // during the ~200ms fade-out.
+    // Hover mode only intercepts the drawer. Pinning enables outside-click dismissal.
     mask: Region {
-        x: root.width - drawerBg.width - root.drawerRightMargin
-        y: drawerBg.y
-        width: root.isOpen ? drawerBg.width : 0
-        height: root.isOpen ? drawerBg.height : 0
+        readonly property bool full: NotificationDaemon.drawerPinned
+        x: full ? 0 : drawerBg.x
+        y: full ? 0 : drawerBg.y
+        width: !root.isOpen ? 0 : full ? root.width : drawerBg.width
+        height: !root.isOpen ? 0 : full ? root.height : drawerBg.height
     }
 
-    onIsOpenChanged: {
-        if (isOpen) {
-            bgCloser.forceActiveFocus()
-        }
+    property double now: Date.now()
+    Timer { interval: 60000; running: root.isOpen; repeat: true; onTriggered: root.now = Date.now() }
+    onIsOpenChanged: if (isOpen) { now = Date.now(); bgCloser.forceActiveFocus() }
+    function relativeTime(timestamp) {
+        const minutes = Math.max(0, Math.floor((now - timestamp) / 60000))
+        return minutes < 1 ? "now" : minutes < 60 ? minutes + "m" : minutes < 1440 ? Math.floor(minutes / 60) + "h" : Math.floor(minutes / 1440) + "d"
+    }
+    Shortcut {
+        sequence: "Escape"
+        context: Qt.WindowShortcut
+        enabled: root.isOpen && NotificationDaemon.drawerPinned
+        onActivated: NotificationDaemon.isDrawerOpen = false
     }
 
     MouseArea {
@@ -66,7 +71,9 @@ PanelWindow {
     Rectangle {
         id: drawerBg
         width: Math.min(Theme.notificationWidth, Math.max(0, root.width - root.drawerRightMargin * 2))
-        height: Math.min(Theme.notificationHeight, Math.max(0, root.height - root.drawerY - 8))
+        height: Math.min(Theme.notificationHeight, Math.max(0, root.height - root.drawerY - 8),
+                         2 * Theme.drawerPaddingH + drawerHeader.implicitHeight + Theme.drawerSpacing +
+                         (NotificationDaemon.notificationModel.count ? notifList.contentHeight : 140))
 
         x: parent.width - width - root.drawerRightMargin
         y: root.isOpen ? root.drawerY : root.drawerY - 10
@@ -107,6 +114,7 @@ PanelWindow {
             spacing: Theme.drawerSpacing
 
             RowLayout {
+                id: drawerHeader
                 Layout.fillWidth: true
 
                 Text {
@@ -118,6 +126,14 @@ PanelWindow {
                     Layout.fillWidth: true
                 }
 
+                Button {
+                    text: "DND"
+                    checkable: true
+                    checked: NotificationDaemon.doNotDisturb
+                    onClicked: NotificationDaemon.doNotDisturb = checked
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Do Not Disturb — keep notifications in history without popups"
+                }
                 Text {
                     text: "Clear All"
                     color: clearHover.hovered ? Colors.primary : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
@@ -227,13 +243,15 @@ PanelWindow {
                     required property string summary
                     required property string body
                     required property string timeText
+                    required property double timestamp
+                    required property int urgency
                     required property string iconSource
 
                     width: ListView.view.width - ListView.view.rightMargin
                     implicitHeight: notifContent.implicitHeight + 24
                     radius: Theme.notificationItemRadius
                     color: Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
-                    border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
+                    border.color: urgency === NotificationUrgency.Critical ? Colors.error : Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)
                     border.width: 1
 
                     ColumnLayout {
@@ -252,7 +270,8 @@ PanelWindow {
                             Text {
                                 text: delegateRoot.appName
                                 textFormat: Text.PlainText
-                                color: Colors.primary
+                                color: delegateRoot.urgency === NotificationUrgency.Critical
+                                    ? Colors.error : Colors.primary
                                 font.pixelSize: 11
                                 font.weight: Font.Bold
                                 font.family: root.uiFont
@@ -261,7 +280,7 @@ PanelWindow {
                             }
 
                             Text {
-                                text: delegateRoot.timeText
+                                text: root.relativeTime(delegateRoot.timestamp)
                                 color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
                                 font.pixelSize: 10
                                 font.family: root.uiFont
@@ -350,6 +369,8 @@ PanelWindow {
                                 }
                             }
                         }
+                        NotificationActions { notificationId: delegateRoot.notifId }
+
                     }
                 }
             }

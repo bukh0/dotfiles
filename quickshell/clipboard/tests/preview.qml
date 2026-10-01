@@ -53,11 +53,28 @@ ShellRoot {
             view.move(100)
             if (view.selected !== 7) throw new Error("Selection bounds failed")
             view.move(-100)
-            view.grabToImage(result => {
-                result.saveToFile("/tmp/quickshell-clipboard-preview.png")
-                console.log("CLIPBOARD UI PASS")
-                Qt.quit()
-            })
+            mock.entries = Array.from({length: 80}, (_, i) => ({id: String(i), kind: "text", label: "Entry " + i}))
+            view.selected = 70
+            view.rebuild()
+            scrollCheck.start()
+
+        }
+    }
+    Timer {
+        id: scrollCheck
+        interval: 200
+        onTriggered: {
+            function find(item) {
+                if (item.objectName === "clipboardHistory") return item
+                for (const child of item.children || []) { const result = find(child); if (result) return result }
+                return null
+            }
+            const history = find(view)
+            const row = history.itemAtIndex(view.selected)
+            if (!row || row.y < history.contentY || row.y + row.height > history.contentY + history.height)
+                throw new Error("Rebuild left selection off screen")
+            console.log("CLIPBOARD UI PASS")
+            Qt.quit()
         }
     }
 }

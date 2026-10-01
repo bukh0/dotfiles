@@ -36,7 +36,8 @@ binds = {
 
     -- Theming & Scripts
     "SUPER, B, exec, ~/.scripts/toggle.blur.sh",
-    "SUPER, T, exec, ~/.config/hypr/scripts/theme-switch.sh",
+    "SUPER, D, exec, ~/.scripts/picker-menu.sh",
+    "SUPER, T, exec, ~/.scripts/picker-menu.sh",
     "SUPER, H, exec, ~/.scripts/configs.sh",
 
     -- Waybar & Custom Toggles

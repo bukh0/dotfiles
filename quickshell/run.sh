@@ -88,10 +88,16 @@ setsid quickshell -p "$SCRIPT_DIR" > "${XDG_CACHE_HOME:-$HOME/.cache}/${PROFILE_
 QUICKSHELL_PID=$!
 printf '%s\n' "$QUICKSHELL_PID" > "$PID_FILE"
 
-sleep 0.5
-
-if ! kill -0 "$QUICKSHELL_PID" 2>/dev/null || grep -q '^State:[[:space:]]*Z' "/proc/$QUICKSHELL_PID/status" 2>/dev/null; then
-    rm -f "$PID_FILE"
-    printf 'Quickshell failed to start; see %s.log\n' "${XDG_CACHE_HOME:-$HOME/.cache}/${PROFILE_NAME}" >&2
-    exit 1
-fi
+LOG_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/${PROFILE_NAME}.log"
+for _ in {1..100}; do
+    if ! kill -0 "$QUICKSHELL_PID" 2>/dev/null || grep -q '^State:[[:space:]]*Z' "/proc/$QUICKSHELL_PID/status" 2>/dev/null; then
+        break
+    fi
+    if grep -qF 'Configuration Loaded' "$LOG_FILE"; then exit 0; fi
+    sleep 0.1
+done
+# Only the child launched above is stopped on a startup timeout.
+kill "$QUICKSHELL_PID" 2>/dev/null || true
+rm -f "$PID_FILE"
+printf 'Quickshell did not finish loading; see %s\n' "$LOG_FILE" >&2
+exit 1

@@ -17,3 +17,13 @@ __pycache__/
 .zhistory
 .histfile
 .sh_history
+
+# Generated desktop helpers
+.scripts/*.o
+.scripts/*.d
+.scripts/theme.switcher
+.scripts/sysmon
+.scripts/wallpick
+.scripts/*-rofi
+quickshell/native/sysmon
+quickshell/native/*.d

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Services.SystemTray
@@ -45,19 +46,24 @@ RowLayout {
                 smooth: true
             }
 
+            ToolTip.visible: trayMouse.containsMouse && trayItem.modelData.tooltipTitle !== ""
+            ToolTip.text: trayItem.modelData.tooltipTitle
+            ToolTip.delay: 500
             MouseArea {
+                id: trayMouse
                 anchors.fill: parent
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                hoverEnabled: true
+                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                 onClicked: mouse => {
                     if (mouse.button === Qt.LeftButton) {
                         if (trayItem.modelData.onlyMenu)
                             trayItem.showMenu()
                         else
                             trayItem.modelData.activate()
+                    } else if (mouse.button === Qt.MiddleButton) {
+                        trayItem.modelData.secondaryActivate()
                     } else if (trayItem.modelData.hasMenu) {
                         trayItem.showMenu()
-                    } else {
-                        trayItem.modelData.secondaryActivate()
                     }
                 }
                 cursorShape: Qt.PointingHandCursor

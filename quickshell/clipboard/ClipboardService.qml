@@ -62,7 +62,7 @@ Item {
             onStreamFinished: {
                 const data = service.result(text)
                 if (data.error) service.error = data.error
-                else service.entries = data.entries
+                else { service.error = ""; service.entries = data.entries }
             }
         }
     }

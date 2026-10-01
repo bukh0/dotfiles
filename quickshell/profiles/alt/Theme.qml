@@ -3,7 +3,8 @@ import QtQuick
 import Quickshell
 
 QtObject {
-    readonly property string fontMono: "JetBrainsMono Nerd Font"
+    readonly property var installedFonts: Qt.fontFamilies()
+    readonly property string fontMono: ["JetBrainsMono Nerd Font", "CaskaydiaCove Nerd Font", "JetBrainsMono Nerd Font", "Symbols Nerd Font Mono", "Symbols Nerd Font"].find(name => installedFonts.includes(name)) || "monospace"
     readonly property string fontUI: "sans-serif"
     readonly property string sysmonPath: Quickshell.shellPath("../../native/sysmon")
 

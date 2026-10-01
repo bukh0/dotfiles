@@ -34,6 +34,8 @@ Item {
 
     Process {
         id: cmdProc
+        property bool started: false
+        onStarted: { started = true; commandLaunchCheck.stop() }
         running: false
         stderr: StdioCollector {
             onStreamFinished: {
@@ -41,14 +43,32 @@ Item {
                 if (msg.length > 0) root.commandError(msg)
             }
         }
-        onRunningChanged: {
-            if (!running) {
-                root.actionKind = ""
-                root.refresh()
-                root.connectionSettled()
-                root._drainMonitor()
-            }
-        }
+        onRunningChanged: if (!running) root.finishCommand()
+    }
+
+    function finishCommand() {
+        if (root.actionKind !== "command") return
+        commandLaunchCheck.stop()
+        root.actionKind = ""
+        if (!cmdProc.started) root.commandError("Could not start network command")
+        root.refresh()
+        root.connectionSettled()
+        root._drainMonitor()
+    }
+
+    Timer {
+        id: commandLaunchCheck
+        interval: 500
+        onTriggered: if (!cmdProc.started && !cmdProc.running) root.finishCommand()
+    }
+
+    function clearStatus() {
+        connectionType = "none"
+        ssid = ""
+        wifiOn = false
+        signalStrength = 0
+        activeWifiDevice = ""
+        networks = []
     }
 
     // Returns true if the command was started, false if it was dropped
@@ -58,6 +78,8 @@ Item {
     function runCommand(cmd) {
         if (root.busy) return false
         root.actionKind = "command"
+        cmdProc.started = false
+        commandLaunchCheck.restart()
         cmdProc.command = cmd
         cmdProc.running = true
         return true
@@ -65,6 +87,7 @@ Item {
 
     Process {
         id: statusPoll
+        onExited: (code, status) => { if (code !== 0 || status !== 0) root.clearStatus() }
         // The wifi list is allowed to fail (no Wi-Fi device / radio off);
         // that must not stop ethernet detection from the device list.
         command: ["sh", "-c",
@@ -76,7 +99,7 @@ Item {
         ]
         stdout: StdioCollector {
             onStreamFinished: {
-                if (text.trim() === "") return
+                if (text.trim() === "") { root.clearStatus(); return }
                 root._statusErrorLogged = false
                 const lines = text.trim().split("\n")
                 root.wifiOn = (lines.length > 0 ? lines[0].trim() : "") === "enabled"
@@ -292,7 +315,8 @@ Item {
         interval: 0
         property int exitCode: 0
         onTriggered: {
-            const stderrText = connectStderr.text || connectProc._stderrText
+            if (!connectProc._exited || !connectProc._stderrDone) return
+            const stderrText = connectProc._stderrText
             if (exitCode === 0) {
                 root.awaitingPasswordFor = ""
                 root._lastPasswordFailureSsid = ""
@@ -326,25 +350,36 @@ Item {
             id: connectStderr
             onStreamFinished: {
                 connectProc._stderrText = text
+                connectProc._stderrDone = true
+                connectSettledTimer.restart()
             }
         }
         stdinEnabled: true
         onStarted: {
+            connectProc._started = true
             if (connectProc._password !== "") connectProc.write(connectProc._password + "\n")
             // Don't keep the password around once it has been handed over.
             connectProc._password = ""
             connectProc.stdinEnabled = false
         }
         onExited: (exitCode, exitStatus) => {
-            connectSettledTimer.exitCode = exitCode
+            connectProc._exited = true
+            connectSettledTimer.exitCode = exitStatus === 0 ? exitCode : -1
             connectSettledTimer.restart()
         }
         onRunningChanged: {
             if (!running && root.actionKind === "connect") {
                 connectProc._password = ""
+                if (!connectProc._started) {
+                    connectProc._exited = true
+                    connectProc._stderrDone = true
+                }
                 connectSettledTimer.restart()
             }
         }
+        property bool _started: false
+        property bool _exited: false
+        property bool _stderrDone: false
         property string _password: ""
         property string _stderrText: ""
     }
@@ -354,6 +389,9 @@ Item {
         if (root.busy) return false
         root.actionKind = "connect"
         root.targetSsid = targetSsid
+        connectProc._started = false
+        connectProc._exited = false
+        connectProc._stderrDone = false
         connectSettledTimer.exitCode = -1
         connectProc.stdinEnabled = true
         connectProc.targetSsid = targetSsid

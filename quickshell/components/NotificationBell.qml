@@ -26,8 +26,12 @@ Rectangle {
 
         Text {
             Layout.alignment: Qt.AlignVCenter
-            text: root.hasNotifs ? "󰂚" : "󰂜"
-            color: root.hasNotifs ? Colors.primary : Colors.surfaceFg
+            text: NotificationDaemon.doNotDisturb
+                ? "\uDB80\uDC9B"
+                : root.hasNotifs ? "\uDB80\uDC9A" : "\uDB80\uDC9C"
+            color: NotificationDaemon.doNotDisturb
+                ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
+                : root.hasNotifs ? Colors.primary : Colors.surfaceFg
             font.pixelSize: Theme.fontSizeIcon
             font.family: root.iconFont
 
@@ -36,9 +40,9 @@ Rectangle {
 
         Text {
             Layout.alignment: Qt.AlignVCenter
-            visible: root.hasNotifs
+            visible: root.hasNotifs && !NotificationDaemon.doNotDisturb
             text: root.count
-            color: Colors.primary
+            color: NotificationDaemon.doNotDisturb ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5) : Colors.primary
             font.pixelSize: Theme.fontSizeSM
             font.weight: Font.Bold
             font.family: root.uiFont
@@ -59,13 +63,15 @@ Rectangle {
     }
 
     TapHandler {
+        acceptedButtons: Qt.LeftButton
         onTapped: {
             NotificationDaemon.surfaceScreen = root.screen
-            if (NotificationDaemon.isDrawerOpen) {
-                NotificationDaemon.cancelHoverClose()
-            } else {
-                NotificationDaemon.toggleDrawer()
-            }
+            NotificationDaemon.toggleDrawer()
         }
+    }
+
+    TapHandler {
+        acceptedButtons: Qt.RightButton
+        onTapped: NotificationDaemon.toggleDnd()
     }
 }

@@ -231,6 +231,8 @@ ColumnLayout {
 
                         TextField {
                             id: pwField
+                            onVisibleChanged: if (visible) Qt.callLater(() => { if (visible) forceActiveFocus() })
+                            Component.onCompleted: if (visible) Qt.callLater(() => { if (visible) forceActiveFocus() })
                             Layout.fillWidth: true
                             placeholderText: "Password"
                             echoMode: TextInput.Password
@@ -239,6 +241,15 @@ ColumnLayout {
                             onAccepted: connectBtn.doConnect()
                         }
 
+                        Text {
+                            text: "Cancel"
+                            color: Colors.surfaceFg
+                            font.pixelSize: 11
+                            font.family: wifiRoot.fontFamily
+                            TapHandler {
+                                onTapped: { pwField.clear(); NetworkService.cancelPasswordPrompt() }
+                            }
+                        }
                         Text {
                             id: connectBtn
                             text: "Connect"

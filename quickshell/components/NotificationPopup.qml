@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Services.Notifications
@@ -70,6 +71,7 @@ PanelWindow {
 
     Connections {
         target: NotificationDaemon
+        function onDoNotDisturbChanged() { if (NotificationDaemon.doNotDisturb) popup.dismissAll() }
         function onDismissPopup() {
             popup.dismiss()
         }
@@ -80,10 +82,11 @@ PanelWindow {
         }
     }
 
+    // The installed Quickshell exposes milliseconds (verified over private D-Bus).
     function _durationFor(data) {
-        const requested = data ? Number(data.expireTimeout) : 0
+        const requested = data ? Number(data.expireTimeout) : NaN
         if (data && data.urgency === NotificationUrgency.Critical) return 0
-        if (requested >= 0) return requested
+        if (isFinite(requested) && requested >= 0) return requested === 0 ? 0 : Math.max(1, Math.round(requested))
         return 4000
     }
 
@@ -276,6 +279,11 @@ PanelWindow {
                     Layout.minimumWidth: 0
                     visible: text !== ""
                 }
+                NotificationActions {
+                    notificationId: popup.notificationData ? popup.notificationData.notifId : -1
+                    actions: popup.notificationData && popup.notificationData.actions ? popup.notificationData.actions : []
+                }
+
             }
         }
 

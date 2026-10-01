@@ -24,6 +24,9 @@ with tempfile.TemporaryDirectory(prefix="quickshell-launcher-") as directory:
     binary.write_text("#!/usr/bin/env python3\nimport os, time\n"
                       "if os.environ.get('TEST_PROCESS_LOG'):\n"
                       " with open(os.environ['TEST_PROCESS_LOG'], 'a') as f: f.write(str(os.getpid()) + '\\n')\n"
+                      "time.sleep(0.8)\n"
+                      "if os.environ.get('TEST_LOAD_FAIL'): raise SystemExit(1)\n"
+                      "print('Configuration Loaded', flush=True)\n"
                       "time.sleep(30)\n")
     binary.chmod(0o755)
     runtime = stage / "runtime"
@@ -55,6 +58,8 @@ with tempfile.TemporaryDirectory(prefix="quickshell-launcher-") as directory:
                 continue
             status = Path(f"/proc/{previous}/status")
             assert not status.exists() or "State:\tZ" in status.read_text(), "previous bar was not stopped"
+        failed = subprocess.run(["bash", str(stage / "run.sh")], env=dict(env, TEST_LOAD_FAIL="1"), capture_output=True, timeout=5)
+        assert failed.returncode == 1 and not pid_file.exists(), "slow load failure was reported as success"
         print("REGRESSION PASS: launcher")
     finally:
         unrelated.terminate()

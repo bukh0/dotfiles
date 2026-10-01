@@ -26,3 +26,6 @@ Pill 1.0 Pill.qml
 Divider 1.0 Divider.qml
 VDivider 1.0 VDivider.qml
 SliderRow 1.0 SliderRow.qml
+singleton MusicService 1.0 MusicService.qml
+singleton SysmonService 1.0 SysmonService.qml
+NotificationActions 1.0 NotificationActions.qml

@@ -37,7 +37,7 @@ RowLayout {
 
     Item {
         Layout.fillWidth: true
-        implicitHeight: Theme.sliderThumbSize + 6
+        implicitHeight: Theme.sliderThumbSize + 14
 
         Rectangle {
             anchors.verticalCenter: parent.verticalCenter
@@ -65,6 +65,18 @@ RowLayout {
             Behavior on x { NumberAnimation { duration: root.isDragging ? 0 : 80 } }
         }
 
+        WheelHandler {
+            target: null
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: event => {
+                const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y / 1000 : event.angleDelta.y / 120 * 0.05
+                if (delta === 0 || root.isDragging) { event.accepted = false; return }
+                const value = Math.max(root.minValue, Math.min(1, root.visualValue + delta))
+                root.dragged(value)
+                root.committed(value)
+                event.accepted = true
+            }
+        }
         MouseArea {
             id: dragMa
             anchors.fill: parent

@@ -1,0 +1,4 @@
+native/sysmon
+native/*.d
+__pycache__/
+*.pyc

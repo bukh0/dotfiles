@@ -6,7 +6,7 @@ THEME_STATE="$HOME/.config/hypr/.current-theme"
 # If an image path is passed, use Matugen
 if [ -f "$1" ]; then
     echo "matugen" > "$THEME_STATE"
-    matugen image "$1"
+    "$HOME/.scripts/theme.switcher.sh" --apply Matugen "$1" || exit $?
     
     # Reload Hyprland to apply the new colors to borders
     hyprctl reload

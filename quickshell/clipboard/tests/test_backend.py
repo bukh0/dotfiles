@@ -47,6 +47,17 @@ class ClipboardTest(unittest.TestCase):
         backend.copy(entry)
         self.assertEqual((self.path / "copied").read_bytes(), value)
 
+    def test_text_mime_and_binary_preservation(self):
+        for value in (b'{"example":true}', b'plain text', 'UTF-8 →'.encode()):
+            entry = self.store(value)
+            backend.copy(entry)
+            self.assertEqual((self.path / "mime").read_text(), "--type text/plain;charset=utf-8")
+        for value in (b'\x00binary-data', b'\xff\xfebinary-data'):
+            entry = self.store(value)
+            backend.copy(entry)
+            self.assertEqual((self.path / "copied").read_bytes(), value)
+            self.assertEqual((self.path / "mime").read_text(), "")
+
     def test_image(self):
         value = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6VZkAAAAASUVORK5CYII=")
         entry = self.store(value)
@@ -55,6 +66,23 @@ class ClipboardTest(unittest.TestCase):
         backend.copy(entry)
         self.assertEqual((self.path / "copied").read_bytes(), value)
         self.assertEqual((self.path / "mime").read_text(), "--type image/png")
+
+    def test_image_preview_payload_is_bounded_and_copy_is_original(self):
+        import random, struct, zlib
+        width, height = 1000, 800
+        pixels = random.Random(42).randbytes(width * height * 3)
+        def chunk(kind, data):
+            return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+        scanlines = b"".join(b"\0" + pixels[y * width * 3:(y + 1) * width * 3] for y in range(height))
+        value = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+                 + chunk(b"IDAT", zlib.compress(scanlines)) + chunk(b"IEND", b""))
+        entry = self.store(value)
+        result = backend.preview(entry)
+        self.assertTrue(result["image"].startswith("data:image/jpeg;base64,"), result)
+        self.assertLess(len(result["image"]), 700000)
+        self.assertEqual(result["size"], len(value))
+        backend.copy(entry)
+        self.assertEqual((self.path / "copied").read_bytes(), value)
 
     def test_background_clipboard_owner_does_not_block(self):
         entry = self.store(b"copied by a background owner")
