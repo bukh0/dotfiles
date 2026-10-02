@@ -149,6 +149,11 @@ os._exit(0)
         backend.paste("0xabc")
         self.assertNotIn("shift", (self.path / "keys").read_text())
 
+    def test_paste_without_original_window(self):
+        with self.assertRaisesRegex(RuntimeError, "No window was focused"):
+            backend.paste("")
+        self.assertFalse((self.path / "keys").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

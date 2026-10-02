@@ -61,6 +61,15 @@ ShellRoot {
                     Config.MusicService.sourcePlayers = [root.mockPlayer]
                     check(Config.MusicService.model.count === 1, "native music model not populated")
                     check(Config.MusicService.model.get(0).title === "First\nTitle", "multiline title lost")
+                    const otherPlayer = {dbusName: "other", identity: "Spotify", trackTitle: "Other song", playbackState: 1,
+                                         canGoPrevious: false, canGoNext: false, canTogglePlaying: false}
+                    Config.MusicService.sourcePlayers = [root.mockPlayer, otherPlayer]
+                    check(Config.MusicService.selectedPlayer === root.mockPlayer.dbusName, "new player changed selection")
+                    Config.MusicService.sourcePlayers = [otherPlayer]
+                    check(Config.MusicService.selectedPlayer === "other", "removed player was still selected")
+                    Config.MusicService.sourcePlayers = [otherPlayer, root.mockPlayer]
+                    check(Config.MusicService.selectedPlayer === "other", "returning player stole selection")
+                    Config.MusicService.sourcePlayers = [root.mockPlayer]
                     root.mockPlayer.trackTitle = "Next title"
                     check(network.parseNmcliFields("a\\:b:c\\\\d").join("|") === "a:b|c\\d", "nmcli escaping failed")
                     check(network.wifiOn, "Wi-Fi radio state failed")

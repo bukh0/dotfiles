@@ -40,7 +40,7 @@ Rectangle {
     readonly property int columns: 3
     readonly property int pageSize: page === "Wallpapers" ? columns * Math.max(1, Math.floor(grid.height / Math.max(1, grid.cellHeight))) : Math.max(1, Math.floor(themeList.height / rowHeight))
 
-    color: Qt.alpha(dark ? "#242426" : "#f2f2f7", 0.99)
+    color: Qt.alpha(dark ? "#242426" : "#f2f2f7", 0.994)
     radius: 22
     border.width: 1
     border.color: Qt.alpha(ink, 0.12)
@@ -146,7 +146,7 @@ Rectangle {
         const ctrl = (event.modifiers & Qt.ControlModifier) !== 0
         const nav = (event.modifiers & (Qt.ControlModifier | Qt.AltModifier)) !== 0
         const step = page === "Wallpapers" ? columns : 1
-        if (ctrl && event.key === Qt.Key_C) dismiss()
+        if (ctrl && event.key === Qt.Key_C && !search.selectedText) dismiss()
         else if (event.key === Qt.Key_Escape || (ctrl && event.key === Qt.Key_BracketLeft)) back()
         else if (busy) { event.accepted = true; return }
         else if (event.key === Qt.Key_Down || (nav && event.key === Qt.Key_J)) move(step)

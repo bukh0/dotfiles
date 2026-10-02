@@ -19,6 +19,8 @@ PanelWindow {
     property string iconFont: Theme.fontMono
 
     visible: isOpen || drawerBg.opacity > 0
+    // Retain the monitor until the closing animation is completely hidden.
+    onVisibleChanged: if (!visible && !isOpen) NotificationDaemon.surfaceScreen = null
     color: "transparent"
 
     anchors {
@@ -64,7 +66,6 @@ PanelWindow {
         }
         onClicked: (mouse) => {
             NotificationDaemon.isDrawerOpen = false
-            NotificationDaemon.surfaceScreen = null
         }
     }
 
@@ -72,7 +73,7 @@ PanelWindow {
         id: drawerBg
         width: Math.min(Theme.notificationWidth, Math.max(0, root.width - root.drawerRightMargin * 2))
         height: Math.min(Theme.notificationHeight, Math.max(0, root.height - root.drawerY - 8),
-                         2 * Theme.drawerPaddingH + drawerHeader.implicitHeight + Theme.drawerSpacing +
+                         2 * Theme.drawerPaddingV + drawerHeader.implicitHeight + Theme.drawerSpacing +
                          (NotificationDaemon.notificationModel.count ? notifList.contentHeight : 140))
 
         x: parent.width - width - root.drawerRightMargin
@@ -110,7 +111,10 @@ PanelWindow {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: Theme.drawerPaddingH
+            anchors.topMargin: Theme.drawerPaddingV
+            anchors.bottomMargin: Theme.drawerPaddingV
+            anchors.leftMargin: Theme.drawerPaddingH
+            anchors.rightMargin: Theme.drawerPaddingH
             spacing: Theme.drawerSpacing
 
             RowLayout {
@@ -126,28 +130,20 @@ PanelWindow {
                     Layout.fillWidth: true
                 }
 
-                Button {
+                NotificationButton {
                     text: "DND"
+                    glyph: NotificationDaemon.doNotDisturb ? "󰂛" : "󰂚"
                     checkable: true
                     checked: NotificationDaemon.doNotDisturb
                     onClicked: NotificationDaemon.doNotDisturb = checked
-                    ToolTip.visible: hovered
-                    ToolTip.text: "Do Not Disturb — keep notifications in history without popups"
+                    hint: checked ? "Do Not Disturb is on" : "Turn on Do Not Disturb"
                 }
-                Text {
-                    text: "Clear All"
-                    color: clearHover.hovered ? Colors.primary : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.5)
-                    font.pixelSize: 12
-                    font.family: root.uiFont
-                    font.weight: Font.Medium
-
-                    HoverHandler {
-                        id: clearHover
-                        cursorShape: Qt.PointingHandCursor
-                    }
-                    TapHandler {
-                        onTapped: NotificationDaemon.clearAll()
-                    }
+                NotificationButton {
+                    text: "Clear"
+                    quiet: true
+                    enabled: NotificationDaemon.notificationModel.count > 0
+                    hint: "Clear all notifications"
+                    onClicked: NotificationDaemon.clearAll()
                 }
             }
 
@@ -287,35 +283,14 @@ PanelWindow {
                                 Layout.rightMargin: 8
                             }
 
-                            Rectangle {
+                            NotificationButton {
                                 Layout.alignment: Qt.AlignVCenter
-                                width: 24
-                                height: 24
-                                radius: 12
-                                color: closeHover.hovered ? Qt.rgba(Colors.error.r, Colors.error.g, Colors.error.b, 0.15) : "transparent"
-
-                                Behavior on color { ColorAnimation { duration: 150 } }
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "󰅖"
-                                    color: closeHover.hovered ? Colors.error : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
-                                    font.pixelSize: 14
-                                    font.family: root.iconFont
-
-                                    Behavior on color { ColorAnimation { duration: 150 } }
-                                }
-
-                                HoverHandler {
-                                    id: closeHover
-                                    cursorShape: Qt.PointingHandCursor
-                                }
-
-                                TapHandler {
-                                    onTapped: {
-                                        NotificationDaemon.closeNotificationById(delegateRoot.notifId)
-                                    }
-                                }
+                                implicitHeight: 28
+                                implicitWidth: 28
+                                glyph: "󰅖"
+                                quiet: true
+                                hint: "Dismiss notification"
+                                onClicked: NotificationDaemon.closeNotificationById(delegateRoot.notifId)
                             }
                         }
 

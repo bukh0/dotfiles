@@ -266,7 +266,7 @@ ColumnLayout {
                                 label: "Previous track"
                                 size: 21
                                 boxSize: 36
-                                enabled: backend && backend.canGoPrevious
+                                enabled: !!backend && backend.canGoPrevious
                                 onClicked: backend.previous()
                             }
 
@@ -275,7 +275,7 @@ ColumnLayout {
                                 label: status === root.statusPlaying ? "Pause" : "Play"
                                 size: 25
                                 boxSize: root.controlsHeight
-                                enabled: backend && backend.canTogglePlaying
+                                enabled: !!backend && backend.canTogglePlaying
                                 onClicked: backend.togglePlaying()
                             }
 
@@ -284,7 +284,7 @@ ColumnLayout {
                                 label: "Next track"
                                 size: 21
                                 boxSize: 36
-                                enabled: backend && backend.canGoNext
+                                enabled: !!backend && backend.canGoNext
                                 onClicked: backend.next()
                             }
                         }
@@ -304,28 +304,20 @@ ColumnLayout {
                 if (pageLockout.running) return
 
                 const angleDelta = wheelEvent.angleDelta.y || wheelEvent.angleDelta.x
-                if (angleDelta !== 0) {
-                    accumulated += angleDelta / 8
-                } else {
-                    const pixelDelta = wheelEvent.pixelDelta.y || wheelEvent.pixelDelta.x
-                    if (pixelDelta === 0) return
+                const pixelDelta = wheelEvent.pixelDelta.y || wheelEvent.pixelDelta.x
+                if (pixelDelta !== 0) {
                     accumulated += pixelDelta
-                }
+                } else if (angleDelta !== 0) accumulated += angleDelta / 120 * root.scrollThreshold
+                else return
 
                 const threshold = root.scrollThreshold
 
-                while (accumulated >= threshold && pager.currentIndex > 0) {
-                    pager.goTo(pager.currentIndex - 1)
-                    accumulated -= threshold
-                    pageLockout.restart()
+                if (Math.abs(accumulated) >= threshold) {
+                    const previous = pager.currentIndex
+                    pager.goTo(previous + (accumulated > 0 ? -1 : 1))
+                    accumulated = 0
+                    if (pager.currentIndex !== previous) pageLockout.restart()
                 }
-                while (accumulated <= -threshold && pager.currentIndex < pager.pageCount - 1) {
-                    pager.goTo(pager.currentIndex + 1)
-                    accumulated += threshold
-                    pageLockout.restart()
-                }
-
-                if (Math.abs(accumulated) > threshold * 2) accumulated = 0
                 wheelEvent.accepted = true
             }
         }

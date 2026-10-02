@@ -42,6 +42,10 @@ QtObject {
                     if (model.get(i)[key] !== rows[i][key]) model.setProperty(i, key, rows[i][key])
             }
         }
+        // Keep the visible player stable across sorting and metadata changes.
+        // Once it disappears, remember the replacement rather than snapping back.
+        if (!rows.some(p => p.player === selectedPlayer))
+            selectedPlayer = rows.length ? rows[0].player : ""
     }
     Component.onCompleted: synchronize()
 }

@@ -146,8 +146,10 @@ def copy(entry_id):
 
 
 def paste(address):
+    if not address:
+        raise RuntimeError("Copied. No window was focused when the clipboard opened. Select a window and press Ctrl+V to paste.")
     current = active_window()
-    if not address or current.get("address") != address:
+    if current.get("address") != address:
         raise RuntimeError("Copied. Focus changed, so automatic paste was skipped. Press Ctrl+V to paste.")
     terminal = re.search(r"kitty|alacritty|foot|wezterm|ghostty|konsole|[Tt]erm", current.get("class", ""), re.I)
     keys = ["wtype", "-M", "ctrl"]

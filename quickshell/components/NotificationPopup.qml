@@ -219,35 +219,14 @@ PanelWindow {
                         font.family: popup.uiFont
                     }
 
-                    Rectangle {
-                        id: dismissButton
-                        z: 1
+                    NotificationButton {
                         Layout.alignment: Qt.AlignVCenter
-                        width: 24
-                        height: 24
-                        radius: 12
-                        color: dismissHover.hovered ? Qt.rgba(Colors.error.r, Colors.error.g, Colors.error.b, 0.15) : "transparent"
-
-                        Behavior on color { ColorAnimation { duration: 150 } }
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "󰅖"
-                            color: dismissHover.hovered ? Colors.error : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4)
-                            font.pixelSize: 14
-                            font.family: popup.iconFont
-
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                        }
-
-                        HoverHandler {
-                            id: dismissHover
-                            cursorShape: Qt.PointingHandCursor
-                        }
-
-                        TapHandler {
-                            onTapped: popup.dismiss()
-                        }
+                        implicitHeight: 28
+                        implicitWidth: 28
+                        glyph: "󰅖"
+                        quiet: true
+                        hint: "Dismiss popup"
+                        onClicked: popup.dismiss()
                     }
                 }
 

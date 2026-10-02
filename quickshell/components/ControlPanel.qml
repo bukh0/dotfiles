@@ -13,8 +13,9 @@ PanelWindow {
     property int barHeight: 42
     property bool isOpen: false
     property bool pinned: false
+    property bool triggerHovered: false
 
-    property int hoverCloseDelay: 300
+    property int hoverCloseDelay: 560
     property int fadeOutDuration: 200
     property int slideDuration: 250
     property int openY: 46
@@ -38,17 +39,18 @@ PanelWindow {
 
     mask: Region {
         readonly property bool full: controlPanel.pinned || NetworkService.awaitingPasswordFor !== ""
-        x: full ? 0 : drawerBg.x
-        y: full ? controlPanel.barHeight : drawerBg.y
-        width: !controlPanel.isOpen ? 0 : full ? controlPanel.width : drawerBg.width
-        height: !controlPanel.isOpen ? 0 : full ? controlPanel.height - controlPanel.barHeight : drawerBg.height
+        x: full ? 0 : hoverBridge.x
+        y: controlPanel.barHeight
+        width: !controlPanel.isOpen ? 0 : full ? controlPanel.width : hoverBridge.width
+        height: !controlPanel.isOpen ? 0 : full ? controlPanel.height - controlPanel.barHeight : hoverBridge.height
     }
 
     Timer {
         id: closeDelayTimer
         interval: controlPanel.hoverCloseDelay
         onTriggered: {
-            if (!controlPanel.pinned && NetworkService.awaitingPasswordFor === "")
+            if (!controlPanel.pinned && !controlPanel.triggerHovered && !panelHover.hovered
+                    && NetworkService.awaitingPasswordFor === "")
                 controlPanel.isOpen = false
         }
     }
@@ -80,12 +82,32 @@ PanelWindow {
     }
 
     function scheduleHoverClose() {
-        if (!isOpen || pinned || NetworkService.awaitingPasswordFor !== "") return
+        if (!isOpen || pinned || triggerHovered || panelHover.hovered || NetworkService.awaitingPasswordFor !== "") return
         closeDelayTimer.restart()
     }
 
     function cancelHoverClose() {
         closeDelayTimer.stop()
+    }
+
+    // Keep pointer ownership below the bar throughout the slide animation.
+    // Include the gap above the drawer so moving into it cannot start a close.
+    Item {
+        id: hoverBridge
+        objectName: "controlPanelHoverBridge"
+        z: 1
+        x: (controlPanel.width - width) / 2
+        y: controlPanel.barHeight
+        width: Math.min(controlPanel.drawerWidth, Math.max(0, controlPanel.width - 16))
+        height: Math.max(0, drawerBg.y + drawerBg.height)
+        HoverHandler {
+            id: panelHover
+            enabled: controlPanel.isOpen
+            onHoveredChanged: {
+                if (hovered) controlPanel.cancelHoverClose()
+                else controlPanel.scheduleHoverClose()
+            }
+        }
     }
 
     FocusScope {
@@ -118,12 +140,14 @@ PanelWindow {
 
     Rectangle {
         id: drawerBg
-        width: Math.min(controlPanel.drawerWidth, Math.max(0, controlPanel.width - 16))
+        // The hover region must own the controls, not sit behind them as a
+        // sibling: child hover handlers otherwise hide the pointer from it.
+        parent: hoverBridge
+        width: parent.width
         height: Math.min(contentLoader.implicitHeight + controlPanel.drawerTopMargin + controlPanel.drawerBottomMargin,
                          Math.max(0, controlPanel.height - controlPanel.openY - 8))
 
-        x: (parent.width - width) / 2
-        y: controlPanel.isOpen ? controlPanel.openY : controlPanel.closedY
+        y: (controlPanel.isOpen ? controlPanel.openY : controlPanel.closedY) - controlPanel.barHeight
 
         Behavior on height {
             enabled: controlPanel.isOpen
@@ -146,16 +170,6 @@ PanelWindow {
         MouseArea {
             anchors.fill: parent
             onClicked: mouse => mouse.accepted = true
-        }
-
-        HoverHandler {
-            onHoveredChanged: {
-                if (hovered) {
-                    controlPanel.beginHoverOpen()
-                } else if (!controlPanel.pinned) {
-                    controlPanel.scheduleHoverClose()
-                }
-            }
         }
 
         ScrollView {

@@ -24,6 +24,9 @@ ShellRoot {
             if (step === 4) service.inspect("2")
             if (step === 9) {
                 if (service.preview.text !== "second") throw new Error("Stale preview won the race")
+                service.inspect("2")
+                if (service.preview.text !== "second" || service.previewLoading)
+                    throw new Error("Inspecting the same entry reloaded its preview")
                 service.choose("bad", true)
             }
             if (step === 12) {

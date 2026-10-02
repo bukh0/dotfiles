@@ -18,9 +18,11 @@ to collect history.
 - Ctrl+Delete deletes the selection; Clear history requires confirmation.
 - Ctrl+R refreshes. Escape clears the query, then closes.
 
-Text previews are limited to 32 KiB, image previews to 12 MiB; copying always
-uses the complete original bytes. Previews use anonymous temporary files and
-in-memory image URLs, with no persistent thumbnail cache. Clipboard values are
+Text previews are limited to 32 KiB. Images up to 256 KiB are inlined; larger
+images use `vipsthumbnail` to create a preview up to 1024×768, capped at 512 KiB
+before base64 encoding. If thumbnailing fails, copying and pasting still work.
+Copying always uses the complete original bytes. Previews use temporary files
+and in-memory image URLs, with no persistent thumbnail cache. Clipboard values are
 never interpolated into commands or rendered as rich text. Automatic paste is
 skipped if the previously focused window is no longer active.
 

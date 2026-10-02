@@ -32,16 +32,24 @@ Item {
         return "󰤟"
     }
 
+    // NetworkManager throttles back-to-back rescans. That message is harmless,
+    // so it is logged instead of shown as a notification.
+    function reportStderr(msg) {
+        if (msg.length === 0) return
+        if (/scanning not allowed/i.test(msg)) {
+            console.warn("network:", msg)
+            return
+        }
+        root.commandError(msg)
+    }
+
     Process {
         id: cmdProc
         property bool started: false
         onStarted: { started = true; commandLaunchCheck.stop() }
         running: false
         stderr: StdioCollector {
-            onStreamFinished: {
-                const msg = text.trim()
-                if (msg.length > 0) root.commandError(msg)
-            }
+            onStreamFinished: root.reportStderr(text.trim())
         }
         onRunningChanged: if (!running) root.finishCommand()
     }
@@ -272,10 +280,7 @@ Item {
             }
         }
         stderr: StdioCollector {
-            onStreamFinished: {
-                const msg = text.trim()
-                if (msg.length > 0) root.commandError(msg)
-            }
+            onStreamFinished: root.reportStderr(text.trim())
         }
         onRunningChanged: {
             if (running) return
@@ -322,7 +327,9 @@ Item {
                 root._lastPasswordFailureSsid = ""
             } else {
                 const t = stderrText.toLowerCase()
-                if (t.includes("secrets were required") || t.includes("password")) {
+                // Only the NM secrets error means "ask for a password". A bare
+                // "password" match fires on SSIDs such as "password-net".
+                if (t.includes("secrets were required")) {
                     const isRetry = root._lastPasswordFailureSsid === connectProc.targetSsid
                     root._lastPasswordFailureSsid = connectProc.targetSsid
                     root.awaitingPasswordFor = connectProc.targetSsid
@@ -360,6 +367,7 @@ Item {
             if (connectProc._password !== "") connectProc.write(connectProc._password + "\n")
             // Don't keep the password around once it has been handed over.
             connectProc._password = ""
+            // QProcess closes the write channel only after queued bytes flush.
             connectProc.stdinEnabled = false
         }
         onExited: (exitCode, exitStatus) => {

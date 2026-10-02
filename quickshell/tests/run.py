@@ -118,7 +118,7 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE" in args:
         module.write("singleton NetworkService 1.0 NetworkService.qml\n"
                      "singleton NotificationDaemon 1.0 NotificationDaemon.qml\n"
                      "NotificationPopup 1.0 NotificationPopup.qml\n")
-    for name in ("BatteryIndicator.qml", "ControlPanel.qml", "MusicWidget.qml", "MusicService.qml", "SysmonService.qml", "NotificationActions.qml", "Divider.qml", "VDivider.qml", "VolumeSlider.qml", "SystemResourceRow.qml", "WifiToggle.qml", "BluetoothToggle.qml", "BluetoothService.qml"):
+    for name in ("BatteryIndicator.qml", "ControlPanel.qml", "MusicWidget.qml", "MusicService.qml", "SysmonService.qml", "NotificationActions.qml", "NotificationButton.qml", "Divider.qml", "VDivider.qml", "VolumeSlider.qml", "SystemResourceRow.qml", "WifiToggle.qml", "BluetoothToggle.qml", "BluetoothService.qml"):
         text = (ROOT / "components" / name).read_text()
         if name == "BatteryIndicator.qml":
             text = text.replace("readonly property var device: UPower.displayDevice", "property var device: null")

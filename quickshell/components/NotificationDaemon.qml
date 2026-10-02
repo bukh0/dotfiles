@@ -14,7 +14,7 @@ QtObject {
     property bool drawerPinned: false
     property bool doNotDisturb: false
     property int actionRevision: 0
-    onIsDrawerOpenChanged: if (!isDrawerOpen) { drawerPinned = false; surfaceScreen = null }
+    onIsDrawerOpenChanged: if (!isDrawerOpen) drawerPinned = false
     onDoNotDisturbChanged: {
         _dndStore.setText(doNotDisturb ? "1\n" : "0\n")
         if (doNotDisturb) root.dismissPopup()
@@ -42,7 +42,6 @@ QtObject {
         interval: root.hoverCloseDelay
         onTriggered: {
             root.isDrawerOpen = false
-            root.surfaceScreen = null
         }
     }
 
@@ -249,17 +248,17 @@ QtObject {
     property IpcHandler ipc: IpcHandler {
         target: "notifications"
 
-        function closeLatest() {
+        function closeLatest(): void {
             if (root.notificationModel.count > 0)
                 root.closeNotification(0)
             root.dismissPopup()
         }
 
-        function toggleDnd() {
+        function toggleDnd(): void {
             root.toggleDnd()
         }
 
-        function setDnd(enabled: bool) {
+        function setDnd(enabled: bool): void {
             root.setDnd(enabled)
         }
     }

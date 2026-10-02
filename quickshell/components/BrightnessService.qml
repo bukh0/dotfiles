@@ -33,6 +33,7 @@ Item {
     property int _lastSentRaw: -1
     property bool _errorMuted: false
     property bool _writeFinished: false
+    property bool _writeStarted: false
 
     function _busy() {
         return root.interacting || setProc.running || root._wantedRaw >= 0 || settleTimer.running
@@ -152,6 +153,7 @@ Item {
         if (raw === root._lastSentRaw) return
         root._lastSentRaw = raw
         root._writeFinished = false
+        root._writeStarted = false
         settleTimer.stop()
         setProc.command = ["brightnessctl", "-q", "-d", root.device, "set", String(raw)]
         setProc.running = true
@@ -159,12 +161,13 @@ Item {
 
     Process {
         id: setProc
+        onStarted: root._writeStarted = true
         onExited: (exitCode, exitStatus) => {
-            root._writeFinished = true
             if (exitCode !== 0 || exitStatus !== 0) {
                 root._lastSentRaw = -1
                 root._reportError("Could not set display brightness (exit " + exitCode + ").")
             }
+            root._finishWrite()
         }
         stderr: StdioCollector {
             onStreamFinished: {
@@ -175,15 +178,19 @@ Item {
             }
         }
         onRunningChanged: {
-            if (running) return
-            if (!root._writeFinished) {
+            if (!running && !root._writeStarted) {
                 root._lastSentRaw = -1
                 root._reportError("Could not start brightnessctl.")
+                root._finishWrite()
             }
-            settleTimer.restart()
-            // A newer value arrived while this write was running.
-            if (root._wantedRaw >= 0) writeTimer.restart()
         }
+    }
+
+    function _finishWrite() {
+        if (root._writeFinished) return
+        root._writeFinished = true
+        settleTimer.restart()
+        if (root._wantedRaw >= 0) writeTimer.restart()
     }
 
     // One notification per burst, not one per failed write during a drag.

@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-test-') as directory:
     p = Path(directory)
     profile = p / 'profile'
     profile.mkdir()
-    for name in ('NotificationDaemon.qml', 'NotificationPopup.qml', 'NotificationDrawer.qml', 'NotificationActions.qml', 'Colors.qml'):
+    for name in ('NotificationDaemon.qml', 'NotificationPopup.qml', 'NotificationDrawer.qml', 'NotificationActions.qml', 'NotificationButton.qml', 'Colors.qml'):
         text = (ROOT / 'components' / name).read_text()
         if name in ('NotificationPopup.qml', 'NotificationDrawer.qml'):
             text = text.replace('PanelWindow {', 'Rectangle {', 1)
@@ -28,7 +28,7 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-test-') as directory:
             text = re.sub(r'    mask: Region \{.*?\n    \}', '', text, count=1, flags=re.S)
         (profile / name).write_text(text)
     shutil.copyfile(ROOT / 'profiles/default/Theme.qml', profile / 'Theme.qml')
-    (profile / 'qmldir').write_text('singleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton NotificationDaemon 1.0 NotificationDaemon.qml\nNotificationActions 1.0 NotificationActions.qml\n')
+    (profile / 'qmldir').write_text('singleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton NotificationDaemon 1.0 NotificationDaemon.qml\nNotificationActions 1.0 NotificationActions.qml\nNotificationButton 1.0 NotificationButton.qml\n')
     (p / 'shell.qml').write_text('''import QtQuick
 import Quickshell
 import "profile" as Config
@@ -38,6 +38,7 @@ ShellRoot {
  property int received: 0
  property int notificationId: -1
  property string summary: ""
+ QtObject { id: monitorMarker }
  function check(ok, reason) { if (!ok) { console.error("FAIL", reason); Qt.quit() } }
  Window { id: window; visible: true; width: 1000; height: 800 }
  Config.NotificationPopup { id: popup; parent: window.contentItem; x: 1100 }
@@ -84,10 +85,17 @@ ShellRoot {
   interval: 150; running: true
   onTriggered: {
    root.check(Config.NotificationDaemon.isDrawerOpen && Config.NotificationDaemon.drawerPinned, "Hover timer closed pinned drawer")
+   Config.NotificationDaemon.surfaceScreen = monitorMarker
    Config.NotificationDaemon.toggleDrawer()
    root.check(!Config.NotificationDaemon.isDrawerOpen && !Config.NotificationDaemon.drawerPinned, "Second tap did not close drawer")
+   root.check(Config.NotificationDaemon.surfaceScreen === monitorMarker, "Closing drawer released monitor before fade")
+   fadeCheck.start()
    console.log("READY")
   }
+ }
+ Timer {
+  id: fadeCheck; interval: 260
+  onTriggered: root.check(Config.NotificationDaemon.surfaceScreen === null, "Hidden drawer retained monitor")
  }
  Timer {
   interval: 100; running: true; repeat: true

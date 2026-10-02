@@ -64,7 +64,7 @@ Item {
         root.hasAdapter = false
         root.powered = false
         root.connectedName = ""
-        root._prevConnected = []
+        root._prevConnected = null
         root._prevNames = {}
         root._assign("devices", [])
         root._assign("discovered", [])
@@ -133,7 +133,7 @@ Item {
             // Powering off disconnects everything; don't fire a burst of
             // "Disconnected" notifications for it.
             root.connectedName = ""
-            root._prevConnected = []
+            root._prevConnected = null
             root._prevNames = {}
             root._assign("devices", [])
             root._assign("discovered", [])
@@ -289,6 +289,14 @@ Item {
         onTriggered: root._finishAction()
     }
 
+    // Safety net: if actionProc never starts, clear busy so the UI isn't
+    // locked forever. Mirrors NetworkService.commandLaunchCheck.
+    Timer {
+        id: actionLaunchCheck
+        interval: 500
+        onTriggered: if (!actionProc.running && root.busy) root._finishAction()
+    }
+
     function _startAction(kind, mac, script, args) {
         if (root.busy || actionProc.running) return false
         root.busy = true
@@ -296,18 +304,21 @@ Item {
         root.targetMac = mac || ""
         const wrapper = "out=$({ " + script + "; } 2>&1); rc=$?; printf '%s\\n%s' \"$rc\" \"$out\""
         actionProc.command = ["sh", "-c", wrapper, "sh"].concat(args || [])
+        actionLaunchCheck.restart()
         actionProc.running = true
         return true
     }
 
     function _finishAction() {
         if (!root.busy) return
+        actionLaunchCheck.stop()
 
         const raw = actionOut.text || ""
         const nl = raw.indexOf("\n")
         const rc = parseInt(nl >= 0 ? raw.slice(0, nl) : raw)
         const out = root._stripAnsi(nl >= 0 ? raw.slice(nl + 1) : "").trim()
 
+        const kind = root.actionKind
         root.busy = false
         root.actionKind = ""
         root.targetMac = ""
@@ -315,12 +326,25 @@ Item {
         if (isNaN(rc)) {
             root.notify("Bluetooth Warning", "Command failed to run")
         } else {
-            root._reportResult(rc, out)
+            root._reportResult(rc, out, kind)
         }
         root.refresh()
     }
 
-    function _reportResult(rc, out) {
+    function _reportResult(rc, out, kind) {
+        const lines = out.split("\n").map(l => l.trim()).filter(l => l !== "")
+
+        // The pairing helper reports through its exit code. GTK/Blueman print
+        // unrelated module-load errors even when pairing succeeds.
+        if (kind === "pair") {
+            if (rc === 0) return
+            const own = lines.filter(l => l.startsWith("Bluetooth pairing failed:"))
+            const msg = own.length > 0 ? own[own.length - 1]
+                : (lines.length > 0 ? lines[lines.length - 1] : "Pairing failed (exit " + rc + ")")
+            root.notify("Bluetooth Warning", msg)
+            return
+        }
+
         const lower = out.toLowerCase()
         // Pairing often auto-connects, so the follow-up connect reports this.
         if (lower.includes("alreadyconnected") || lower.includes("already connected")) return
@@ -333,7 +357,6 @@ Item {
 
         // Older bluetoothctl exits 0 even on failure, hence the text check.
         // Show the one relevant line, not the whole transcript.
-        const lines = out.split("\n").map(l => l.trim()).filter(l => l !== "")
         const bad = lines.filter(l => /fail|error/i.test(l))
         const msg = bad.length > 0 ? bad[bad.length - 1]
             : (lines.length > 0 ? lines[lines.length - 1] : "Command failed (exit " + rc + ")")
@@ -363,9 +386,7 @@ Item {
     function pairDevice(mac) {
         if (!root._validMac(mac)) return false
         return root._startAction("pair", mac,
-            "timeout 30 bluetoothctl pair \"$1\" && " +
-            "timeout 10 bluetoothctl trust \"$1\" && " +
-            "timeout 30 bluetoothctl connect \"$1\"", [mac])
+            "python3 \"$1\" \"$2\"", [Quickshell.shellPath("../../native/bluetooth_pair.py"), mac])
     }
 
     // ── Scanning ───────────────────────────────────────────────────────

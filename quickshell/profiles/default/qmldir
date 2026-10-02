@@ -29,3 +29,4 @@ SliderRow 1.0 SliderRow.qml
 singleton MusicService 1.0 MusicService.qml
 singleton SysmonService 1.0 SysmonService.qml
 NotificationActions 1.0 NotificationActions.qml
+NotificationButton 1.0 NotificationButton.qml

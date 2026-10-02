@@ -30,6 +30,7 @@ Item {
         listProcess.exec(["python3", helper, "list"])
     }
     function inspect(entryId) {
+        if (requestedId === entryId && !preview.error) return
         requestedId = entryId
         preview = {}
         previewDelay.restart()

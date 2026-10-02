@@ -145,7 +145,10 @@ Rectangle {
                         else if (ctrl && event.key === Qt.Key_L) selectAll()
                         else if (event.key === Qt.Key_Tab) {
                             const tabs = ["all", "text", "image"]
-                            view.category = tabs[(tabs.indexOf(view.category) + (event.modifiers & Qt.ShiftModifier ? 2 : 1)) % 3]
+                            view.category = tabs[(tabs.indexOf(view.category) + 1) % 3]
+                        } else if (event.key === Qt.Key_Backtab) {
+                            const tabs = ["all", "text", "image"]
+                            view.category = tabs[(tabs.indexOf(view.category) + 2) % 3]
                         } else { return }
                         event.accepted = true
                     }

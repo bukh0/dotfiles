@@ -66,8 +66,18 @@ PanelWindow {
             interval: 120
             onTriggered: if (interaction.containsMouse && !controlPanel.pinned) controlPanel.beginHoverOpen()
         }
-        onEntered: openDelay.restart()
-        onExited: { openDelay.stop(); if (!controlPanel.pinned) controlPanel.scheduleHoverClose() }
+        onEntered: {
+            controlPanel.triggerHovered = true
+            controlPanel.cancelHoverClose()
+            if (controlPanel._fadingOut) controlPanel.beginHoverOpen()
+            else if (!controlPanel.isOpen) openDelay.restart()
+        }
+        onExited: {
+            controlPanel.triggerHovered = false
+            openDelay.stop()
+            controlPanel.scheduleHoverClose()
+        }
+        Component.onDestruction: controlPanel.triggerHovered = false
         onClicked: {
             openDelay.stop()
             controlPanel.pinned = !controlPanel.pinned

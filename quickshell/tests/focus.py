@@ -14,7 +14,11 @@ with tempfile.TemporaryDirectory(prefix='qs-focus-audit-') as d:
  start=s.index('    Component {\n        id: panelContent')
  s=s[:start]+'''    Component {
         id: panelContent
-        TextField { objectName: "auditPassword"; placeholderText: "Password" }
+        TextField {
+            objectName: "auditPassword"
+            placeholderText: "Password"
+            HoverHandler { blocking: true }
+        }
     }
 }
 '''
@@ -41,6 +45,39 @@ Item {
    field.forceActiveFocus(); verify(field.activeFocus)
    keyClick(Qt.Key_Escape)
    compare(panel.isOpen,false,"Escape should close after focusing password field")
+  }
+  function test_hoverBridge() {
+   mouseMove(panel, 2, 2)
+   panel.beginHoverOpen()
+   const bridge=findChild(panel,"controlPanelHoverBridge")
+   verify(bridge !== null)
+   compare(bridge.y,panel.barHeight,"hover region never overlaps the bar")
+   wait(panel.slideDuration + 30)
+   mouseMove(panel, panel.width / 2, panel.barHeight + 2)
+   wait(30)
+   panel.scheduleHoverClose()
+   wait(panel.hoverCloseDelay + 40)
+   verify(panel.isOpen,"gap between clock and drawer keeps panel open")
+   mouseMove(panel, panel.width / 2, panel.openY + 20)
+   wait(30)
+   panel.scheduleHoverClose()
+   wait(panel.hoverCloseDelay + 40)
+   verify(panel.isOpen,"drawer content keeps panel open")
+   mouseMove(panel, 2, 2)
+   wait(panel.hoverCloseDelay + 40)
+   verify(!panel.isOpen,"leaving both regions closes panel")
+  }
+  function test_returnToClock() {
+   mouseMove(panel, 2, 2)
+   panel.beginHoverOpen()
+   panel.scheduleHoverClose()
+   panel.triggerHovered = true
+   wait(panel.hoverCloseDelay + 40)
+   verify(panel.isOpen,"pending close cannot hide a hovered clock's panel")
+   panel.triggerHovered = false
+   panel.scheduleHoverClose()
+   wait(panel.hoverCloseDelay + 40)
+   verify(!panel.isOpen)
   }
  }
 }

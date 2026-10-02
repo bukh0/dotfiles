@@ -28,6 +28,7 @@ with tempfile.TemporaryDirectory(prefix='script-regressions-') as directory:
     env = dict(os.environ, HOME=str(home), XDG_RUNTIME_DIR=str(runtime), XDG_CACHE_HOME=str(root/'cache'), PATH=str(bins)+os.pathsep+os.environ['PATH'], TEST_ROOT=str(root))
     mock(bins, 'hyprctl', 'cat "$TEST_ROOT/window.json"')
     mock(bins, 'pkill', 'echo signal >> "$TEST_ROOT/signals"')
+    mock(bins, 'pgrep', 'exit 0')
     for value in (1, 1, 0, 0):
         (root/'window.json').write_text('{"fullscreen":'+str(value)+'}')
         run(['bash',str(SCRIPTS/'fullscreen_toggle.sh')],env)
@@ -71,3 +72,16 @@ with tempfile.TemporaryDirectory(prefix='script-regressions-') as directory:
     assert run(['bash',str(repo/'backup-dotfiles.sh'),'--push'],env,False).returncode == 1
     assert 're-run with --push' not in r.stdout
     print('PASS backup script staging, history/build exclusions, symlinks, unrelated-change isolation, staged-change guard')
+    (home/'.scripts').unlink()
+    run(['bash',str(repo/'backup-dotfiles.sh'),'--restore'],env)
+    assert (home/'.scripts').is_symlink() and (home/'.scripts').resolve() == repo/'.scripts'
+    (home/'.scripts').unlink()
+    (home/'.scripts').mkdir()
+    (home/'.scripts/keep').write_text('existing scripts')
+    run(['bash',str(repo/'backup-dotfiles.sh'),'--restore'],env)
+    assert (home/'.scripts/keep').read_text() == 'existing scripts'
+    shutil.rmtree(home/'.scripts')
+    (home/'.scripts').symlink_to(home/'missing-target')
+    run(['bash',str(repo/'backup-dotfiles.sh'),'--restore'],env)
+    assert (home/'.scripts').readlink() == home/'missing-target'
+    print('PASS fresh restore creates scripts link and preserves existing directories/broken links')

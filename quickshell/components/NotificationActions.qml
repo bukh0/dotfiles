@@ -12,21 +12,13 @@ Flow {
     visible: actions.length > 0
     Repeater {
         model: root.actions
-        Button {
+        NotificationButton {
             required property var modelData
             required property int index
             text: modelData.text
             width: Math.min(implicitWidth, root.width)
-            font.family: Theme.fontUI
-            contentItem: Text {
-                text: parent.text
-                textFormat: Text.PlainText
-                color: Colors.surfaceFg
-                font: parent.font
-                elide: Text.ElideRight
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-            }
+            emphasis: index === 0
+            hint: text
             onClicked: NotificationDaemon.invokeAction(root.notificationId, index)
         }
     }
