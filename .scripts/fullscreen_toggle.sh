@@ -7,9 +7,13 @@ FLAG="${XDG_RUNTIME_DIR:-/tmp}/waybar-hidden-${UID}"
 fullscreen=$(hyprctl activewindow -j | jq -r '(.fullscreen // 0) != 0')
 
 if [[ "$fullscreen" == true && ! -e "$FLAG" ]]; then
-    pkill -u "$UID" -USR1 -x waybar || exit 1
-    : > "$FLAG"
+    if pgrep -u "$UID" -x waybar >/dev/null; then
+        pkill -u "$UID" -USR1 -x waybar
+        : > "$FLAG"
+    fi
 elif [[ "$fullscreen" == false && -e "$FLAG" ]]; then
-    pkill -u "$UID" -USR1 -x waybar || exit 1
+    if pgrep -u "$UID" -x waybar >/dev/null; then
+        pkill -u "$UID" -USR1 -x waybar
+    fi
     rm -f -- "$FLAG"
 fi

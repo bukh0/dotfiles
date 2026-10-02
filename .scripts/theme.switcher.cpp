@@ -10,6 +10,7 @@
 #include <iostream>
 #include <set>
 #include <string>
+#include <stdexcept>
 #include <vector>
 #include <fcntl.h>
 #include <openssl/evp.h>
@@ -53,6 +54,7 @@ struct Temp {
         close(fd); path = value.data();
     }
     ~Temp() { std::error_code ec; fs::remove(path, ec); }
+    Temp(const Temp&) = delete;
 };
 fs::path destinationPath(fs::path path) {
     // Resolve the final symlink, including a relative/dangling target, before

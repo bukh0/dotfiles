@@ -284,7 +284,17 @@ def process_directory(root, *, deduplicate=False, upscale=False, dry_run=False, 
     root = Path(root).expanduser().resolve()
     if not root.is_dir():
         raise ValueError(f"Wallpaper directory does not exist: {root}")
+    # Validate every managed directory before any copy, upscale or archival.
+    # In particular, a symlinked theme folder must never escape this root.
+    for name in [*THEMES, "Deletions", ".originals_backup"]:
+        directory = root / name
+        if directory.is_symlink() or not directory.resolve().is_relative_to(root):
+            raise ValueError(f"Managed wallpaper directory must not be a symlink: {directory}")
+        if directory.exists() and not directory.is_dir():
+            raise ValueError(f"Managed wallpaper path is not a directory: {directory}")
     manifest_path = root / ".wallpaper-index.json"
+    if manifest_path.is_symlink():
+        raise ValueError("Wallpaper index must not be a symlink")
     if manifest_path.exists():
         state = json.loads(manifest_path.read_text())
         if not isinstance(state, dict) or not isinstance(state.get("copies", {}), dict) or not isinstance(state.get("upscaled", {}), dict):
@@ -315,6 +325,9 @@ def process_directory(root, *, deduplicate=False, upscale=False, dry_run=False, 
             relative = f"{theme}/{path.name}"
             desired.add(relative)
             target = root / relative
+            if target.is_symlink():
+                print(f"Preserving symlinked image: {relative}")
+                continue
             # An existing theme image may have been curated by hand.
             if target.exists():
                 existing = digest(target)

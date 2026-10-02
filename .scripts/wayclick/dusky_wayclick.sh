@@ -106,6 +106,16 @@ update_state() {
 }
 
 cleanup() {
+    trap '' INT TERM HUP
+    if [[ -n "${RUNNER_PID:-}" ]] && kill -0 "$RUNNER_PID" 2>/dev/null; then
+        kill -TERM "$RUNNER_PID" 2>/dev/null || true
+        for _ in {1..20}; do
+            kill -0 "$RUNNER_PID" 2>/dev/null || break
+            sleep 0.1
+        done
+        kill -KILL "$RUNNER_PID" 2>/dev/null || true
+        wait "$RUNNER_PID" 2>/dev/null || true
+    fi
     tput cnorm 2>/dev/null || true
     if [[ "${RUN_MODE:-run}" != "setup" ]] && [[ -n "${STATE_FILE:-}" ]]; then
         update_state "False"
@@ -117,7 +127,10 @@ notify_user() {
         notify-send -t 2000 --app-name="WayClick" "WayClick Elite" "$1"
 }
 
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 if (( EUID == 0 )); then
     printf "%b[CRITICAL]%b Do not run this script as root.\n" "${C_RED}" "${C_RESET}"
@@ -698,6 +711,7 @@ RUNNER_PID=$!
 flock -u 9
 RUNNER_STATUS=0
 wait "$RUNNER_PID" || RUNNER_STATUS=$?
+RUNNER_PID=""
 
 printf "\n%b[INFO]%b WayClick stopped.\n" "${C_BLUE}" "${C_RESET}"
 exit "$RUNNER_STATUS"

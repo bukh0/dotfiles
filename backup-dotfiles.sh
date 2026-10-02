@@ -153,6 +153,10 @@ for entry in "${!SYNC_MAP[@]}"; do
 done
 
 if [ "$MODE" == "restore" ]; then
+  if [[ -d "$DOTFILES/.scripts" && ! -e "$HOME/.scripts" && ! -L "$HOME/.scripts" ]]; then
+    ln -sT -- "$DOTFILES/.scripts" "$HOME/.scripts"
+    echo "  linked: $HOME/.scripts -> $DOTFILES/.scripts"
+  fi
   echo "==> Restored from $DOTFILES. Log out and back in to apply."
   exit 0
 fi

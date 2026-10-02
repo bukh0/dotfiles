@@ -1,4 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+command -v hyprctl >/dev/null
+command -v notify-send >/dev/null
+
 STATUS=$(hyprctl getoption decoration:blur:enabled | head -1 | awk '{print $2}')
 if [ "$STATUS" = "true" ]; then
     hyprctl eval 'hl.config({ decoration = { blur = { enabled = false } } })'
