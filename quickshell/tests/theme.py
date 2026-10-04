@@ -89,3 +89,36 @@ for name in ['rofi.rasi','kitty.conf','waybar.css','gtk.css','swaync.css','hyprl
  inputs=(cache/'wal-inputs').read_text().splitlines()
  assert len(inputs)==2 and inputs[0]==inputs[1]==str(thumb)
  print('PASS Pywal uses the same small input on cold and warm caches',flush=True)
+ # Curated image symlinks are selectable even when the image lives elsewhere.
+ external=root/'external.png';external.write_bytes(wall.read_bytes())
+ linked=walls/'linked.png';linked.symlink_to(external)
+ assert str(linked)+'\t' in call(['--list-walls'],env).stdout
+ for generator in ['Matugen','pywal']:
+  call(['--apply',generator,str(linked)],env)
+  rejected=call(['--apply',generator,str(external)],env,False)
+  assert rejected.returncode != 0 and 'Invalid wallpaper path' in rejected.stderr
+ print('PASS listed image symlinks work with both generators; direct outside paths remain rejected',flush=True)
+ # Wallpaper failures must reach the picker after installed colours are reloaded.
+ mock(bins/'swww',"import sys\nprint('mock wallpaper failure',file=sys.stderr)\nraise SystemExit(1)\n")
+ mock(bins/'notify-send',"import os,pathlib\n(pathlib.Path(os.environ['HOME'])/'success-notice').touch()\n")
+ failed=call(['--apply','Matugen',str(wall)],env,False)
+ assert failed.returncode != 0 and 'mock wallpaper failure' in failed.stderr
+ assert 'Theme colours were applied, but the wallpaper could not be set' in failed.stderr
+ assert not (root/'success-notice').exists()
+ print('PASS wallpaper failure returns an actionable error without a success notification',flush=True)
+ # A failed shell reload must not be presented as a successful theme change.
+ (scripts/'quickshell-common.sh').write_text('quickshell_running() { return 0; }\n')
+ mock(scripts/'switch_quickshell.sh', 'raise SystemExit(7)\n')
+ mock(bins/'swww', 'raise SystemExit(0)\n')
+ failed=call(['--apply','Matugen',str(wall)],env,False)
+ assert failed.returncode != 0 and 'Quickshell could not reload' in failed.stderr
+ assert not (root/'success-notice').exists()
+ mock(bins/'swww', 'raise SystemExit(1)\n')
+ failed=call(['--apply','Matugen',str(wall)],env,False)
+ assert failed.returncode != 0 and 'wallpaper could not be set and Quickshell could not reload' in failed.stderr
+ assert not (root/'success-notice').exists()
+ mock(bins/'swww', 'raise SystemExit(0)\n')
+ mock(scripts/'switch_quickshell.sh', 'raise SystemExit(0)\n')
+ call(['--apply','Matugen',str(wall)],env)
+ assert (root/'success-notice').exists()
+ print('PASS failed reload, combined failures, and successful reload recovery',flush=True)

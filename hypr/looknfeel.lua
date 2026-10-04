@@ -13,7 +13,7 @@ hl.config({
         layout = "dwindle"
     },
     decoration = {
-        rounding = 8,
+        rounding = 6,
         blur = {
             enabled = false,
             passes = 3,

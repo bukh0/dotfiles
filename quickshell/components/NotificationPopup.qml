@@ -92,7 +92,7 @@ PanelWindow {
 
     function restartTimeout() {
         hideTimer.stop()
-        if (popup.displayDuration > 0) hideTimer.start()
+        if (popup.isVisible && !popupHover.hovered && popup.displayDuration > 0) hideTimer.start()
     }
 
     function _advanceQueue() {

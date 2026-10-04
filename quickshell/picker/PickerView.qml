@@ -37,7 +37,7 @@ Rectangle {
     property string operation: ""
     readonly property bool loading: page === "Wallpapers" ? wallProc.running : page === "Themes" && themeProc.running
     readonly property string current: filtered.length ? filtered[Math.max(0, Math.min(selected, filtered.length - 1))] : ""
-    readonly property int columns: 3
+    readonly property int columns: 4
     readonly property int pageSize: page === "Wallpapers" ? columns * Math.max(1, Math.floor(grid.height / Math.max(1, grid.cellHeight))) : Math.max(1, Math.floor(themeList.height / rowHeight))
 
     color: Qt.alpha(dark ? "#242426" : "#f2f2f7", 0.994)

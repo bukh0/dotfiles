@@ -1,4 +1,21 @@
 -- ~/.config/nvim/lua/plugins/lualine.lua
+
+-- Helper function for wordcount
+local function is_prose()
+  return vim.bo.filetype == "text" or vim.bo.filetype == "markdown"
+end
+
+-- 2. Define a function to process and structure the word/character count
+local function get_word_char_count()
+  local stats = vim.fn.wordcount()
+  if stats.visual_words then
+    return stats.visual_words .. "W / " .. stats.visual_chars .. "C (Vis)"
+  else
+    return stats.words .. "W / " .. stats.bytes .. "C"
+  end
+end
+
+
 return {
   {
     "nvim-lualine/lualine.nvim",
@@ -21,7 +38,7 @@ return {
         lualine_b = { "branch", "diff", "diagnostics" },
         lualine_c = { "filename" },
         lualine_x = { "encoding", "fileformat", "filetype" },
-        lualine_y = { "progress" },
+        lualine_y = { "progress", { get_word_char_count, cond = is_prose }},
         lualine_z = { "location" },
       }
 
