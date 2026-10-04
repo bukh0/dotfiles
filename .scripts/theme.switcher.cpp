@@ -217,12 +217,13 @@ bool install(const Routes& files) {
     }
     return true;
 }
-void reload(const std::string& home) {
+bool reload(const std::string& home) {
     run("pkill -USR1 -u " + std::to_string(getuid()) + " -x kitty 2>/dev/null || true");
     run("pkill -USR2 -u " + std::to_string(getuid()) + " -x waybar 2>/dev/null || true");
     run("pgrep -x swaync >/dev/null && swaync-client -rs >/dev/null 2>&1 &");
     if (run("bash -c 'source \"$1\" && quickshell_running' _ " + quote(home + "/.scripts/quickshell-common.sh")))
-        run(quote(home + "/.scripts/switch_quickshell.sh") + " reload");
+        return run(quote(home + "/.scripts/switch_quickshell.sh") + " reload");
+    return true;
 }
 int main(int argc, char** argv) {
     try {
@@ -269,7 +270,10 @@ int main(int argc, char** argv) {
         if (flag == "--install-matugen") source = themes / "matugen/generated";
         else if (choice == "Matugen" || choice == "pywal") {
             if (argc != 4) throw std::runtime_error("A wallpaper is required");
-            wall = fs::canonical(argv[3]);
+            // Resolve the parent, but preserve a curated image symlink. The
+            // listing accepts these links even when their targets live elsewhere.
+            const auto requested = fs::absolute(argv[3]);
+            wall = fs::canonical(requested.parent_path()) / requested.filename();
             auto relative = wall.lexically_relative(fs::canonical(wallsRoot));
             if (relative.empty() || *relative.begin() == ".." || !imagePath(wall) || !fs::is_regular_file(wall))
                 throw std::runtime_error("Invalid wallpaper path");
@@ -297,8 +301,16 @@ int main(int argc, char** argv) {
             if (!images.empty()) wall = images[static_cast<size_t>(std::time(nullptr)) % images.size()].path;
         }
         if (!install(routes(source, config, choice))) return 1;
-        if (!wall.empty()) run("swww img " + quote(wall.string()) + " --transition-type center --transition-fps 60 --transition-duration 0.8 >/dev/null 2>&1 &");
-        reload(home);
+        // Wait for swww to accept the change; its daemon runs the transition.
+        // Keep stderr and propagate failure instead of reporting false success.
+        const bool wallpaperOk = wall.empty() || run("swww img " + quote(wall.string()) + " --transition-type center --transition-fps 60 --transition-duration 0.8 >/dev/null");
+        const bool reloadOk = reload(home);
+        if (!reloadOk)
+            throw std::runtime_error(wallpaperOk
+                ? "Theme colours were applied, but Quickshell could not reload. Check the bar log and try again."
+                : "Theme colours were applied, but the wallpaper could not be set and Quickshell could not reload. Check swww and the bar log.");
+        if (!wallpaperOk)
+            throw std::runtime_error("Theme colours were applied, but the wallpaper could not be set. Check that swww is running and try again.");
         run("notify-send -a 'Theme Engine' -- " + quote("Theme updated to " + choice));
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
