@@ -1,11 +1,34 @@
 pragma Singleton
 import QtQuick
+import Quickshell
 import Quickshell.Io
 import "."
 
 Item {
     id: root
     function initialize() {} // Accessed once by the shell to start sampling.
+    function togglePowerProfile() {
+        if (!profileProc.running) profileProc.running = true
+    }
+
+    // Keep authentication and the toggle alive when the panel unloads.
+    Process {
+        id: profileProc
+        command: ["bash", Quickshell.shellPath("../../native/toggle-performance.sh")]
+        stderr: StdioCollector {
+            onStreamFinished: {
+                const msg = text.trim()
+                if (msg.length > 0) console.warn("power profile:", msg)
+            }
+        }
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0) {
+                Quickshell.execDetached(["notify-send", "-a", "Power Profile", "--",
+                    "Power profile change failed", "Authentication was cancelled or the profile could not be applied."])
+            }
+        }
+    }
+
     property string cpuPercent: "0%"
     property string ramPercent: "0%"
     property string rxSpeed: "0 B/s"

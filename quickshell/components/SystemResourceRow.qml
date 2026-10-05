@@ -126,28 +126,9 @@ RowLayout {
                 anchors.fill: parent
                 anchors.margins: -6
                 cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    if (profileProc.running) return
-                    profileProc.command = ["bash", "-c", "exec \"$HOME/.scripts/toggle-performance.sh\""]
-                    profileProc.running = true
-                }
+                onClicked: SysmonService.togglePowerProfile()
             }
         }
     }
 
-    Process {
-        id: profileProc
-        stderr: StdioCollector {
-            onStreamFinished: {
-                const msg = text.trim()
-                if (msg.length > 0) console.warn("power profile:", msg)
-            }
-        }
-        onExited: (exitCode, exitStatus) => {
-            if (exitCode !== 0) {
-                Quickshell.execDetached(["notify-send", "-a", "Power Profile", "--",
-                    "Power profile change failed", "Exit status " + exitCode])
-            }
-        }
-    }
 }

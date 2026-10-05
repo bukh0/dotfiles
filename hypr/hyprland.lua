@@ -11,8 +11,6 @@ Message     = "vesktop"
 
 RofiWallpick    = os.getenv("HOME") .. "/.config/rofi/minimal/wallpaper.rasi"
 RofiAppLauncher = os.getenv("HOME") .. "/.config/rofi/minimal/config.rasi"
--- ~/.config/hypr/hyprland.lua
--- BARE MINIMUM ENTRY POINT
 
 -- 1. Hardware & Environment
 require("environment")
