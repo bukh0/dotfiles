@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-command -v wpctl >/dev/null && command -v brightnessctl >/dev/null && command -v swayosd-client >/dev/null
+for c in wpctl swayosd-client; do command -v "$c" >/dev/null || exit 1; done
 wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
 volume=$(wpctl get-volume @DEFAULT_AUDIO_SOURCE@)
 if [[ "$volume" == *MUTED* ]]; then

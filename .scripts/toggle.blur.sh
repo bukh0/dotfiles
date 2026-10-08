@@ -3,8 +3,12 @@ set -euo pipefail
 
 command -v hyprctl >/dev/null
 command -v notify-send >/dev/null
+command -v jq >/dev/null
 
-STATUS=$(hyprctl getoption decoration:blur:enabled | head -1 | awk '{print $2}')
+STATUS=$(hyprctl getoption decoration:blur:enabled -j | jq -r '
+    if (.bool | type) == "boolean" then .bool
+    elif (.int | type) == "number" then .int != 0
+    else error("Missing blur enabled value") end')
 if [ "$STATUS" = "true" ]; then
     hyprctl eval 'hl.config({ decoration = { blur = { enabled = false } } })'
     notify-send "Hyprland" "Blur Disabled" -i dialog-information -t 1000

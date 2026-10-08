@@ -36,18 +36,20 @@ configuration {
 
 /**
  * ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
- * ┃      GLASSY COLOR PRESETS (HEX + ALPHA)                          ┃
+ * ┃      COLOURS FROM THE ACTIVE THEME                          ┃
  * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  */
+@import "colors.rasi"
+
 * {
-    bg-glass:             #0f0f14f2; 
-    bg-layer:             #ffffff08; 
-    bg-selected:          #89b4fa66; 
-    border-accent:        #89b4fa88; 
+    bg-glass:             @surface; 
+    bg-layer:             @surface-container; 
+    bg-selected:          @surface-container-high; 
+    border-accent:        @primary; 
     
-    text-def:             #cdd6f4;
-    text-dim:             #a6adc8;
-    text-active:          #ffffff;
+    text-def:             @on-surface;
+    text-dim:             @on-surface-variant;
+    text-active:          @primary;
 
     background-color:     transparent;
     text-color:           @text-def;

@@ -30,15 +30,7 @@ case "$CHOICE" in
         ;;
 
     *Animations)
-        ANIM=$(find "$ANIM_DIR" -maxdepth 1 -type f -name '*.lua' ! -name 'current*' -printf '%f\n' | sort | rofi -dmenu -i -p "󰚔 Select Animation" -config "$ROFI_CONF")
-        
-        if [[ -n "$ANIM" ]]; then
-            ln -sf "$ANIM_DIR/$ANIM" "$ANIM_DIR/current_animations.lua"
-            ln -sf "$ANIM_DIR/$ANIM" "$HYPR_DIR/animations.lua"
-            
-            notify-send -a "System" "Animations updated to $ANIM"
-            hyprctl reload
-        fi
+        bash "$HOME/.scripts/animation.switcher.sh"
         ;;
 
     *Nvim)

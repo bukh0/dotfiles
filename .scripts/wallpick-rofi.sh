@@ -12,6 +12,7 @@ elif [[ $# != 0 ]]; then
 fi
 walls=$("$engine" --list-walls)
 [[ -n "$walls" ]] || { notify-send -a Wallpaper 'No wallpapers found'; exit 0; }
+paths=()
 choice_file=
 menu=$(mktemp)
 trap 'rm -f -- "$menu" "$choice_file"' EXIT
@@ -19,11 +20,13 @@ choice_file=$(mktemp)
 while IFS=$'\t' read -r path thumb; do
   [[ -n $path ]] || continue
   [[ -s $thumb ]] || thumb=$path
-  printf '%s\0icon\x1f%s\n' "$path" "$thumb" >> "$menu"
+  paths+=("$path")
+  printf '%s\0icon\x1f%s\n' "${path##*/}" "$thumb" >> "$menu"
 done <<< "$walls"
-rofi -dmenu -i -show-icons -theme "${XDG_CONFIG_HOME:-$HOME/.config}/rofi/wallpaper.rasi" -p ' Wallpaper' < "$menu" > "$choice_file" || exit 0
-selected=$(<"$choice_file")
-[[ -n $selected ]] || exit 0
+rofi -dmenu -i -no-custom -format i -show-icons -theme "${XDG_CONFIG_HOME:-$HOME/.config}/rofi/wallpaper.rasi" -p ' Wallpaper' < "$menu" > "$choice_file" || exit 0
+index=$(<"$choice_file")
+[[ $index =~ ^[0-9]+$ ]] && (( index < ${#paths[@]} )) || exit 0
+selected=${paths[index]}
 if [[ -n $theme ]]; then
   rm -f -- "$menu" "$choice_file"
   trap - EXIT

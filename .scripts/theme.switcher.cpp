@@ -217,13 +217,12 @@ bool install(const Routes& files) {
     }
     return true;
 }
-bool reload(const std::string& home) {
+void reload() {
     run("pkill -USR1 -u " + std::to_string(getuid()) + " -x kitty 2>/dev/null || true");
     run("pkill -USR2 -u " + std::to_string(getuid()) + " -x waybar 2>/dev/null || true");
     run("pgrep -x swaync >/dev/null && swaync-client -rs >/dev/null 2>&1 &");
-    if (run("bash -c 'source \"$1\" && quickshell_running' _ " + quote(home + "/.scripts/quickshell-common.sh")))
-        return run(quote(home + "/.scripts/switch_quickshell.sh") + " reload");
-    return true;
+    // Colors.qml is watched by the bar. Its hot reload preserves the process
+    // and avoids a second full restart racing notification-state restoration.
 }
 int main(int argc, char** argv) {
     try {
@@ -304,11 +303,7 @@ int main(int argc, char** argv) {
         // Wait for swww to accept the change; its daemon runs the transition.
         // Keep stderr and propagate failure instead of reporting false success.
         const bool wallpaperOk = wall.empty() || run("swww img " + quote(wall.string()) + " --transition-type center --transition-fps 60 --transition-duration 0.8 >/dev/null");
-        const bool reloadOk = reload(home);
-        if (!reloadOk)
-            throw std::runtime_error(wallpaperOk
-                ? "Theme colours were applied, but Quickshell could not reload. Check the bar log and try again."
-                : "Theme colours were applied, but the wallpaper could not be set and Quickshell could not reload. Check swww and the bar log.");
+        reload();
         if (!wallpaperOk)
             throw std::runtime_error("Theme colours were applied, but the wallpaper could not be set. Check that swww is running and try again.");
         run("notify-send -a 'Theme Engine' -- " + quote("Theme updated to " + choice));

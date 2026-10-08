@@ -438,9 +438,6 @@ latency_ms = BUFFER_SIZE / SAMPLE_RATE * 1000
 print(f"{C_BLUE}[AUDIO]{C_RESET} Buffer={BUFFER_SIZE} samples (~{latency_ms:.1f}ms) | "
       f"Rate={SAMPLE_RATE}Hz | Channels={MIX_CHANNELS}")
 
-# === DISABLE GARBAGE COLLECTOR ===
-gc.disable()
-
 # === CONFIG LOADING ===
 print(f"{C_BLUE}[INFO]{C_RESET}  Config: {CONFIG_FILE}")
 print(f"{C_BLUE}[INFO]{C_RESET}  Pack:   {ASSET_DIR}")
@@ -501,6 +498,10 @@ DEFAULT_SOUND_OBJS = tuple(SOUNDS[f] for f in DEFAULTS if f in SOUNDS)
 for code, filename in RAW_KEY_MAP.items():
     if 0 <= code < MAX_KEYCODE and filename in SOUNDS:
         SOUND_CACHE[code] = SOUNDS[filename]
+
+# Keep long-lived sound objects out of GC scans while collecting later cycles.
+gc.collect()
+gc.freeze()
 
 # === HOT PATH PRE-BINDING ===
 _random_choice = random.choice

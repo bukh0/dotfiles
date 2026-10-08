@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-command -v swayosd-client >/dev/null && command -v wpctl >/dev/null
-swayosd-client --output-volume mute-toggle
+for c in wpctl swayosd-client; do command -v "$c" >/dev/null || exit 1; done
+wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
 volume=$(wpctl get-volume @DEFAULT_AUDIO_SINK@)
-if [[ "$volume" == *MUTED* ]]; then muted=1; else muted=0; fi
+if [[ "$volume" == *MUTED* ]]; then
+    muted=1; icon=audio-volume-muted; msg="Muted"
+else
+    muted=0; icon=audio-volume-high; msg="Unmuted"
+fi
+swayosd-client --custom-message "$msg" --custom-icon "$icon"
 
 # A hardware LED is optional; do not break software mute when absent.
 led=/sys/class/leds/platform::mute/brightness

@@ -27,3 +27,10 @@ __pycache__/
 .scripts/*-rofi
 quickshell/native/sysmon
 quickshell/native/*.d
+
+# Python bytecode, retired helper builds and local weather location
+*.pyc
+scripts/sysmon
+scripts/theme.switcher
+quickshell-alt/sysmon
+.config/weather-location
