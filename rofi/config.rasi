@@ -44,25 +44,27 @@ configuration {
 
 /**
  * ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
- * ┃      GLASSY COLOR PRESETS (HEX + ALPHA)                          ┃
+ * ┃      COLOURS FROM THE ACTIVE THEME                          ┃
  * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  */
+@import "colors.rasi"
+
 * {
-    /* 95% solid base - much less transparent */
-    bg-glass:             #0f0f14f2; 
-    /* Slightly lighter transparent layers for inputs/tabs */
-    bg-layer:             #ffffff08; 
-    /* Translucent neon blue accent */
-    bg-selected:          #89b4fa66; 
-    /* Brighter solid blue for borders */
-    border-accent:        #89b4fa88; 
-    /* Urgent red */
-    bg-urgent:            #f38ba866; 
+    /* These aliases follow the palette installed by the theme switcher. */
+    bg-glass:             @surface; 
+    /* Container shades for inputs and selections. */
+    bg-layer:             @surface-container; 
+    /* Selected entry. */
+    bg-selected:          @surface-container-high; 
+    /* Theme accent for borders. */
+    border-accent:        @primary; 
+    /* Urgent entries. */
+    bg-urgent:            @error-container; 
     
-    text-def:             #cdd6f4;
-    text-dim:             #a6adc8;
-    text-active:          #ffffff;
-    text-urgent:          #f38ba8;
+    text-def:             @on-surface;
+    text-dim:             @on-surface-variant;
+    text-active:          @primary;
+    text-urgent:          @on-error-container;
 
     background-color:     transparent; /* Keep global bg transparent */
     text-color:           @text-def;

@@ -39,7 +39,7 @@ Item {
         if (busy) return
         error = ""
         action = operation
-        actionProcess.exec(["python3", helper, operation].concat(entryId || operation === "paste" ? [entryId] : []))
+        actionProcess.exec(["python3", helper, operation].concat((entryId || operation === "paste") ? [entryId] : []))
     }
     function choose(entryId, shouldPaste) {
         if (!entryId || busy) return

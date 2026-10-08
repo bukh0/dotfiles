@@ -21,6 +21,9 @@ hl.bind(mod .. " + Q", hl.dsp.window.close())
 hl.bind(mod .. " + M", hl.dsp.exec_cmd("wlogout"))
 hl.bind(mod .. " + L", hl.dsp.exec_cmd("hyprlock"))
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+
+
+
 -- hl.bind(mod .. " + SHIFT + L", hl.dsp.exec_cmd("loginctl lock-session && sleep 1 && hyprctl dispatch 'hl.dsp.dpms({action = \"disable\"})'"))
 hl.bind(mod .. " + SHIFT + U", hl.dsp.exec_cmd("systemctl suspend"))
 hl.bind(mod .. " + V", hl.dsp.window.float({ action = "toggle" }))
@@ -41,9 +44,9 @@ hl.bind(mod .." + Print", hl.dsp.exec_cmd('FILE="$HOME/Pictures/Screenshots/scre
 -- Theming & Scripts
 hl.bind(mod .. " + B", hl.dsp.exec_cmd("~/.scripts/toggle.blur.sh"))
 hl.bind(mod .. " + SHIFT + D", hl.dsp.exec_cmd("~/.scripts/wallpick-rofi.sh"))
-hl.bind(mod .. " + D", hl.dsp.exec_cmd("~/.scripts/picker-menu.sh"))
-hl.bind(mod .. " + SHIFT + T", hl.dsp.exec_cmd("~/.scripts/theme.switcher-rofi.sh"))
-hl.bind(mod .. " + T", hl.dsp.exec_cmd("~/.scripts/picker-menu.sh"))
+hl.bind(mod .. " + D", hl.dsp.exec_cmd("~/.scripts/wallpick-rofi.sh"))
+hl.bind(mod .. " + SHIFT + T", hl.dsp.exec_cmd("~/.scripts/picker-menu.sh"))
+hl.bind(mod .. " + T", hl.dsp.exec_cmd("~/.scripts/theme.switcher-rofi.sh"))
 hl.bind(mod .. " + H", hl.dsp.exec_cmd("~/.scripts/configs.sh"))
 hl.bind(mod .. " + SHIFT + N", hl.dsp.exec_cmd([[bash -c "pkill -x wlsunset || wlsunset -l -25.74 -L 28.18 -t 4500 -T 6500 &"]]))
 hl.bind(mod .. " + G", hl.dsp.exec_cmd("~/.scripts/gamemode-toggle.sh"))

@@ -38,7 +38,10 @@ def image_type(data):
         return "image/gif"
     if data.startswith(b"RIFF") and data[8:12] == b"WEBP":
         return "image/webp"
-    if data.startswith(b"BM"):
+    # "BM" alone also matches ordinary text such as "BMW" or "BMI".
+    # BMP has reserved zero fields and a recognised DIB header length.
+    if (len(data) >= 18 and data.startswith(b"BM") and data[6:10] == b"\0" * 4
+            and int.from_bytes(data[14:18], "little") in (12, 16, 40, 52, 56, 64, 108, 124)):
         return "image/bmp"
     if data.startswith((b"II*\0", b"MM\0*")):
         return "image/tiff"
@@ -151,7 +154,7 @@ def paste(address):
     current = active_window()
     if current.get("address") != address:
         raise RuntimeError("Copied. Focus changed, so automatic paste was skipped. Press Ctrl+V to paste.")
-    terminal = re.search(r"kitty|alacritty|foot|wezterm|ghostty|konsole|[Tt]erm", current.get("class", ""), re.I)
+    terminal = re.search(r"kitty|alacritty|foot|wezterm|ghostty|konsole|term", current.get("class", ""), re.I)
     keys = ["wtype", "-M", "ctrl"]
     if terminal:
         keys += ["-M", "shift"]

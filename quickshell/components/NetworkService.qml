@@ -58,6 +58,7 @@ Item {
         if (root.actionKind !== "command") return
         commandLaunchCheck.stop()
         root.actionKind = ""
+        root.targetSsid = ""
         if (!cmdProc.started) root.commandError("Could not start network command")
         root.refresh()
         root.connectionSettled()
@@ -83,8 +84,9 @@ Item {
     // because another one is still running. Callers must only enter their
     // "in flight" state when this returns true; otherwise connectionSettled
     // never fires and the UI stays locked forever.
-    function runCommand(cmd) {
+    function runCommand(cmd, commandSsid) {
         if (root.busy) return false
+        root.targetSsid = commandSsid || ""
         root.actionKind = "command"
         cmdProc.started = false
         commandLaunchCheck.restart()
@@ -415,7 +417,7 @@ Item {
 
     function disconnectActive() {
         if (root.activeWifiDevice === "") return false
-        return runCommand(["nmcli", "dev", "disconnect", root.activeWifiDevice])
+        return runCommand(["nmcli", "dev", "disconnect", root.activeWifiDevice], root.ssid)
     }
 
     function cancelPasswordPrompt() {

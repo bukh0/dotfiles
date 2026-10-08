@@ -1,1 +1,1 @@
-/home/bukh0/.cache/wal/hypr-quickshell.qml
+/home/bukh0/.cache/wal/quickshell-colors.qml

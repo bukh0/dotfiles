@@ -48,8 +48,9 @@ class ClipboardTest(unittest.TestCase):
         self.assertEqual((self.path / "copied").read_bytes(), value)
 
     def test_text_mime_and_binary_preservation(self):
-        for value in (b'{"example":true}', b'plain text', 'UTF-8 →'.encode()):
+        for value in (b'{"example":true}', b'plain text', 'UTF-8 →'.encode(), b'BMW', b'BMI measurement', b'BM-1234 is a text reference'):
             entry = self.store(value)
+            self.assertEqual(backend.preview(entry)["text"], value.decode())
             backend.copy(entry)
             self.assertEqual((self.path / "mime").read_text(), "--type text/plain;charset=utf-8")
         for value in (b'\x00binary-data', b'\xff\xfebinary-data'):
@@ -66,6 +67,17 @@ class ClipboardTest(unittest.TestCase):
         backend.copy(entry)
         self.assertEqual((self.path / "copied").read_bytes(), value)
         self.assertEqual((self.path / "mime").read_text(), "--type image/png")
+
+    def test_bmp_image_is_preserved(self):
+        import struct
+        value = (struct.pack("<2sIHHI", b"BM", 58, 0, 0, 54)
+                 + struct.pack("<IiiHHIIiiII", 40, 1, 1, 1, 24, 0, 4, 0, 0, 0, 0)
+                 + b"\x12\x34\x56\0")
+        entry = self.store(value)
+        self.assertTrue(backend.preview(entry)["image"].startswith("data:image/bmp;base64,"))
+        backend.copy(entry)
+        self.assertEqual((self.path / "copied").read_bytes(), value)
+        self.assertEqual((self.path / "mime").read_text(), "--type image/bmp")
 
     def test_image_preview_payload_is_bounded_and_copy_is_original(self):
         import random, struct, zlib
@@ -143,6 +155,9 @@ os._exit(0)
         with self.assertRaises(RuntimeError):
             backend.paste("0xother")
         self.assertFalse((self.path / "keys").exists())
+        backend.paste("0xabc")
+        self.assertIn("-M shift", (self.path / "keys").read_text())
+        (self.path / "window").write_text(json.dumps({"address": "0xabc", "class": "Alacritty"}))
         backend.paste("0xabc")
         self.assertIn("-M shift", (self.path / "keys").read_text())
         (self.path / "window").write_text(json.dumps({"address": "0xabc", "class": "firefox"}))

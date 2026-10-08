@@ -106,19 +106,11 @@ for name in ['rofi.rasi','kitty.conf','waybar.css','gtk.css','swaync.css','hyprl
  assert 'Theme colours were applied, but the wallpaper could not be set' in failed.stderr
  assert not (root/'success-notice').exists()
  print('PASS wallpaper failure returns an actionable error without a success notification',flush=True)
- # A failed shell reload must not be presented as a successful theme change.
+ # Theme application relies on the watched Colors.qml; never restart the bar.
  (scripts/'quickshell-common.sh').write_text('quickshell_running() { return 0; }\n')
- mock(scripts/'switch_quickshell.sh', 'raise SystemExit(7)\n')
+ mock(scripts/'switch_quickshell.sh', "import pathlib,os\n(pathlib.Path(os.environ['HOME'])/'bar-restarted').touch()\nraise SystemExit(7)\n")
  mock(bins/'swww', 'raise SystemExit(0)\n')
- failed=call(['--apply','Matugen',str(wall)],env,False)
- assert failed.returncode != 0 and 'Quickshell could not reload' in failed.stderr
- assert not (root/'success-notice').exists()
- mock(bins/'swww', 'raise SystemExit(1)\n')
- failed=call(['--apply','Matugen',str(wall)],env,False)
- assert failed.returncode != 0 and 'wallpaper could not be set and Quickshell could not reload' in failed.stderr
- assert not (root/'success-notice').exists()
- mock(bins/'swww', 'raise SystemExit(0)\n')
- mock(scripts/'switch_quickshell.sh', 'raise SystemExit(0)\n')
  call(['--apply','Matugen',str(wall)],env)
  assert (root/'success-notice').exists()
- print('PASS failed reload, combined failures, and successful reload recovery',flush=True)
+ assert not (root/'bar-restarted').exists()
+ print('PASS theme application does not restart the bar',flush=True)

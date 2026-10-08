@@ -9,6 +9,12 @@ Requires Quickshell, Python 3, cliphist, wl-copy, and wtype; automatic paste als
 uses Hyprland's active-window identity. The existing wl-paste watchers continue
 to collect history.
 
+History capture uses `wl-paste --watch` from wl-clipboard 2.3 or newer, whose
+`CLIPBOARD_STATE` identifies sensitive offers from the same clipboard capture.
+`~/.scripts/clipboard-store.sh` stores only `CLIPBOARD_STATE=data`; sensitive,
+empty, unknown and missing states are skipped. Older tools or direct wrapper
+invocations without that state are unsupported.
+
 - Type to search entry previews; multiple words match in any order.
 - Up/Down and PageUp/PageDown select; Tab/Shift+Tab switch filters.
 - Enter or double-click pastes into the previous app. Terminals receive

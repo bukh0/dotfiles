@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Isolated regressions: never write to real backlights or network services."""
+from qt_tools import qmltestrunner
 import os
 import re
 from pathlib import Path
@@ -153,7 +154,8 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE" in args:
         # Qt's standalone runner cannot load Quickshell's executable plugins.
         # Use the actual slider with just its two visual singletons.
         (profile / "qmldir").write_text("singleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\n")
-        run(["/usr/lib/qt6/bin/qmltestrunner", "-input", str(stage / "tst_slider.qml")], env)
+        runner = qmltestrunner()
+        run([runner, "-input", str(stage / "tst_slider.qml")], env)
 
 # Keyboard focus regression uses a standalone, isolated Qt scene.
 subprocess.run(["python3", str(ROOT / "tests/focus.py")], check=True)

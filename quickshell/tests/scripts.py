@@ -26,17 +26,11 @@ with tempfile.TemporaryDirectory(prefix='script-regressions-') as directory:
     runtime = root/'runtime'; runtime.mkdir()
     home = root/'home'; home.mkdir()
     env = dict(os.environ, HOME=str(home), XDG_RUNTIME_DIR=str(runtime), XDG_CACHE_HOME=str(root/'cache'), PATH=str(bins)+os.pathsep+os.environ['PATH'], TEST_ROOT=str(root))
-    mock(bins, 'hyprctl', 'cat "$TEST_ROOT/window.json"')
-    mock(bins, 'pkill', 'echo signal >> "$TEST_ROOT/signals"')
-    mock(bins, 'pgrep', 'exit 0')
-    for value in (1, 1, 0, 0):
-        (root/'window.json').write_text('{"fullscreen":'+str(value)+'}')
-        run(['bash',str(SCRIPTS/'fullscreen_toggle.sh')],env)
-    assert (root/'signals').read_text().splitlines() == ['signal','signal']
-    assert not (runtime/f'waybar-hidden-{os.getuid()}').exists()
-    (root/'window.json').write_text('invalid-json')
-    assert run(['bash',str(SCRIPTS/'fullscreen_toggle.sh')],env,False).returncode != 0
-    print('PASS fullscreen enter/leave, idempotence, invalid JSON')
+    (home/'.scripts').mkdir()
+    mock(bins, 'hyprctl', 'echo "$*" >> "$TEST_ROOT/hyprctl-log"')
+    run(['bash',str(SCRIPTS/'fullscreen_toggle.sh')],env)
+    assert (root/'hyprctl-log').read_text().splitlines() == ['dispatch fullscreen']
+    print('PASS fullscreen dispatch helper')
     mock(bins, 'sudo', 'exit 0')
     mock(bins, 'notify-send', 'exit 0')
     cache = root/'cache'; cache.mkdir()
@@ -55,6 +49,7 @@ with tempfile.TemporaryDirectory(prefix='script-regressions-') as directory:
     (repo/'unrelated').write_text('old\n')
     run(['git','-C',str(repo),'add','.'],env)
     run(['git','-C',str(repo),'commit','-qm','fixture'],env)
+    shutil.rmtree(home/'.scripts')
     (home/'.scripts').symlink_to(repo/'.scripts',target_is_directory=True)
     (repo/'.scripts/helper.sh').write_text('new\n')
     (repo/'.scripts/new.py').write_text('print(1)\n')

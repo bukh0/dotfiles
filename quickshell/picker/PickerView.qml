@@ -4,8 +4,6 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import "."
-import "../profiles/default" as Profile
-import "../profiles/alt" as AltProfile
 
 Rectangle {
     id: view
@@ -13,17 +11,22 @@ Rectangle {
 
     readonly property string home: Quickshell.env("HOME")
     property string bin: home + "/.scripts/theme.switcher"
-    readonly property bool dark: Colors.background.r + Colors.background.g + Colors.background.b < 1.5
-    readonly property color ink: dark ? "#f5f5f7" : "#1d1d1f"
-    readonly property color muted: Qt.alpha(ink, 0.52)
+    // Fixed picker palette, independent of the theme being previewed/applied.
+    readonly property color panelColor: "#10121a"
+    readonly property color fieldColor: "#191d29"
+    readonly property color accent: "#a9b9ef"
+    readonly property color accentText: "#111522"
+    readonly property color errorColor: "#f09098"
+    readonly property color ink: "#e3e7f0"
+    readonly property color muted: "#949caf"
     readonly property color faint: Qt.alpha(ink, 0.045)
-    property string activeProfile: "default"
-    readonly property string uiFont: activeProfile === "alt" ? AltProfile.Theme.fontUI : Profile.Theme.fontUI
-    FileView {
-        path: (Quickshell.env("XDG_CACHE_HOME") || view.home + "/.cache") + "/quickshell_current_bar"
-        onLoaded: view.activeProfile = text().trim()
-    }
-    readonly property int rowHeight: 64
+    // Both bar profiles use sans-serif. Avoid loading their complete modules
+    // and enumerating every installed font just to obtain this one value.
+    readonly property string uiFont: "sans-serif"
+    readonly property int rowHeight: 48
+    readonly property int preferredHeight: page === "Wallpapers" ? 540
+        : Math.max(240, 88 + Math.max(2, Math.min(10, filtered.length)) * rowHeight)
+          + (error !== "" ? 64 : 0) + (busy ? 24 : 0)
     property string page: "Home"
     property string generator: ""
     property var presets: []
@@ -40,10 +43,10 @@ Rectangle {
     readonly property int columns: 4
     readonly property int pageSize: page === "Wallpapers" ? columns * Math.max(1, Math.floor(grid.height / Math.max(1, grid.cellHeight))) : Math.max(1, Math.floor(themeList.height / rowHeight))
 
-    color: Qt.alpha(dark ? "#242426" : "#f2f2f7", 0.994)
-    radius: 22
+    color: view.panelColor
+    radius: 16
     border.width: 1
-    border.color: Qt.alpha(ink, 0.12)
+    border.color: Qt.alpha(view.accent, 0.3)
     // Consume clicks in the panel's padding as well as on its controls.
     MouseArea { anchors.fill: parent }
 
@@ -284,7 +287,7 @@ Rectangle {
             let delta
             if (event.pixelDelta.y !== 0) {
                 // Preserve high-resolution gestures and their native momentum.
-                delta = -event.pixelDelta.y * 3
+                delta = -event.pixelDelta.y
             } else if (event.angleDelta.y !== 0) {
                 // Linear travel, including fractional deltas from Wayland touchpads.
                 delta = -event.angleDelta.y / 120 * flick.height * 0.45
@@ -336,7 +339,7 @@ Rectangle {
             id: chipLabel
             anchors.centerIn: parent
             text: chip.text
-            color: Colors.primary
+            color: view.accent
             font.family: view.uiFont
             font.pixelSize: 14
         }
@@ -352,53 +355,31 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 20
+        anchors.margins: 16
         spacing: 12
-
-        Item {
-            Layout.fillWidth: true
-            implicitHeight: 34
-            Chip {
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                visible: view.page !== "Home"
-                text: "‹ Back"
-                onClicked: view.back()
-            }
-            Text {
-                anchors.centerIn: parent
-                text: view.page === "Home" ? "Appearance" : view.page === "Themes" ? "Themes" : view.generator || "Wallpaper"
-                color: view.ink
-                font.family: view.uiFont
-                font.pixelSize: 16
-                font.weight: Font.DemiBold
-            }
-            Chip {
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                text: "×"
-                onClicked: view.dismiss()
-            }
-        }
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 10
-
+            spacing: 6
+            Chip {
+                visible: view.page !== "Home"
+                text: "‹"
+                onClicked: view.back()
+            }
             TextField {
                 id: search
                 objectName: "pickerSearch"
                 Layout.fillWidth: true
-                implicitHeight: 38
-                leftPadding: 36
-                rightPadding: 14
+                implicitHeight: 44
+                leftPadding: 10
+                rightPadding: 10
                 enabled: !view.busy
                 selectByMouse: true
                 font.family: view.uiFont
                 font.pixelSize: 14
                 color: view.ink
-                selectionColor: Colors.primary
-                selectedTextColor: Colors.primaryFg
+                selectionColor: view.accent
+                selectedTextColor: view.accentText
                 // Hint drawn outside TextInput so it never scrolls with the text.
                 Text {
                     anchors.fill: parent
@@ -412,22 +393,15 @@ Rectangle {
                 }
                 background: Rectangle {
                     radius: 9
-                    color: Qt.alpha(view.ink, view.dark ? 0.065 : 0.055)
-                    // Draw the search symbol without depending on an icon font.
-                    Rectangle {
-                        x: 13; y: 11; width: 11; height: 11
-                        radius: 6; color: "transparent"
-                        border.width: 1.5; border.color: view.muted
-                        Rectangle {
-                            x: 8; y: 9; width: 6; height: 1.5
-                            rotation: 45; color: view.muted
-                        }
-                    }
+                    color: view.fieldColor
                 }
                 onTextChanged: view.rebuild()
                 Keys.onPressed: event => view.handleKey(event)
             }
-
+            Chip {
+                text: "×"
+                onClicked: view.dismiss()
+            }
         }
 
         Item {
@@ -475,17 +449,17 @@ Rectangle {
 
                     Rectangle {
                         anchors.fill: parent
-                        anchors.margins: 5
-                        radius: 12
+                        anchors.margins: 3
+                        radius: 6
                         color: tile.chosen ? Qt.alpha(view.ink, 0.08) : tileMouse.containsMouse ? Qt.alpha(view.ink, 0.04) : "transparent"
                         border.width: tile.chosen ? 1 : 0
-                        border.color: Colors.primary
+                        border.color: view.accent
 
                         Image {
                             id: img
                             anchors.fill: parent
-                            anchors.margins: 4
-                            anchors.bottomMargin: 28
+                            anchors.margins: 2
+                            anchors.bottomMargin: 22
                             asynchronous: true
                             cache: true
                             fillMode: Image.PreserveAspectCrop
@@ -499,7 +473,7 @@ Rectangle {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            anchors.margins: 8
+                            anchors.margins: 4
                             text: view.baseName(tile.modelData)
                             textFormat: Text.PlainText
                             font.family: view.uiFont
@@ -525,12 +499,6 @@ Rectangle {
                 }
             }
 
-            Rectangle {
-                anchors.fill: themeList
-                visible: view.page !== "Wallpapers"
-                radius: 12
-                color: view.faint
-            }
             ListView {
                 id: themeList
                 anchors.top: parent.top
@@ -564,60 +532,19 @@ Rectangle {
                     readonly property bool generated: view.page === "Themes" && (modelData === "Matugen" || modelData === "pywal")
                     width: themeList.width
                     height: view.rowHeight
-                    radius: 10
-                    color: view.selected === index ? Qt.alpha(view.ink, 0.08) : "transparent"
-                    RowLayout {
+                    radius: 5
+                    color: view.selected === index ? Qt.alpha(view.accent, 0.16) : "transparent"
+                    Text {
                         anchors.fill: parent
-                        anchors.leftMargin: 14
-                        anchors.rightMargin: 14
-                        Rectangle {
-                            width: 34; height: 34; radius: 8
-                            color: Qt.alpha(Colors.primary, 0.13)
-                            Text {
-                                anchors.centerIn: parent
-                                text: view.page === "Home" ? (row.modelData === "Wallpaper" ? "▧" : "◐") : row.generated ? "◈" : "◐"
-                                font.family: view.uiFont
-                                font.pixelSize: 22
-                                color: Colors.primary
-                            }
-                        }
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 3
-                            Text {
-                                Layout.fillWidth: true
-                                text: row.modelData
-                                textFormat: Text.PlainText
-                                color: view.ink
-                                font.family: view.uiFont
-                                font.pixelSize: 14
-                                font.weight: Font.Medium
-                                elide: Text.ElideRight
-                            }
-                            Text {
-                                Layout.fillWidth: true
-                                text: view.page === "Home" ? (row.modelData === "Wallpaper" ? "Choose your background" : "Personalise your colours") : row.generated ? "Create colours from a wallpaper" : "Apply colour preset"
-                                color: view.muted
-                                font.family: view.uiFont
-                                font.pixelSize: 12
-                                elide: Text.ElideRight
-                            }
-                        }
-                        Text {
-                            text: "›"
-                            color: view.muted
-                            font.family: view.uiFont
-                            font.pixelSize: 24
-                        }
-                    }
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.leftMargin: 62
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        height: 1
-                        visible: row.index < view.filtered.length - 1
-                        color: Qt.alpha(view.ink, 0.065)
+                        anchors.leftMargin: 10
+                        anchors.rightMargin: 10
+                        verticalAlignment: Text.AlignVCenter
+                        text: row.modelData
+                        textFormat: Text.PlainText
+                        color: view.selected === row.index ? view.accent : view.ink
+                        font.family: view.uiFont
+                        font.pixelSize: 14
+                        elide: Text.ElideRight
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -654,30 +581,19 @@ Rectangle {
             wrapMode: Text.Wrap
             elide: Text.ElideRight
             maximumLineCount: 3
-            color: Colors.error
+            color: view.errorColor
             font.family: view.uiFont
             font.pixelSize: 11
         }
-        RowLayout {
+        Text {
             Layout.fillWidth: true
-            spacing: 12
-            Text {
-                Layout.fillWidth: true
-                text: view.busy ? view.operation
-                    : thumbProc.running ? "Preparing previews…"
-                    : view.page === "Home" ? "Make it yours" : view.baseName(view.current)
-                textFormat: Text.PlainText
-                color: view.busy ? Colors.primary : view.muted
-                font.family: view.uiFont
-                font.pixelSize: 11
-                elide: Text.ElideMiddle
-            }
-            Text {
-                text: view.page === "Home" ? "↵ Select" : "Esc Back · " + view.filtered.length + (view.page === "Wallpapers" ? " wallpapers" : " themes")
-                color: view.muted
-                font.family: view.uiFont
-                font.pixelSize: 11
-            }
+            visible: view.busy || thumbProc.running
+            text: view.busy ? view.operation : "Preparing previews…"
+            textFormat: Text.PlainText
+            color: view.muted
+            font.family: view.uiFont
+            font.pixelSize: 11
+            elide: Text.ElideRight
         }
     }
 }

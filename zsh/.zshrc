@@ -136,6 +136,4 @@ export PATH="/home/bukh0/.local/bin:$PATH"
 
 # Rebind Ctrl+Q: default push-line stashes the line and restores it
 # after the next command — replace with a real clear instead.
-bindkey "^Q" kill-whole-line
-bindkey -v
 export PATH="$HOME/.npm-global/bin:$PATH"

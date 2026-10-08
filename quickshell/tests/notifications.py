@@ -39,6 +39,11 @@ ShellRoot {
  property int notificationId: -1
  property string summary: ""
  QtObject { id: monitorMarker }
+ function descendants(item) {
+  let items=[]
+  for (const child of item.children || []) items=items.concat([child],descendants(child))
+  return items
+ }
  function check(ok, reason) { if (!ok) { console.error("FAIL", reason); Qt.quit() } }
  Window { id: window; visible: true; width: 1000; height: 800 }
  Config.NotificationPopup { id: popup; parent: window.contentItem; x: 1100 }
@@ -53,7 +58,7 @@ ShellRoot {
    root.summary = data.summary
    if (data.summary === "action test") {
     root.check(data.expireTimeout === 8000, "Notification protocol did not supply milliseconds: " + data.expireTimeout)
-    root.check(popup.displayDuration === 8000, "Notification timeout changed units")
+    root.check(popup._durationFor(data) === 8000, "Notification timeout changed units")
     root.check(data.actions.length > 0, "Actions were not forwarded")
     const row = Config.NotificationDaemon.notificationModel.get(0)
     root.check(row.timestamp > 0 && row.urgency === 1, "History metadata missing")
@@ -68,6 +73,8 @@ ShellRoot {
     Config.NotificationDaemon.invokeAction(root.notificationId, 0)
     console.log("ACTION DONE")
    } else {
+    Config.NotificationDaemon.ipc.closeLatest()
+    root.check(Config.NotificationDaemon.notificationModel.count === 1, "Popup shortcut removed history")
     Config.NotificationDaemon.closeNotificationById(root.notificationId)
     root.check(root.removed === 2, "Duplicate notificationRemoved emission")
     Config.NotificationDaemon.doNotDisturb = true
@@ -85,6 +92,15 @@ ShellRoot {
   interval: 150; running: true
   onTriggered: {
    root.check(Config.NotificationDaemon.isDrawerOpen && Config.NotificationDaemon.drawerPinned, "Hover timer closed pinned drawer")
+   const dnd=descendants(drawer).find(item => item.text === "DND" && typeof item.click === "function")
+   root.check(!!dnd,"DND button missing")
+   dnd.click()
+   root.check(Config.NotificationDaemon.doNotDisturb && dnd.checked,"DND click did not enable state")
+   Config.NotificationDaemon.toggleDnd()
+   root.check(!dnd.checked,"DND button did not follow external toggle")
+   dnd.click()
+   Config.NotificationDaemon.toggleDnd()
+   root.check(!dnd.checked,"DND binding was lost after repeated clicks")
    Config.NotificationDaemon.surfaceScreen = monitorMarker
    Config.NotificationDaemon.toggleDrawer()
    root.check(!Config.NotificationDaemon.isDrawerOpen && !Config.NotificationDaemon.drawerPinned, "Second tap did not close drawer")
@@ -101,7 +117,7 @@ ShellRoot {
   interval: 100; running: true; repeat: true
   onTriggered: if (Config.NotificationDaemon.doNotDisturb && Config.NotificationDaemon.notificationModel.count === 1) {
    root.check(root.received === 2, "DND emitted a popup")
-   root.check(!popup.isVisible, "DND left a popup visible")
+   root.check(popup.activeCount === 0, "DND left a popup visible")
    root.check(popup._durationFor({urgency: 2, expireTimeout: 8000}) === 0, "Critical notification timed out")
    console.log("NOTIFICATION PASS"); Qt.quit()
   }
@@ -109,7 +125,7 @@ ShellRoot {
 }
 ''')
     log = p / 'log'
-    env = dict(os.environ, QT_QPA_PLATFORM='offscreen', XDG_RUNTIME_DIR=directory)
+    env = dict(os.environ, QT_QPA_PLATFORM='offscreen', XDG_RUNTIME_DIR=directory, XDG_CACHE_HOME=directory)
     env.pop('WAYLAND_DISPLAY', None)
     with log.open('w') as output:
         shell = subprocess.Popen(['quickshell', '-p', str(p/'shell.qml')], env=env, stdout=output, stderr=output)
@@ -118,8 +134,8 @@ ShellRoot {
                 deadline = time.monotonic() + 8
                 while time.monotonic() < deadline:
                     text = log.read_text()
-                    if 'FAIL' in text or shell.poll() is not None:
-                        if marker not in text: raise AssertionError(text)
+                    if 'FAIL' in text: raise AssertionError(text)
+                    if shell.poll() is not None and marker not in text: raise AssertionError(text)
                     if marker in text: return
                     time.sleep(0.05)
                 raise AssertionError(log.read_text())

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise real panel focus hierarchy with an isolated text field."""
+from qt_tools import qmltestrunner
 import os, pathlib, re, subprocess, tempfile
 src=pathlib.Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='qs-focus-audit-') as d:
@@ -83,6 +84,7 @@ Item {
 }
 ''')
  env=dict(os.environ,QT_QPA_PLATFORM='offscreen',XDG_RUNTIME_DIR=d)
- r=subprocess.run(['/usr/lib/qt6/bin/qmltestrunner','-input',str(p/'tst_focus.qml')],env=env,capture_output=True,text=True,timeout=8)
+ runner = qmltestrunner()
+ r=subprocess.run([runner,'-input',str(p/'tst_focus.qml')],env=env,capture_output=True,text=True,timeout=8)
  print(r.stdout+r.stderr)
  assert r.returncode == 0, 'Control panel Escape regression failed'

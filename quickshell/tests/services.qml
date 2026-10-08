@@ -29,7 +29,7 @@ ShellRoot {
     }
     Window { id: scene; width: 800; height: 600; visible: true }
     // Keep the synthetic pointer outside the popup so hover does not pause timers.
-    Config.NotificationPopup { id: popup; parent: scene.contentItem; x: scene.width + 10 }
+    Config.NotificationPopup { id: popup; maxVisible: 1; parent: scene.contentItem; x: scene.width + 10 }
     Config.BatteryIndicator { id: battery; parent: scene.contentItem }
     Config.ControlPanel { id: panel; parent: scene.contentItem; width: 800; height: 600; isOpen: true; pinned: true }
     function descendants(item) {
@@ -90,6 +90,9 @@ ShellRoot {
                     check(root.networkErrors.length === 0, "network command failed: " + root.networkErrors.join("; "))
                     check(!network.busy, "connect did not release shared busy state")
                     check(network.disconnectActive(), "disconnect failed to start")
+                    check(network.targetSsid === network.ssid, "disconnect did not identify the active row")
+                    check(!network.runCommand(["nmcli", "radio", "wifi", "off"]), "disconnect did not hold the command lock")
+                    check(network.targetSsid === network.ssid, "dropped command cleared the disconnect target")
                     panel.pinned = false
                     panel.scheduleHoverClose()
                     panel.pinned = true
@@ -98,46 +101,47 @@ ShellRoot {
                     check(panel.isOpen && panel.pinned, "pending hover timer closed a pinned panel")
                     check(root.networkErrors.length === 0, "disconnect failed: " + root.networkErrors.join("; "))
                     check(!network.busy, "disconnect did not settle")
+                    check(network.targetSsid === "", "disconnect left its row busy")
                     popup.showNotification({notifId: 1, summary: "first", expireTimeout: 0})
                     popup.showNotification({notifId: 2, summary: "queued", expireTimeout: -1})
                     popup.showNotification({notifId: 2, summary: "updated queue", expireTimeout: -1})
                     check(popup._queue.length === 1 && popup._queue[0].summary === "updated queue", "queued replacement duplicated notification")
                     popup.showNotification({notifId: 1, summary: "updated first", expireTimeout: 0})
-                    check(popup.notificationData.summary === "updated first", "visible replacement was stale")
-                    check(popup.displayDuration === 0, "persistent notification acquired timeout")
+                    check(popup.store[popup.newestId()].summary === "updated first", "visible replacement was stale")
+                    check(popup._durationFor(popup.store[popup.newestId()]) === 0, "persistent notification acquired timeout")
                     Config.NotificationDaemon.notificationRemoved(2)
                     check(popup._queue.length === 0, "dismissed notification stayed queued")
                     Config.NotificationDaemon.notificationRemoved(1)
-                    check(!popup.isVisible, "dismissed notification stayed visible")
+                    popup.dismissAll() // remove the fading card before the next independent case
                     popup.showNotification({notifId: 3, expireTimeout: 25})
                     break
                 case 3:
-                    check(!popup.isVisible, "timed notification did not expire")
+                    check(popup.activeCount === 0, "timed notification did not expire")
                     popup.dismissAll()
                     popup.persistentDisplayDuration = 100
                     popup.showNotification({notifId: 70, summary: "persistent", expireTimeout: 0})
                     popup.showNotification({notifId: 71, summary: "queued", expireTimeout: -1})
                     popup.showNotification({notifId: 71, summary: "promoted to critical", urgency: 2, expireTimeout: 0})
-                    check(popup.notificationData.notifId === 71, "critical alert was blocked by persistent popup")
+                    check(popup.store[popup.newestId()].notifId === 71, "critical alert was blocked by persistent popup")
                     check(popup._queue.length === 0, "critical replacement stayed duplicated in queue")
-                    check(popup.displayDuration === 0, "critical alert acquired expiration timeout")
+                    check(popup._durationFor(popup.store[popup.newestId()]) === 0, "critical alert acquired expiration timeout")
                     popup.showNotification({notifId: 72, summary: "ordinary successor", expireTimeout: 5000})
                     break
                 case 4:
-                    check(popup.notificationData.notifId === 72, "persistent alert starved queued notification")
+                    check(popup.store[popup.newestId()].notifId === 72, "persistent alert starved queued notification")
                     popup.persistentDisplayDuration = 2000
                     popup.showNotification({notifId: 73, summary: "waiting", expireTimeout: 5000})
                     popup.dismiss()  // schedules advanceTimer
                     popup.showNotification({notifId: 74, summary: "interrupt during fade", urgency: 2, expireTimeout: 0})
-                    check(popup.notificationData.notifId === 74, "urgent alert failed during fade")
+                    check(popup.store[popup.newestId()].notifId === 74, "urgent alert failed during fade")
                     break
                 case 5:
-                    check(popup.notificationData.notifId === 74, "old advance timer overwrote critical alert")
+                    check(popup.store[popup.newestId()].notifId === 74, "old advance timer overwrote critical alert")
                     check(popup._queue.length === 1 && popup._queue[0].notifId === 73, "preemption lost queued alert")
                     popup.dismiss()
                     break
                 case 6:
-                    check(popup.notificationData.notifId === 73, "queue failed to resume after critical dismissal")
+                    check(popup.store[popup.newestId()].notifId === 73, "queue failed to resume after critical dismissal")
                     popup.dismissAll()
                     check(network.connectToNetwork("needs-password", ""), "failed to start missing-password test")
                     break

@@ -1,4 +1,3 @@
-//@ pragma UseQApplication
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -8,9 +7,14 @@ import "."
 
 ShellRoot {
     id: root
-    // Applying a theme replaces Colors.qml. Do not reload mid-operation.
+    // Applying a theme replaces Colors.qml. Keep this process alive only
+    // until the operation completes, then release it on dismissal.
     Component.onCompleted: Quickshell.watchFiles = false
-    function dismiss() { if (!view.busy) { window.visible = false; Qt.quit() } }
+    function dismiss() {
+        if (view.busy) return
+        window.visible = false
+        Qt.quit()
+    }
 
     IpcHandler {
         target: "picker"
@@ -22,8 +26,8 @@ ShellRoot {
         screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) || Quickshell.screens[0]
         // No anchors: the compositor centres a window-sized surface, so
         // only the panel area is rendered each frame instead of the whole monitor.
-        implicitWidth: Math.max(320, Math.min(820, (screen ? screen.width : 1920) - 80))
-        implicitHeight: Math.max(220, Math.min(600, (screen ? screen.height : 1080) - 80))
+        implicitWidth: Math.max(320, Math.min(view.page === "Wallpapers" ? 820 : 680, (screen ? screen.width : 1920) - 80))
+        implicitHeight: Math.max(200, Math.min(view.preferredHeight, (screen ? screen.height : 1080) - 80))
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
         WlrLayershell.namespace: "quickshell-picker"
@@ -34,9 +38,7 @@ ShellRoot {
             id: view
             anchors.fill: parent
             onDismissed: root.dismiss()
-            opacity: 0
-            Component.onCompleted: { appear.start(); Qt.callLater(() => focusSearch()) }
-            NumberAnimation { id: appear; target: view; property: "opacity"; to: 1; duration: 120 }
+            Component.onCompleted: Qt.callLater(() => focusSearch())
         }
     }
 

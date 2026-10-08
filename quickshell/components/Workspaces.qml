@@ -23,6 +23,7 @@ RowLayout {
         const workspaces = root.workspaceList || []
         for (let i = 0; i < workspaces.length; ++i) {
             const ws = workspaces[i]
+            if (!root.monitor || ws.monitor !== root.monitor) continue
             const toplevels = ws.toplevels ? ws.toplevels.values : []
             if (ws.id > 3 && (toplevels.length > 0 || ws.id === focusedWsId))
                 ids.push(ws.id)

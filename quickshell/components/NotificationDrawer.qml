@@ -133,9 +133,8 @@ PanelWindow {
                 NotificationButton {
                     text: "DND"
                     glyph: NotificationDaemon.doNotDisturb ? "󰂛" : "󰂚"
-                    checkable: true
                     checked: NotificationDaemon.doNotDisturb
-                    onClicked: NotificationDaemon.doNotDisturb = checked
+                    onClicked: NotificationDaemon.toggleDnd()
                     hint: checked ? "Do Not Disturb is on" : "Turn on Do Not Disturb"
                 }
                 NotificationButton {
@@ -187,7 +186,7 @@ PanelWindow {
                 flickDeceleration: 2500
                 maximumFlickVelocity: 2500
 
-                rightMargin: ScrollBar.vertical.visible ? 8 : 0
+                rightMargin: 8
                 cacheBuffer: 300
 
                 WheelHandler {

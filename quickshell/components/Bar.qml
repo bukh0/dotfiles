@@ -8,6 +8,7 @@ import "."
 
 PanelWindow {
     id: root
+    onVisibleChanged: if (!visible && controlPanel) controlPanel.isOpen = false
 
     WlrLayershell.layer: WlrLayer.Top
 
