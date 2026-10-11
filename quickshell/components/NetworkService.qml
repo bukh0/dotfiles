@@ -103,7 +103,7 @@ Item {
         command: ["sh", "-c",
             "export LC_ALL=C\n" +
             "wifi=$(nmcli radio wifi) || exit 1\n" +
-            "wifiList=$(nmcli -t -f ACTIVE,SSID,SIGNAL dev wifi list --rescan no 2>/dev/null) || wifiList=\n" +
+            "wifiList=$(nmcli -t -f ACTIVE,SSID,SIGNAL,DEVICE dev wifi list --rescan no 2>/dev/null) || wifiList=\n" +
             "devices=$(nmcli -t -f TYPE,STATE,DEVICE dev) || exit 1\n" +
             "printf '%s\\n%s\\n%s\\n' \"$wifi\" \"$wifiList\" \"$devices\""
         ]
@@ -114,26 +114,28 @@ Item {
                 const lines = text.trim().split("\n")
                 root.wifiOn = (lines.length > 0 ? lines[0].trim() : "") === "enabled"
 
-                let ssidFields = []
+                const activeNetworks = []
+                const wifiDevices = []
                 let activeType = "none"
-                let wifiDevice = ""
                 for (let i = 1; i < lines.length; i++) {
-                    const fields = root.parseNmcliFields(lines[i].trim())
-                    if (fields.length >= 3 && fields[0] === "yes" && ssidFields.length === 0)
-                        ssidFields = fields
+                    const fields = root.parseNmcliFields(lines[i])
+                    if (fields.length === 4 && fields[0] === "yes")
+                        activeNetworks.push(fields)
                     if (fields.length === 3 && (fields[0] === "wifi" || fields[0] === "ethernet") && fields[1].startsWith("connected")) {
                         if (fields[0] === "ethernet") {
                             activeType = "ethernet"
                         } else if (fields[0] === "wifi") {
-                            wifiDevice = fields[2]
+                            wifiDevices.push(fields[2])
                             if (activeType !== "ethernet") activeType = "wifi"
                         }
                     }
                 }
+                // Keep the displayed SSID, signal and device from one connection.
+                const ssidFields = activeNetworks.find(fields => wifiDevices.includes(fields[3])) || []
                 root.ssid = ssidFields.length >= 3 ? ssidFields[1] : ""
                 root.signalStrength = ssidFields.length >= 3 ? (parseInt(ssidFields[2]) || 0) : 0
                 root.connectionType = activeType
-                root.activeWifiDevice = wifiDevice
+                root.activeWifiDevice = ssidFields[3] || wifiDevices[0] || ""
             }
         }
         stderr: StdioCollector {
@@ -248,7 +250,7 @@ Item {
 
     Process {
         id: scanPoll
-        command: ["env", "LC_ALL=C", "nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY,ACTIVE", "dev", "wifi", "list", "--rescan", "no"]
+        command: ["env", "LC_ALL=C", "nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE", "dev", "wifi", "list", "--rescan", "no"]
         stdout: StdioCollector {
             onStreamFinished: {
                 root.scanning = false
@@ -256,21 +258,25 @@ Item {
                 const seen = Object.create(null)
                 for (const line of lines) {
                     const parts = root.parseNmcliFields(line)
-                    if (parts.length < 4) continue
+                    if (parts.length < 5) continue
                     const name = parts[0]
                     if (!name) continue
                     const sig = parseInt(parts[1]) || 0
                     const active = parts[3] === "yes"
+                    const device = parts[4]
 
                     if (seen[name]) {
                         seen[name].active = seen[name].active || active
                         seen[name].signal = Math.max(seen[name].signal, sig)
+                        if (active && device && !seen[name].activeDevices.includes(device))
+                            seen[name].activeDevices.push(device)
                     } else {
                         seen[name] = {
                             ssid: name,
                             signal: sig,
                             security: parts[2] !== "" && parts[2] !== "--",
-                            active: active
+                            active: active,
+                            activeDevices: active && device ? [device] : []
                         }
                     }
                 }
@@ -415,9 +421,15 @@ Item {
         return true
     }
 
-    function disconnectActive() {
-        if (root.activeWifiDevice === "") return false
-        return runCommand(["nmcli", "dev", "disconnect", root.activeWifiDevice], root.ssid)
+    function disconnectActive(networkSsid) {
+        if (networkSsid === undefined) {
+            if (root.activeWifiDevice === "") return false
+            return runCommand(["nmcli", "dev", "disconnect", root.activeWifiDevice], root.ssid)
+        }
+        const network = root.networks.find(n => n.ssid === networkSsid)
+        if (!network || !network.activeDevices.length) return false
+        // SSID rows combine APs; disconnect only adapters active on this SSID.
+        return runCommand(["nmcli", "dev", "disconnect"].concat(network.activeDevices), networkSsid)
     }
 
     function cancelPasswordPrompt() {

@@ -1,0 +1,13 @@
+* {
+    surface:                #211f30;
+    on-surface:              #e8e4f6;
+    surface-container:       #161421;
+    surface-container-high:  #322e47;
+    surface-container-highest: #484160;
+    on-surface-variant:      #b9b0d1;
+    primary:                 #bba7ee;
+    on-primary:              #161421;
+    outline:                 #8880a3;
+    error-container:         #873c55;
+    on-error-container:      #e8e4f6;
+}

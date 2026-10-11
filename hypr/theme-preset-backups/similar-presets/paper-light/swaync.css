@@ -1,0 +1,9 @@
+@define-color surface #f6f1e7;
+@define-color on_surface #34302a;
+@define-color surface_container #eae3d5;
+@define-color surface_container_high #e2d9c8;
+@define-color outline #887b66;
+@define-color primary #735324;
+@define-color on_primary #f6f1e7;
+@define-color error #a33b38;
+@define-color on_error #f6f1e7;

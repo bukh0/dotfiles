@@ -1,15 +1,31 @@
--- Keymaps are automatically loaded on the VeryLazy event
--- Default keymaps that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/keymaps.lua
--- Add any additional keymaps here
-vim.keymap.set("n", "j", "gj")
-vim.keymap.set("n", "k", "gk")
+local map = vim.keymap.set
 
--- Bufferline is disabled (see lua/plugins/bufferline.lua) in favor of
--- nvim-cokeline. LazyVim's default keymaps still bind a couple of buffer
--- keys to bufferline-only commands (toggle pin, close non-pinned); those
--- commands don't exist once bufferline never loads, so pressing them throws
--- an "Unknown command" error instead of doing nothing quietly. Strip them —
--- pcall-guarded since LazyVim could rename/remove them in a future update.
-for _, lhs in ipairs({ "<leader>bp", "<leader>bP" }) do
-  pcall(vim.keymap.del, "n", lhs)
-end
+map({ "n", "x" }, "j", "v:count == 0 ? 'gj' : 'j'", { expr = true, silent = true })
+map({ "n", "x" }, "k", "v:count == 0 ? 'gk' : 'k'", { expr = true, silent = true })
+
+map("n", "<C-h>", "<C-w>h", { desc = "Window left" })
+map("n", "<C-j>", "<C-w>j", { desc = "Window down" })
+map("n", "<C-k>", "<C-w>k", { desc = "Window up" })
+map("n", "<C-l>", "<C-w>l", { desc = "Window right" })
+
+map("n", "<A-j>", "<cmd>m .+1<cr>==", { desc = "Move line down" })
+map("n", "<A-k>", "<cmd>m .-2<cr>==", { desc = "Move line up" })
+map("v", "<A-j>", ":m '>+1<cr>gv=gv", { desc = "Move selection down" })
+map("v", "<A-k>", ":m '<-2<cr>gv=gv", { desc = "Move selection up" })
+
+map("v", "<", "<gv")
+map("v", ">", ">gv")
+
+map({ "i", "n", "s" }, "<esc>", function()
+  vim.cmd("noh")
+  return "<esc>"
+end, { expr = true, desc = "Escape and clear hlsearch" })
+map({ "i", "x", "n", "s" }, "<C-s>", "<cmd>w<cr><esc>", { desc = "Save file" })
+
+map("n", "<leader>-", "<C-w>s", { desc = "Split below" })
+map("n", "<leader>|", "<C-w>v", { desc = "Split right" })
+map("n", "<leader>wd", "<C-w>c", { desc = "Close window" })
+map("n", "<leader>qq", "<cmd>qa<cr>", { desc = "Quit all" })
+map("n", "<leader>l", "<cmd>Lazy<cr>", { desc = "Lazy" })
+map("n", "<leader>bd", function() Snacks.bufdelete() end, { desc = "Delete buffer" })
+map("n", "<leader>bo", function() Snacks.bufdelete.other() end, { desc = "Delete other buffers" })

@@ -1,17 +1,49 @@
--- Autocmds are automatically loaded on the VeryLazy event
--- Default autocmds that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/autocmds.lua
---
--- Add any additional autocmds here
--- with `vim.api.nvim_create_autocmd`
---
--- Or remove existing autocmds by their group name (which is prefixed with `lazyvim_` for the defaults)
--- e.g. vim.api.nvim_del_augroup_by_name("lazyvim_wrap_spell")
+local augroup = vim.api.nvim_create_augroup("user_autocmds", { clear = true })
+local autocmd = vim.api.nvim_create_autocmd
 
--- Format and save (uses LazyVim's format controller so <leader>uf toggle is respected)
+autocmd("TextYankPost", { group = augroup, callback = function() vim.hl.on_yank() end })
+autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
+  group = augroup,
+  callback = function()
+    if vim.o.buftype ~= "nofile" then vim.cmd("checktime") end
+  end,
+})
+autocmd("VimResized", {
+  group = augroup,
+  callback = function()
+    local tab = vim.fn.tabpagenr()
+    vim.cmd("tabdo wincmd =")
+    vim.cmd("tabnext " .. tab)
+  end,
+})
+autocmd("BufReadPost", {
+  group = augroup,
+  callback = function(ev)
+    local mark = vim.api.nvim_buf_get_mark(ev.buf, '"')
+    if mark[1] > 0 and mark[1] <= vim.api.nvim_buf_line_count(ev.buf) then
+      pcall(vim.api.nvim_win_set_cursor, 0, mark)
+    end
+  end,
+})
+autocmd("FileType", {
+  group = augroup,
+  pattern = { "help", "qf", "man", "checkhealth", "notify", "lspinfo" },
+  callback = function(ev)
+    vim.bo[ev.buf].buflisted = false
+    vim.keymap.set("n", "q", "<cmd>close<cr>", { buffer = ev.buf, silent = true })
+  end,
+})
+autocmd("BufWritePre", {
+  group = augroup,
+  callback = function(ev)
+    if ev.match:match("^%w%w+:[\\/][\\/]") then return end
+    vim.fn.mkdir(vim.fn.fnamemodify(vim.uv.fs_realpath(ev.match) or ev.match, ":p:h"), "p")
+  end,
+})
+
 vim.api.nvim_create_user_command("Ws", function()
-  LazyVim.format({ force = true })
+  require("conform").format({ lsp_format = "fallback" })
   vim.cmd("write")
 end, { desc = "Format and save" })
 
--- Only expand at the very start of a : command, not inside search or :! shell commands
 vim.cmd([[cabbrev <expr> ws (getcmdtype()==':' && getcmdpos()<=3) ? 'Ws' : 'ws']])

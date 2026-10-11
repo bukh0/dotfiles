@@ -97,6 +97,7 @@ ColumnLayout {
                             visible: text !== ""
                             text: !BluetoothService.hasAdapter ? "No adapter"
                                 : (btRoot.btOn ? BluetoothService.connectedName : "")
+                            textFormat: Text.PlainText
                             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.55)
                             font.pixelSize: 10
                             font.family: Theme.fontMono
@@ -177,6 +178,7 @@ ColumnLayout {
                     }
                     Text {
                         text: modelData.name
+                        textFormat: Text.PlainText
                         color: delegateRoot.showConnected ? Colors.secondary : Colors.surfaceFg
                         font.pixelSize: 12
                         font.family: Theme.fontMono
@@ -237,6 +239,7 @@ ColumnLayout {
                         spacing: 0
                         Text {
                             text: modelData.name
+                            textFormat: Text.PlainText
                             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.75)
                             font.pixelSize: 12
                             font.family: Theme.fontMono

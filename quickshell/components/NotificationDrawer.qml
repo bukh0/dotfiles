@@ -189,22 +189,60 @@ PanelWindow {
                 rightMargin: 8
                 cacheBuffer: 300
 
+                // Animate discrete wheel steps; preserve native touchpad momentum.
+                onDraggingChanged: if (dragging) wheelAnimation.running = false
+                onVisibleChanged: if (!visible) wheelAnimation.running = false
+
                 WheelHandler {
                     id: trackpadScroll
                     target: null
-                    acceptedDevices: PointerDevice.TouchPad | PointerDevice.Mouse | PointerDevice.TouchScreen
+                    acceptedDevices: PointerDevice.TouchPad | PointerDevice.Mouse
+                    property real destination: 0
+                    property real lastDelta: 0
 
-                    onWheel: function(wheelEvent) {
-                        const pixelDelta = wheelEvent.pixelDelta.y
-                        const angleDelta = wheelEvent.angleDelta.y
-                        const delta = pixelDelta !== 0
-                            ? pixelDelta
-                            : angleDelta / 120 * 80
-                        const minContentY = notifList.originY
-                        const maxContentY = minContentY + Math.max(0, notifList.contentHeight - notifList.height)
+                    function bounded(y) {
+                        const minimum = notifList.originY
+                        const maximum = minimum + Math.max(0, notifList.contentHeight - notifList.height)
+                        return Math.max(minimum, Math.min(maximum, y))
+                    }
 
-                        notifList.contentY = Math.max(minContentY, Math.min(maxContentY, notifList.contentY - delta))
-                        wheelEvent.accepted = true
+                    function scroll(pixelDelta, angleDelta) {
+                        if (pixelDelta === 0 && angleDelta === 0) return false
+                        notifList.cancelFlick()
+                        if (pixelDelta !== 0) {
+                            wheelAnimation.running = false
+                            notifList.contentY = bounded(notifList.contentY - pixelDelta)
+                            destination = notifList.contentY
+                        } else {
+                            const delta = angleDelta / 120 * 100
+                            // Reversing direction responds immediately instead of
+                            // first consuming the previous direction's queued travel.
+                            const base = wheelAnimation.running && delta * lastDelta > 0
+                                ? destination : notifList.contentY
+                            destination = bounded(base - delta)
+                            lastDelta = delta
+                            wheelAnimation.running = true
+                        }
+                        return true
+                    }
+
+                    onWheel: event => {
+                        event.accepted = scroll(event.pixelDelta.y, event.angleDelta.y)
+                    }
+                }
+
+                FrameAnimation {
+                    id: wheelAnimation
+                    onTriggered: {
+                        trackpadScroll.destination = trackpadScroll.bounded(trackpadScroll.destination)
+                        const remaining = trackpadScroll.destination - notifList.contentY
+                        if (Math.abs(remaining) < 0.5) {
+                            notifList.contentY = trackpadScroll.destination
+                            running = false
+                        } else {
+                            notifList.contentY = trackpadScroll.bounded(notifList.contentY
+                                + remaining * (1 - Math.exp(-28 * frameTime)))
+                        }
                     }
                 }
 
@@ -221,6 +259,7 @@ PanelWindow {
                 }
 
                 ScrollBar.vertical: ScrollBar {
+                    onPressedChanged: if (pressed) wheelAnimation.running = false
                     policy: ScrollBar.AsNeeded
                     interactive: true
                     width: 6

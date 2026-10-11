@@ -1,0 +1,51 @@
+return {
+  "folke/snacks.nvim",
+  priority = 1000,
+  lazy = false,
+  opts = {
+    bigfile = { enabled = true },
+    dashboard = { enabled = true },
+    explorer = { enabled = true },
+    indent = { enabled = true },
+    input = { enabled = true },
+    notifier = { enabled = true },
+    quickfile = { enabled = true },
+    scope = { enabled = true },
+    statuscolumn = { enabled = true },
+    words = { enabled = true },
+    picker = {
+      enabled = true,
+      sources = {
+        explorer = {
+          layout = { layout = { width = 32, min_width = 30 } },
+        },
+      },
+      layouts = {
+        default = {
+          layout = { width = 0.7, min_width = 100, height = 0.8 },
+        },
+      },
+    },
+  },
+  keys = {
+    { "<leader><space>", function() Snacks.picker.smart() end, desc = "Smart find" },
+    { "<leader>,", function() Snacks.picker.buffers() end, desc = "Buffers" },
+    { "<leader>/", function() Snacks.picker.grep() end, desc = "Grep" },
+    { "<leader>:", function() Snacks.picker.command_history() end, desc = "Command history" },
+    { "<leader>e", function() Snacks.explorer() end, desc = "Explorer" },
+    { "<leader>ff", function() Snacks.picker.files() end, desc = "Find files" },
+    { "<leader>fr", function() Snacks.picker.recent() end, desc = "Recent files" },
+    { "<leader>fg", function() Snacks.picker.git_files() end, desc = "Git files" },
+    { "<leader>fc", function() Snacks.picker.files({ cwd = vim.fn.stdpath("config") }) end, desc = "Config files" },
+    { "<leader>sg", function() Snacks.picker.grep() end, desc = "Grep" },
+    { "<leader>sw", function() Snacks.picker.grep_word() end, desc = "Word / selection", mode = { "n", "x" } },
+    { "<leader>sd", function() Snacks.picker.diagnostics() end, desc = "Diagnostics" },
+    { "<leader>sh", function() Snacks.picker.help() end, desc = "Help pages" },
+    { "<leader>sk", function() Snacks.picker.keymaps() end, desc = "Keymaps" },
+    { "<leader>uc", function() Snacks.picker.colorschemes() end, desc = "Colorschemes" },
+    { "<leader>gg", function() Snacks.lazygit() end, desc = "Lazygit" },
+    { "<leader>gl", function() Snacks.picker.git_log() end, desc = "Git log" },
+    { "<leader>n", function() Snacks.notifier.show_history() end, desc = "Notification history" },
+    { "<leader>un", function() Snacks.notifier.hide() end, desc = "Dismiss notifications" },
+  },
+}

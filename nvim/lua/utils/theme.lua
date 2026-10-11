@@ -5,6 +5,17 @@ M.transparent = state.read("transparency.state", "0") == "1"
 
 local DEBOUNCE_MS = 80
 
+-- Some themes normalize g:colors_name (e.g. Monokai Pro's filters).
+-- Keep the requested variant so toggling/restarting does not reset it.
+local active_colorscheme = vim.g.colors_name
+vim.api.nvim_create_autocmd("ColorSchemePre", {
+  callback = function(event)
+    if event.match ~= "" then
+      active_colorscheme = event.match
+    end
+  end,
+})
+
 local function hl(name, attr)
   attr = attr or "fg"
   local ok, h = pcall(vim.api.nvim_get_hl, 0, { name = name, link = false })
@@ -71,9 +82,9 @@ function M.apply_ui_highlights()
   override("SignColumn", c.base)
   override("EndOfBuffer", c.base)
   override("WinSeparator", "NONE", c.dim)
-  override("FloatBorder", "NONE", c.dim)
-  override("NormalFloat", "NONE")
-  override("Pmenu", "NONE")
+  override("FloatBorder", c.base, c.dim)
+  override("NormalFloat", c.base)
+  override("Pmenu", c.base)
   override("PmenuSel", c.accent, c.solid_base)
 end
 
@@ -112,11 +123,10 @@ function M.on_colorscheme(callback)
 end
 
 -- Persist the active colorscheme, deduped against what's already on disk so
--- set_transparent()'s synthetic ColorScheme event (fired below) doesn't
--- rewrite the same name every toggle.
+-- transparency toggles do not rewrite the same name on every reload.
 local last_persisted = state.read("colorscheme.state", nil)
 M.on_colorscheme(function()
-  local name = vim.g.colors_name
+  local name = active_colorscheme or vim.g.colors_name
   if name and name ~= "" and name ~= last_persisted then
     state.write("colorscheme.state", name)
     last_persisted = name
@@ -127,9 +137,13 @@ function M.set_transparent(value)
   M.transparent = value
   state.write("transparency.state", value and "1" or "0")
   invalidate_colors()
-  -- The ColorScheme autocmd handler already calls apply_ui_highlights()
-  -- after debouncing, so no need to call it explicitly here.
-  vim.api.nvim_exec_autocmds("ColorScheme", {})
+  -- Restore the theme's real highlights before reading its solid background.
+  local name = active_colorscheme or vim.g.colors_name
+  if name and name ~= "" then
+    vim.cmd.colorscheme(name)
+  else
+    vim.api.nvim_exec_autocmds("ColorScheme", {})
+  end
 end
 
 return M

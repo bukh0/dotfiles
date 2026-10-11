@@ -1,55 +1,58 @@
--- ~/.config/nvim/lua/plugins/lualine.lua
-
--- Helper function for wordcount
 local function is_prose()
   return vim.bo.filetype == "text" or vim.bo.filetype == "markdown"
 end
 
--- 2. Define a function to process and structure the word/character count
 local function get_word_char_count()
   local stats = vim.fn.wordcount()
   if stats.visual_words then
     return stats.visual_words .. "W / " .. stats.visual_chars .. "C (Vis)"
-  else
-    return stats.words .. "W / " .. stats.bytes .. "C"
   end
+  return stats.words .. "W / " .. stats.chars .. "C"
 end
 
+local function noice_has(kind)
+  return package.loaded["noice"] and require("noice").api.status[kind].has()
+end
 
 return {
-  {
-    "nvim-lualine/lualine.nvim",
-    opts = function(_, opts)
-      opts.options = vim.tbl_deep_extend("force", opts.options or {}, {
+  "nvim-lualine/lualine.nvim",
+  event = "VeryLazy",
+  dependencies = { "nvim-tree/nvim-web-devicons" },
+  opts = function()
+    return {
+      options = {
         theme = "auto",
         globalstatus = true,
-        disabled_filetypes = {
-          statusline = { "dashboard", "alpha", "starter" },
-        },
-        -- no component_separators / section_separators here — inherit lualine's
-        -- own defaults, which you've confirmed already render as sharp triangles
-      })
-
-      -- Explicitly tell Lualine to stay out of the top tab bar so Cokeline can take over
-      opts.tabline = {}
-
-      opts.sections = {
+        disabled_filetypes = { statusline = { "dashboard", "alpha", "starter", "snacks_dashboard" } },
+      },
+      sections = {
         lualine_a = { "mode" },
         lualine_b = { "branch", "diff", "diagnostics" },
-        lualine_c = { "filename" },
-        lualine_x = { "encoding", "fileformat", "filetype" },
-        lualine_y = { "progress", { get_word_char_count, cond = is_prose }},
+        lualine_c = { { "filename", path = 1 } },
+        lualine_x = {
+          {
+            function() return require("noice").api.status.command.get() end,
+            cond = function() return noice_has("command") end,
+          },
+          {
+            function() return require("noice").api.status.mode.get() end,
+            cond = function() return noice_has("mode") end,
+          },
+          {
+            function() return require("lazy.status").updates() end,
+            cond = function() return require("lazy.status").has_updates() end,
+          },
+          "encoding",
+          "fileformat",
+          "filetype",
+        },
+        lualine_y = { "progress", { get_word_char_count, cond = is_prose } },
         lualine_z = { "location" },
-      }
-
-      opts.inactive_sections = {
-        lualine_a = {},
-        lualine_b = {},
+      },
+      inactive_sections = {
         lualine_c = { "filename" },
         lualine_x = { "location" },
-        lualine_y = {},
-        lualine_z = {},
-      }
-    end,
-  },
+      },
+    }
+  end,
 }

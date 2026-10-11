@@ -35,7 +35,6 @@ hl.bind(mod .. " + SHIFT + M",  hl.dsp.exit())
 hl.bind(mod .. " + SHIFT + Q", hl.dsp.exec_cmd("uwsm stop"))
 
 -- Screenshot
-hl.bind(mod .." + CTRL + S", hl.dsp.exec_cmd('grim -g "$(slurp)" ~/Pictures/Screenshots/screenshot-$(date +%Y%m%d-%H%M%S).png'))
 hl.bind(mod .." + CTRL + Print", hl.dsp.exec_cmd('FILE="$HOME/Pictures/Screenshots/screenshot-$(date +%Y%m%d-%H%M%S).png"; grim -g "$(slurp)" "$FILE" && notify-send -a "Screenshot" -i "$FILE" -h string:image-path:"$FILE" "Screenshot Saved" "Region captured"'))
 
 hl.bind(mod .." + Print", hl.dsp.exec_cmd('FILE="$HOME/Pictures/Screenshots/screenshot-$(date +%Y%m%d-%H%M%S).png"; grim "$FILE" && notify-send -a "Screenshot" -i "$FILE" -h string:image-path:"$FILE" "Screenshot Saved" "Fullscreen captured"'))
@@ -43,7 +42,6 @@ hl.bind(mod .." + Print", hl.dsp.exec_cmd('FILE="$HOME/Pictures/Screenshots/scre
 
 -- Theming & Scripts
 hl.bind(mod .. " + B", hl.dsp.exec_cmd("~/.scripts/toggle.blur.sh"))
-hl.bind(mod .. " + SHIFT + D", hl.dsp.exec_cmd("~/.scripts/wallpick-rofi.sh"))
 hl.bind(mod .. " + D", hl.dsp.exec_cmd("~/.scripts/wallpick-rofi.sh"))
 hl.bind(mod .. " + SHIFT + T", hl.dsp.exec_cmd("~/.scripts/picker-menu.sh"))
 hl.bind(mod .. " + T", hl.dsp.exec_cmd("~/.scripts/theme.switcher-rofi.sh"))

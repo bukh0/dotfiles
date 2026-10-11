@@ -108,6 +108,7 @@ ColumnLayout {
                         Text {
                             visible: wifiRoot.wifiOn && wifiRoot.ssid !== ""
                             text: wifiRoot.ssid
+                            textFormat: Text.PlainText
                             color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.55)
                             font.pixelSize: 10
                             font.family: wifiRoot.fontFamily
@@ -187,6 +188,7 @@ ColumnLayout {
                             }
                             Text {
                                 text: modelData.ssid
+                                textFormat: Text.PlainText
                                 color: delegateRoot.showActive ? Colors.primary : Colors.surfaceFg
                                 font.pixelSize: 12
                                 font.family: wifiRoot.fontFamily
@@ -218,7 +220,7 @@ ColumnLayout {
                                 if (wifiRoot.actionInFlight) return
 
                                 modelData.active
-                                    ? NetworkService.disconnectActive()
+                                    ? NetworkService.disconnectActive(modelData.ssid)
                                     : NetworkService.connectToNetwork(modelData.ssid)
                             }
                         }

@@ -33,7 +33,10 @@ return {
 
       -- These two highlight groups aren't covered by apply_ui_highlights(),
       -- so they still need their own re-force on colorscheme switches.
-      theme.on_colorscheme(refresh_tabline_highlights)
+      vim.api.nvim_create_autocmd("ColorScheme", {
+        group = vim.api.nvim_create_augroup("CokelineTransparentTabline", { clear = true }),
+        callback = refresh_tabline_highlights,
+      })
 
       -- buffer.devicon is nil for buffers with no icon match; guard both fields
       -- so an unmatched filetype doesn't error instead of just showing no icon.
@@ -138,17 +141,6 @@ return {
           { text = "  " },
         },
       })
-
-      -- Bufferline's default LazyVim keymaps die with it disabled.
-      -- <leader>bo (close other buffers) recreated here for cokeline.
-      vim.keymap.set("n", "<leader>bo", function()
-        local current = vim.api.nvim_get_current_buf()
-        for _, buf in ipairs(require("cokeline.buffers").get_visible()) do
-          if buf.number ~= current then
-            buf:delete()
-          end
-        end
-      end, { desc = "Delete other buffers" })
 
       -- vim.diagnostic events don't trigger a tabline redraw on their own —
       -- force one so error/warning counts update the instant the LSP reports
