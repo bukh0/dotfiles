@@ -14,14 +14,8 @@ return {
       local cokeline = require("cokeline")
       local theme = require("utils.theme")
 
-      -- Components run on every redraw, for every buffer. Rebuilding the
-      -- palette (nvim_get_hl calls) inside get_color() on each of those
-      -- calls is wasted work — cache it, refresh only on ColorScheme.
-      
-      --
-      -- theme.colors() caches/invalidates itself now, so there's no need to
-      -- keep a second copy here — calling it straight from get_color() stays
-      -- cheap even on every redraw.
+      -- theme.colors() caches/invalidates itself, so calling it from get_color()
+      -- is cheap even though components render on every tabline redraw.
       local function get_color(key)
         return (theme.colors() or {})[key] or "NONE"
       end

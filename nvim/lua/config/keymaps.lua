@@ -18,6 +18,7 @@ map("v", ">", ">gv")
 
 map({ "i", "n", "s" }, "<esc>", function()
   vim.cmd("noh")
+  if vim.snippet.active() then vim.snippet.stop() end
   return "<esc>"
 end, { expr = true, desc = "Escape and clear hlsearch" })
 map({ "i", "x", "n", "s" }, "<C-s>", "<cmd>w<cr><esc>", { desc = "Save file" })
@@ -29,3 +30,5 @@ map("n", "<leader>qq", "<cmd>qa<cr>", { desc = "Quit all" })
 map("n", "<leader>l", "<cmd>Lazy<cr>", { desc = "Lazy" })
 map("n", "<leader>bd", function() Snacks.bufdelete() end, { desc = "Delete buffer" })
 map("n", "<leader>bo", function() Snacks.bufdelete.other() end, { desc = "Delete other buffers" })
+map("n", "]]", function() Snacks.words.jump(vim.v.count1) end, { desc = "Next reference" })
+map("n", "[[", function() Snacks.words.jump(-vim.v.count1) end, { desc = "Prev reference" })

@@ -19,6 +19,7 @@ autocmd("VimResized", {
 autocmd("BufReadPost", {
   group = augroup,
   callback = function(ev)
+    if vim.bo[ev.buf].filetype:match("^git") then return end
     local mark = vim.api.nvim_buf_get_mark(ev.buf, '"')
     if mark[1] > 0 and mark[1] <= vim.api.nvim_buf_line_count(ev.buf) then
       pcall(vim.api.nvim_win_set_cursor, 0, mark)

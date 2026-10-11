@@ -5,8 +5,8 @@ return {
     signs = {
       add = { text = "▎" },
       change = { text = "▎" },
-      delete = { text = "" },
-      topdelete = { text = "" },
+      delete = { text = "▁" },
+      topdelete = { text = "▔" },
       changedelete = { text = "▎" },
     },
     on_attach = function(buf)

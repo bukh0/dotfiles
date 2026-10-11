@@ -10,10 +10,6 @@ local function get_word_char_count()
   return stats.words .. "W / " .. stats.chars .. "C"
 end
 
-local function noice_has(kind)
-  return package.loaded["noice"] and require("noice").api.status[kind].has()
-end
-
 return {
   "nvim-lualine/lualine.nvim",
   event = "VeryLazy",
@@ -30,18 +26,6 @@ return {
         lualine_b = { "branch", "diff", "diagnostics" },
         lualine_c = { { "filename", path = 1 } },
         lualine_x = {
-          {
-            function() return require("noice").api.status.command.get() end,
-            cond = function() return noice_has("command") end,
-          },
-          {
-            function() return require("noice").api.status.mode.get() end,
-            cond = function() return noice_has("mode") end,
-          },
-          {
-            function() return require("lazy.status").updates() end,
-            cond = function() return require("lazy.status").has_updates() end,
-          },
           "encoding",
           "fileformat",
           "filetype",
