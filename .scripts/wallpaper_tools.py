@@ -16,7 +16,9 @@ THEMES = [
     "gruvbox",
     "tokyonight",
     "everforest",
-    "material",
+    "dracula",
+    "nord",
+    "solarized-dark",
     "e-ink",
     "e-ink-dark",
     "uncategorized",
@@ -30,7 +32,9 @@ THEME_ANCHORS_RGB = {
     "everforest": {"bg": (45, 53, 59), "accents": [(167, 192, 128), (131, 192, 146)]},
     "gruvbox": {"bg": (40, 40, 40), "accents": [(254, 128, 25), (215, 153, 33)]},
     "catppuccin-mocha": {"bg": (30, 30, 46), "accents": [(203, 166, 247), (137, 180, 250)]},
-    "material": {"bg": (18, 18, 18), "accents": [(187, 134, 252), (3, 218, 198)]},
+    "dracula": {"bg": (40, 42, 54), "accents": [(189, 147, 249), (255, 121, 198), (80, 250, 123)]},
+    "nord": {"bg": (46, 52, 64), "accents": [(136, 192, 208), (129, 161, 193), (143, 188, 187)]},
+    "solarized-dark": {"bg": (0, 43, 54), "accents": [(38, 139, 210), (42, 161, 152), (181, 137, 0)]},
 }
 
 ACCENT_CHROMA_FLOOR = 10.0
