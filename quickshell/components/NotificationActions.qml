@@ -8,6 +8,7 @@ Flow {
     property int notificationId: -1
     property var actions: NotificationDaemon.actionsFor(notificationId)
     Layout.fillWidth: true
+    Layout.minimumWidth: 0
     spacing: 6
     visible: actions.length > 0
     Repeater {
@@ -16,9 +17,10 @@ Flow {
             required property var modelData
             required property int index
             text: modelData.text
+            glyph: modelData.identifier === "default" ? "↗" : ""
             width: Math.min(implicitWidth, root.width)
             emphasis: index === 0
-            hint: text
+            hint: modelData.identifier === "default" ? "Open notification" : text
             onClicked: NotificationDaemon.invokeAction(root.notificationId, index)
         }
     }

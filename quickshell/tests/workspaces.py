@@ -9,12 +9,20 @@ with tempfile.TemporaryDirectory(prefix='qs-workspaces-') as directory:
  source=source.replace('import Quickshell.Hyprland\n','')
  source=source.replace('readonly property var workspaceList: Hyprland.workspaces.values','property var workspaceList: []')
  source=source.replace('readonly property var monitor: Hyprland.monitorFor(root.screen)','property var monitor: null')
+ source=source.replace('Hyprland.', 'root.hyprland.')
+ source=source.replace('id: root', 'id: root\n    property var hyprland')
  (p/'profile/Workspaces.qml').write_text(source)
  (p/'shell.qml').write_text('''import QtQuick
 import Quickshell
 import "profile" as Profile
 ShellRoot {
- property var first: ({activeWorkspace: {id: 4}})
+ QtObject {
+  id: mockHyprland
+  property bool usingLua: true
+  property var calls: []
+  function dispatch(value) { calls.push(value) }
+ }
+ property var first: ({name: "eDP-1", activeWorkspace: {id: 4}})
  property var second: ({activeWorkspace: {id: 8}})
  property var workspaces: [
   {id: 1, monitor:first, toplevels:{values:[{}]}},
@@ -23,12 +31,30 @@ ShellRoot {
   {id: 8, monitor:second, toplevels:{values:[]}},
   {id: 9, monitor:second, toplevels:{values:[{}]}}]
  Window {
-  Profile.Workspaces { id: a; monitor:first; workspaceList:workspaces }
-  Profile.Workspaces { id: b; monitor:second; workspaceList:workspaces }
+  Profile.Workspaces { id: a; monitor:first; workspaceList:workspaces; hyprland:mockHyprland }
+  Profile.Workspaces { id: b; monitor:second; workspaceList:workspaces; hyprland:mockHyprland }
  }
  Timer { interval: 200; running:true; onTriggered: {
   if (JSON.stringify(a.allIds) !== "[1,2,3,4,7]" || JSON.stringify(b.allIds) !== "[1,2,3,8,9]") console.error("FAIL",a.allIds,b.allIds)
-  else console.log("WORKSPACES PASS")
+  else {
+   for (let lua of [true, false]) {
+    mockHyprland.usingLua = lua
+    mockHyprland.calls = []
+    a.switchWorkspace(2)
+    a.scrollWorkspace(true)
+    a.scrollWorkspace(false)
+    const actual = mockHyprland.calls
+    const expected = lua ? [
+      'hl.dsp.focus({ workspace = "2" })',
+      'hl.dsp.focus({ monitor = "eDP-1" })',
+      'hl.dsp.focus({ workspace = "e-1" })',
+      'hl.dsp.focus({ monitor = "eDP-1" })',
+      'hl.dsp.focus({ workspace = "e+1" })'
+    ] : ['workspace 2', 'focusmonitor eDP-1', 'workspace e-1', 'focusmonitor eDP-1', 'workspace e+1']
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) console.error("FAIL dispatch", actual)
+   }
+   console.log("WORKSPACES PASS")
+  }
   Qt.quit()
  } }
 }

@@ -345,19 +345,18 @@ Item {
             return
         }
 
-        const lower = out.toLowerCase()
+        const bad = lines.filter(l => /^(?:Failed to\b|org\.bluez\.Error\b)/i.test(l))
         // Pairing often auto-connects, so the follow-up connect reports this.
-        if (lower.includes("alreadyconnected") || lower.includes("already connected")) return
+        if (bad.length > 0 && bad.every(l => /org\.bluez\.Error\.AlreadyConnected\b/i.test(l))) return
 
         if (rc === 124) {
             root.notify("Bluetooth Warning", "Timed out. Is the device on and in range?")
             return
         }
-        if (rc === 0 && !/fail|error/i.test(out)) return
+        if (rc === 0 && bad.length === 0) return
 
         // Older bluetoothctl exits 0 even on failure, hence the text check.
         // Show the one relevant line, not the whole transcript.
-        const bad = lines.filter(l => /fail|error/i.test(l))
         const msg = bad.length > 0 ? bad[bad.length - 1]
             : (lines.length > 0 ? lines[lines.length - 1] : "Command failed (exit " + rc + ")")
         root.notify("Bluetooth Warning", msg)

@@ -26,7 +26,7 @@ ShellRoot {
         screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) || Quickshell.screens[0]
         // No anchors: the compositor centres a window-sized surface, so
         // only the panel area is rendered each frame instead of the whole monitor.
-        implicitWidth: Math.max(320, Math.min(view.page === "Wallpapers" ? 820 : 680, (screen ? screen.width : 1920) - 80))
+        implicitWidth: Math.max(320, Math.min(view.page === "Wallpapers" ? 820 : view.page === "Home" ? 460 : 560, (screen ? screen.width : 1920) - 80))
         implicitHeight: Math.max(200, Math.min(view.preferredHeight, (screen ? screen.height : 1080) - 80))
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"

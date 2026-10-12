@@ -16,6 +16,7 @@ ColumnLayout {
     readonly property int pageHeight: artSize + rowGap + controlsHeight
 
     property int scrollThreshold: 30           // pixels/delta for page change
+    property bool preferVerticalScroll: false
 
     // Centralized status strings
     readonly property string statusPlaying: "Playing"
@@ -297,18 +298,33 @@ ColumnLayout {
         WheelHandler {
             id: wheelHandler
             target: null
+            // Disabling this handler lets ScrollView receive vertical input;
+            // accepted=false alone does not bypass WheelHandler's grab.
+            enabled: pager.pageCount > 1 && !root.preferVerticalScroll
+            orientation: Qt.Vertical
             acceptedDevices: PointerDevice.TouchPad | PointerDevice.Mouse | PointerDevice.TouchScreen
             property real accumulated: 0
+            property bool lastHorizontal: false
+            onWheel: event => handleWheel(event, false)
 
-            onWheel: function(wheelEvent) {
-                if (pageLockout.running) return
+            function handleWheel(wheelEvent, horizontal) {
+                wheelEvent.accepted = false
+                if (pager.pageCount < 2 || (root.preferVerticalScroll && !horizontal)) {
+                    accumulated = 0
+                    return
+                }
+                if (pageLockout.running) { wheelEvent.accepted = true; return }
 
-                const angleDelta = wheelEvent.angleDelta.y || wheelEvent.angleDelta.x
-                const pixelDelta = wheelEvent.pixelDelta.y || wheelEvent.pixelDelta.x
-                if (pixelDelta !== 0) {
-                    accumulated += pixelDelta
-                } else if (angleDelta !== 0) accumulated += angleDelta / 120 * root.scrollThreshold
-                else return
+                const angleDelta = horizontal ? wheelEvent.angleDelta.x : wheelEvent.angleDelta.y
+                const pixelDelta = horizontal ? wheelEvent.pixelDelta.x : wheelEvent.pixelDelta.y
+                const delta = pixelDelta !== 0 ? pixelDelta : angleDelta / 120 * root.scrollThreshold
+                if (!delta) return
+                const next = pager.currentIndex + (delta > 0 ? -1 : 1)
+                if (next < 0 || next >= pager.pageCount) { accumulated = 0; return }
+                if (horizontal !== lastHorizontal || accumulated * delta < 0) accumulated = 0
+                lastHorizontal = horizontal
+                accumulated += delta
+                wheelIdle.restart()
 
                 const threshold = root.scrollThreshold
 
@@ -322,6 +338,14 @@ ColumnLayout {
             }
         }
 
+        WheelHandler {
+            target: null
+            enabled: pager.pageCount > 1
+            orientation: Qt.Horizontal
+            acceptedDevices: PointerDevice.TouchPad | PointerDevice.Mouse
+            onWheel: event => wheelHandler.handleWheel(event, true)
+        }
+
         // ── Keyboard navigation ──────────────────────────────────
         Keys.onPressed: function(keyEvent) {
             if (keyEvent.key === Qt.Key_Left) {
@@ -331,6 +355,12 @@ ColumnLayout {
                 pager.goTo(pager.currentIndex + 1)
                 keyEvent.accepted = true
             }
+        }
+
+        Timer {
+            id: wheelIdle
+            interval: 150
+            onTriggered: wheelHandler.accumulated = 0
         }
 
         Timer {

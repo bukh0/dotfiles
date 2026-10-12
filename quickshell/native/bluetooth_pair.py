@@ -64,6 +64,11 @@ def main(address):
             return
         try:
             connection.call_finish(result)
+        except GLib.Error as error:
+            if Gio.DBusError.get_remote_error(error) != "org.bluez.Error.AlreadyExists":
+                finish(error)
+                return
+        try:
             connection.call_sync("org.bluez", device, "org.freedesktop.DBus.Properties", "Set",
                                  GLib.Variant("(ssv)", ("org.bluez.Device1", "Trusted", GLib.Variant("b", True))),
                                  None, Gio.DBusCallFlags.NONE, 5000, None)
@@ -94,9 +99,20 @@ def main(address):
                           GLib.Variant("(o)", (agent._path,)), None, Gio.DBusCallFlags.NONE, 5000, None)
         except GLib.Error:
             pass
-        agent.unregister()
-        for window in Gtk.Window.list_toplevels():
-            window.destroy()
+        # Cleanup must not change the result of Pair/Trust/Connect.
+        try:
+            agent.unregister()
+        except Exception:
+            pass
+        try:
+            windows = Gtk.Window.list_toplevels()
+        except Exception:
+            windows = []
+        for window in windows:
+            try:
+                window.destroy()
+            except Exception:
+                pass
     return 0 if success else 1
 
 

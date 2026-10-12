@@ -3,10 +3,12 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Services.Notifications
+import Quickshell.Wayland
 import "."
 
 PanelWindow {
     id: popup
+    WlrLayershell.layer: WlrLayer.Overlay
     property int maxVisible: 3
     property int maxQueueLength: 20
     property int defaultDuration: 4000
@@ -115,6 +117,7 @@ PanelWindow {
         target: NotificationDaemon
         function onDoNotDisturbChanged() { if (NotificationDaemon.doNotDisturb) popup.dismissAll() }
         function onDismissPopup() { popup.dismiss() }
+        function onDismissPopupById(id) { popup._forget(id) }
         function onNotificationRemoved(id) { popup._forget(id) }
     }
     Column {
@@ -130,6 +133,7 @@ PanelWindow {
                 required property int index
                 readonly property var entry: { popup.rev; return popup.store[notifId] || null }
                 readonly property int duration: entry ? popup._durationFor(entry) : 0
+                readonly property bool critical: entry !== null && entry.urgency === NotificationUrgency.Critical
                 property bool shown: false
                 required property bool closing
                 width: stack.width
@@ -141,7 +145,7 @@ PanelWindow {
                     else { removeTimer.stop(); syncTimeout(true) }
                 }
                 function syncTimeout(reset) {
-                    if (closing || hover.hovered || (duration === 0 && popup.queueCount <= popup.closingCount)) hideTimer.stop()
+                    if (closing || critical || hover.hovered || (duration === 0 && popup.queueCount <= popup.closingCount)) hideTimer.stop()
                     else if (reset || !hideTimer.running) hideTimer.restart()
                 }
                 Timer { id: removeTimer; interval: 220; onTriggered: popup._remove(slot.notifId) }
@@ -150,7 +154,7 @@ PanelWindow {
                     interval: slot.duration > 0 ? slot.duration : popup.persistentDisplayDuration
                     onTriggered: {
                         // Closing cards already reserve slots for queued entries.
-                        if (slot.duration > 0 || popup.queueCount > popup.closingCount) slot.beginClose()
+                        if (!slot.critical && (slot.duration > 0 || popup.queueCount > popup.closingCount)) slot.beginClose()
                     }
                 }
                 Connections {
@@ -189,7 +193,7 @@ PanelWindow {
 
                         Image {
                             source: NotificationDaemon.getIconSource(slot.entry)
-                            visible: source.toString() !== ""
+                            visible: source.toString() !== "" && status !== Image.Error
                             Layout.preferredWidth: 42
                             Layout.preferredHeight: 42
                             Layout.alignment: Qt.AlignTop

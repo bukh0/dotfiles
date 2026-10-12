@@ -17,7 +17,7 @@ RowLayout {
     // released is delivered, which otherwise briefly restores the old value.
     property bool isDragging: false
     property real dragValue: value
-    readonly property real visualValue: isDragging ? dragValue : value
+    readonly property real visualValue: Math.max(minValue, Math.min(1, isDragging ? dragValue : value))
 
     signal dragged(real val)
     signal committed(real val)

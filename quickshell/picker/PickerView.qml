@@ -11,21 +11,21 @@ Rectangle {
 
     readonly property string home: Quickshell.env("HOME")
     property string bin: home + "/.scripts/theme.switcher"
-    // Fixed picker palette, independent of the theme being previewed/applied.
-    readonly property color panelColor: "#10121a"
-    readonly property color fieldColor: "#191d29"
-    readonly property color accent: "#a9b9ef"
-    readonly property color accentText: "#111522"
-    readonly property color errorColor: "#f09098"
-    readonly property color ink: "#e3e7f0"
-    readonly property color muted: "#949caf"
+    // Shared palette installed by theme.switcher for presets, Matugen and pywal.
+    readonly property color panelColor: Colors.surface
+    readonly property color fieldColor: Colors.surfaceContainer
+    readonly property color accent: Colors.primary
+    readonly property color accentText: Colors.primaryFg
+    readonly property color errorColor: Colors.error
+    readonly property color ink: Colors.surfaceFg
+    readonly property color muted: Qt.alpha(Colors.surfaceFg, 0.65)
     readonly property color faint: Qt.alpha(ink, 0.045)
     // Both bar profiles use sans-serif. Avoid loading their complete modules
     // and enumerating every installed font just to obtain this one value.
     readonly property string uiFont: "sans-serif"
     readonly property int rowHeight: 48
     readonly property int preferredHeight: page === "Wallpapers" ? 540
-        : Math.max(240, 88 + Math.max(2, Math.min(10, filtered.length)) * rowHeight)
+        : Math.max(200, 82 + Math.max(2, Math.min(8, filtered.length)) * rowHeight)
           + (error !== "" ? 64 : 0) + (busy ? 24 : 0)
     property string page: "Home"
     property string generator: ""
@@ -46,7 +46,7 @@ Rectangle {
     color: view.panelColor
     radius: 16
     border.width: 1
-    border.color: Qt.alpha(view.accent, 0.3)
+    border.color: Qt.alpha(view.accent, 0.18)
     // Consume clicks in the panel's padding as well as on its controls.
     MouseArea { anchors.fill: parent }
 
@@ -102,9 +102,9 @@ Rectangle {
         if (busy) return
         error = ""
         if (page === "Wallpapers") {
-            if (!wallProc.running) wallProc.running = true
-            if (!thumbProc.running) thumbProc.running = true
-        } else if (page === "Themes" && !themeProc.running) themeProc.running = true
+            wallProc.start()
+            thumbProc.start()
+        } else if (page === "Themes") themeProc.start()
         focusSearch()
     }
     function choose() {
@@ -167,18 +167,52 @@ Rectangle {
     }
     Keys.onPressed: event => handleKey(event)
 
-    Process {
+    // Listing and thumbnail jobs can finish after the user has left their page.
+    component PageProcess: Process {
+        id: job
+        required property string page
+        required property string failureMessage
+        property bool startedSuccessfully: false
+        function reportFailure(message) {
+            if (view.page === page && !view.busy && !view.error) view.error = message
+        }
+        function start() {
+            if (running) return
+            startedSuccessfully = false
+            running = true
+            startupCheck.restart()
+        }
+        onStarted: startedSuccessfully = true
+        onExited: (code, status) => {
+            startupCheck.stop()
+            if (code !== 0 || status !== 0) reportFailure(failureMessage)
+        }
+        // Quickshell does not emit exited when an executable is missing.
+        property Timer startupCheck: Timer {
+            interval: 500
+            onTriggered: {
+                if (!job.startedSuccessfully && !job.running)
+                    job.reportFailure("Could not start " + job.command[0])
+            }
+        }
+    }
+
+    PageProcess {
         id: themeProc
-        running: false
+        page: "Themes"
+        failureMessage: "Could not load themes. Press F5 to retry."
         command: [view.bin, "--list-themes"]
         stdout: StdioCollector {
-            onStreamFinished: { view.presets = text.split("\n").filter(Boolean); view.rebuild() }
+            onStreamFinished: {
+                view.presets = text.split("\n").filter(Boolean)
+                if (view.page === "Themes") view.rebuild()
+            }
         }
-        onExited: (code, status) => { if (code !== 0 || status !== 0) view.error = "Could not load themes. Press F5 to retry." }
     }
-    Process {
+    PageProcess {
         id: wallProc
-        running: false
+        page: "Wallpapers"
+        failureMessage: "Could not load wallpapers. Press F5 to retry."
         command: [view.bin, "--list-walls"]
         stdout: StdioCollector {
             onStreamFinished: {
@@ -192,10 +226,9 @@ Rectangle {
                 }
                 view.thumbnails = thumbs
                 view.walls = paths
-                view.rebuild()
+                if (view.page === "Wallpapers") view.rebuild()
             }
         }
-        onExited: (code, status) => { if (code !== 0 || status !== 0) view.error = "Could not load wallpapers. Press F5 to retry." }
     }
     Process {
         id: wallpaperProc
@@ -209,14 +242,12 @@ Rectangle {
             else { view.error = "Could not set the wallpaper. Check that swww is running."; view.focusSearch() }
         }
     }
-    Process {
+    PageProcess {
         id: thumbProc
-        running: false
+        page: "Wallpapers"
+        failureMessage: "Some previews could not be generated. Press F5 to retry."
         command: [view.bin, "--thumbs"]
         stdout: SplitParser { onRead: path => view.thumbnailReady(path) }
-        onExited: (code, status) => {
-            if (code !== 0 || status !== 0) view.error = "Some previews could not be generated. Press F5 to retry."
-        }
     }
     function finishApply() {
         if (!busy || !applyProc._exited || !applyProc.stderrDone) return
@@ -264,13 +295,15 @@ Rectangle {
         }
     }
 
-    // Document-style scrolling: wheel and touchpad deltas move the content
-    // immediately. Only keyboard navigation uses a short animated reveal.
+    // Animate discrete wallpaper wheel steps; native pixel deltas retain
+    // their own touchpad momentum without a second layer of easing.
     component Scroller: Item {
         id: sc
         required property Flickable flick
         property real target: 0
         property real rate: 32
+        property bool smoothWheel: false
+        property real wheelStep: flick.height * 0.45
         readonly property bool animating: anim.running || inputIdle.running || flick.moving
 
         function limit(y) {
@@ -284,15 +317,23 @@ Rectangle {
             target = flick.contentY
         }
         function wheel(event) {
-            let delta
             if (event.pixelDelta.y !== 0) {
-                // Preserve high-resolution gestures and their native momentum.
-                delta = -event.pixelDelta.y
+                jump(flick.contentY - event.pixelDelta.y)
             } else if (event.angleDelta.y !== 0) {
-                // Linear travel, including fractional deltas from Wayland touchpads.
-                delta = -event.angleDelta.y / 120 * flick.height * 0.45
+                const delta = -event.angleDelta.y / 120 * wheelStep
+                if (smoothWheel) {
+                    flick.cancelFlick()
+                    // Accumulate quick wheel ticks, but discard queued travel
+                    // on reversal and keep the target near the visible viewport.
+                    const base = anim.running && (target - flick.contentY) * delta > 0
+                        ? target : flick.contentY
+                    const maxLead = flick.height * 1.5
+                    target = limit(Math.max(flick.contentY - maxLead,
+                        Math.min(flick.contentY + maxLead, base + delta)))
+                    rate = 28
+                    anim.running = target !== flick.contentY
+                } else jump(flick.contentY + delta)
             } else return false
-            jump(flick.contentY + delta)
             inputIdle.restart()
             return true
         }
@@ -312,15 +353,15 @@ Rectangle {
         FrameAnimation {
             id: anim
             onTriggered: {
+                sc.target = sc.limit(sc.target)
                 const dist = sc.target - sc.flick.contentY
-                if (Math.abs(dist) < 1) {
+                if (Math.abs(dist) < 0.5) {
                     sc.flick.contentY = sc.target
                     running = false
                     return
                 }
-                let stepBy = dist * (1 - Math.exp(-frameTime * sc.rate))
-                if (Math.abs(stepBy) < 1) stepBy = dist > 0 ? 1 : -1
-                sc.flick.contentY = Math.round(sc.flick.contentY + stepBy)
+                const stepBy = dist * (1 - Math.exp(-frameTime * sc.rate))
+                sc.flick.contentY = sc.limit(sc.flick.contentY + stepBy)
             }
         }
     }
@@ -328,10 +369,9 @@ Rectangle {
     component Chip: Rectangle {
         id: chip
         property string text: ""
-        property bool active: false
         signal clicked()
         implicitHeight: 30
-        implicitWidth: chipLabel.implicitWidth + 22
+        implicitWidth: Math.max(30, chipLabel.implicitWidth + 18)
         radius: 8
         color: chipMouse.containsMouse ? view.faint : "transparent"
         Behavior on color { ColorAnimation { duration: 100 } }
@@ -341,7 +381,7 @@ Rectangle {
             text: chip.text
             color: view.accent
             font.family: view.uiFont
-            font.pixelSize: 14
+            font.pixelSize: 18
         }
         MouseArea {
             id: chipMouse
@@ -356,7 +396,7 @@ Rectangle {
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 16
-        spacing: 12
+        spacing: 10
 
         RowLayout {
             Layout.fillWidth: true
@@ -370,8 +410,8 @@ Rectangle {
                 id: search
                 objectName: "pickerSearch"
                 Layout.fillWidth: true
-                implicitHeight: 44
-                leftPadding: 10
+                implicitHeight: 40
+                leftPadding: 34
                 rightPadding: 10
                 enabled: !view.busy
                 selectByMouse: true
@@ -380,6 +420,14 @@ Rectangle {
                 color: view.ink
                 selectionColor: view.accent
                 selectedTextColor: view.accentText
+                Text {
+                    x: 12
+                    height: parent.height
+                    text: "⌕"
+                    color: view.muted
+                    font.pixelSize: 20
+                    verticalAlignment: Text.AlignVCenter
+                }
                 // Hint drawn outside TextInput so it never scrolls with the text.
                 Text {
                     anchors.fill: parent
@@ -394,6 +442,9 @@ Rectangle {
                 background: Rectangle {
                     radius: 9
                     color: view.fieldColor
+                    border.width: 1
+                    border.color: search.activeFocus ? Qt.alpha(view.accent, 0.4) : "transparent"
+                    Behavior on border.color { ColorAnimation { duration: 100 } }
                 }
                 onTextChanged: view.rebuild()
                 Keys.onPressed: event => view.handleKey(event)
@@ -408,7 +459,13 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            Scroller { id: gridScroll; flick: grid }
+            Scroller {
+                id: gridScroll
+                objectName: "wallpaperScroller"
+                flick: grid
+                smoothWheel: true
+                wheelStep: grid.height * 0.65
+            }
             Scroller { id: listScroll; flick: themeList }
 
             GridView {
@@ -443,6 +500,7 @@ Rectangle {
                     required property string modelData
                     required property int index
                     readonly property bool chosen: view.selected === index
+                    readonly property bool hovered: tileMouse.containsMouse && !gridScroll.animating
                     property int retry: 0
                     width: grid.cellWidth
                     height: grid.cellHeight
@@ -451,10 +509,22 @@ Rectangle {
                         anchors.fill: parent
                         anchors.margins: 3
                         radius: 6
-                        color: tile.chosen ? Qt.alpha(view.ink, 0.08) : tileMouse.containsMouse ? Qt.alpha(view.ink, 0.04) : "transparent"
-                        border.width: tile.chosen ? 1 : 0
-                        border.color: view.accent
+                        color: tile.chosen ? Qt.alpha(view.ink, 0.08) : tile.hovered ? Qt.alpha(view.ink, 0.04) : Qt.alpha(view.ink, 0.02)
+                        border.width: 1
+                        border.color: tile.chosen ? view.accent : tile.hovered ? Qt.alpha(view.accent, 0.35) : "transparent"
+                        Behavior on border.color { ColorAnimation { duration: 100 } }
+                        ToolTip.visible: tile.hovered
+                        ToolTip.text: view.baseName(tile.modelData)
+                        ToolTip.delay: 700
 
+                        Text {
+                            anchors.centerIn: parent
+                            anchors.verticalCenterOffset: -10
+                            visible: img.status !== Image.Ready
+                            text: "▧"
+                            color: view.muted
+                            font.pixelSize: 24
+                        }
                         Image {
                             id: img
                             anchors.fill: parent
@@ -481,6 +551,22 @@ Rectangle {
                             color: view.ink
                             horizontalAlignment: Text.AlignHCenter
                             elide: Text.ElideMiddle
+                        }
+                        Rectangle {
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.margins: 7
+                            width: 20
+                            height: 20
+                            radius: 10
+                            visible: tile.chosen
+                            color: view.accent
+                            Text {
+                                anchors.centerIn: parent
+                                text: "✓"
+                                color: view.accentText
+                                font.pixelSize: 12
+                            }
                         }
                         Connections {
                             target: view
@@ -529,24 +615,35 @@ Rectangle {
                     id: row
                     required property string modelData
                     required property int index
-                    readonly property bool generated: view.page === "Themes" && (modelData === "Matugen" || modelData === "pywal")
                     width: themeList.width
                     height: view.rowHeight
-                    radius: 5
-                    color: view.selected === index ? Qt.alpha(view.accent, 0.16) : "transparent"
+                    readonly property bool chosen: view.selected === index
+                    radius: 8
+                    color: chosen ? Qt.alpha(view.accent, 0.12) : rowMouse.containsMouse ? view.faint : "transparent"
+                    Behavior on color { ColorAnimation { duration: 100 } }
+                    Rectangle {
+                        x: 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 3
+                        height: 22
+                        radius: 1.5
+                        color: view.accent
+                        visible: row.chosen
+                    }
                     Text {
                         anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 10
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 14
                         verticalAlignment: Text.AlignVCenter
                         text: row.modelData
                         textFormat: Text.PlainText
-                        color: view.selected === row.index ? view.accent : view.ink
+                        color: row.chosen ? view.accent : view.ink
                         font.family: view.uiFont
                         font.pixelSize: 14
                         elide: Text.ElideRight
                     }
                     MouseArea {
+                        id: rowMouse
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
@@ -587,7 +684,7 @@ Rectangle {
         }
         Text {
             Layout.fillWidth: true
-            visible: view.busy || thumbProc.running
+            visible: view.busy || (view.page === "Wallpapers" && thumbProc.running)
             text: view.busy ? view.operation : "Preparing previews…"
             textFormat: Text.PlainText
             color: view.muted

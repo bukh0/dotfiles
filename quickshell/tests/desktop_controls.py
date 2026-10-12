@@ -16,6 +16,7 @@ with tempfile.TemporaryDirectory(prefix='qs-desktop-controls-') as directory:
  def lines(): return log.read_text().splitlines() if log.exists() else []
  mock('notify-send','exit 0')
  mock('sudo','cat >/dev/null; exit 0')
+ mock('brightnessctl','exit 0')
  mock('swayosd-client','echo "osd $*" >> "$TEST_ROOT/log"')
  mock('wpctl','''echo "wpctl $*" >> "$TEST_ROOT/log"
 if [[ "$1" == set-mute ]]; then printf 'Volume: 0.5 [MUTED]\\n' > "$TEST_ROOT/volume"; else cat "$TEST_ROOT/volume"; fi''')
@@ -49,7 +50,7 @@ if [[ "$1" == set-mute ]]; then printf 'Volume: 0.5 [MUTED]\\n' > "$TEST_ROOT/vo
  assert (root/'qs-log').read_text().splitlines()[-1].endswith('call bar toggle')
  mock('hyprctl','echo "$*" >> "$TEST_ROOT/hyprctl-log"')
  run('fullscreen_toggle.sh')
- assert (root/'hyprctl-log').read_text().splitlines()[-1] == 'dispatch fullscreen'
+ assert (root/'hyprctl-log').read_text().splitlines()[-1] == 'dispatch hl.dsp.window.fullscreen({ action = "toggle" })'
  print('PASS selected Quickshell routing and fullscreen dispatch')
  # Substitute only hardware paths; execute the actual transaction and error branches.
  perf=root/'perf.sh'

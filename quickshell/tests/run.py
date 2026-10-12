@@ -81,9 +81,13 @@ import sys, time, os, pathlib
 args = sys.argv[1:]
 flag = pathlib.Path(os.environ["TEST_NETWORK_FAILURE"])
 if args == ["test-status-failure"]:
-    flag.touch()
+    flag.write_text("all")
     sys.exit(0)
-if flag.exists() and "monitor" not in args:
+if args and args[0].startswith("test-mode-"):
+    flag.write_text(args[0].removeprefix("test-mode-"))
+    sys.exit(0)
+mode = flag.read_text() if flag.exists() else ""
+if mode == "all" and "monitor" not in args:
     sys.exit(1)
 if "monitor" in args:
     time.sleep(20)
@@ -97,12 +101,16 @@ elif "connect" in args:
 elif "disconnect" in args:
     assert args[-1] == "wlan1", args
 elif args == ["radio", "wifi"]:
-    print("enabled")
+    print("disabled" if mode == "off" else "enabled")
 elif "ACTIVE,SSID,SIGNAL,DEVICE" in args:
     print("yes:active:10:wlan0\\nyes:<b>Backup</b>:5:wlan1")
 elif "TYPE,STATE,DEVICE" in args:
     print("wifi:connected:wlan0\\nwifi:connected:wlan1")
 elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
+    if mode == "scan":
+        print("partial:50:WPA2:no:wlan0")
+        sys.exit(1)
+    if mode == "empty": sys.exit(0)
     print("__proto__:90:WPA2:no:wlan0\\nconstructor:80:WPA2:no:wlan0\\n spaced :70::no:wlan0\\nactive:10:WPA2:yes:wlan0\\n<b>Backup</b>:5:WPA2:yes:wlan1\\n<b>Backup</b>:4:WPA2:no:wlan0\\n<b>Backup</b>:5:WPA2:yes:wlan1")
 ''')
     nmcli.chmod(0o755)
@@ -112,6 +120,7 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
             # Offscreen Qt has no layer-shell backend. Exercise the real popup
             # state machine and layout using a Rectangle as its window host.
             text = text.replace("PanelWindow {", "Rectangle {", 1)
+            text = re.sub(r"    WlrLayershell\.\w+:.*", "", text)
             text = re.sub(r"    anchors \{.*?\n    \}", "", text, count=1, flags=re.S)
             text = re.sub(r"    margins \{.*?\n    \}", "", text, count=1, flags=re.S)
         (profile / name).write_text(text)
@@ -125,6 +134,7 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
             text = text.replace("readonly property var device: UPower.displayDevice", "property var device: null")
         if name == "ControlPanel.qml":
             text = text.replace("PanelWindow {", "Rectangle {", 1)
+            text = re.sub(r"    WlrLayershell\.\w+:.*", "", text)
             text = re.sub(r"    WlrLayershell.keyboardFocus:.*", "", text)
             text = re.sub(r"    anchors \{.*?\n    \}", "", text, count=1, flags=re.S)
             text = re.sub(r"    mask: Region \{.*?\n    \}", "", text, count=1, flags=re.S)

@@ -149,7 +149,7 @@ int main(int argc, char* argv[]) {
                 std::string iface = trim(line.substr(0, colon));
                 if (!iface.empty() && iface != "lo" &&
                     iface.rfind("wg", 0) != 0 && iface.rfind("tun", 0) != 0 &&
-                    (iface[0] == 'e' || iface[0] == 'w')) {
+                    (iface[0] == 'e' || iface[0] == 'w' || iface.rfind("usb", 0) == 0)) {
                     std::istringstream iss(line.substr(colon + 1));
                     unsigned long long rx = 0, tx = 0, dmy = 0;
                     if (iss >> rx) {

@@ -10,6 +10,7 @@ with tempfile.TemporaryDirectory(prefix='qs-popup-stack-') as directory:
   if name == 'NotificationPopup.qml':
    source=re.sub(r'^import Quickshell.*\n','',source,flags=re.M).replace('PanelWindow {','Rectangle {',1)
    source=re.sub(r'^    (?:anchors|margins) \{.*?\n    \}', '',source,flags=re.S | re.M)
+   source=re.sub(r'^    WlrLayershell\.\w+:.*\n', '', source, flags=re.M)
    source=source.replace('NotificationUrgency.Critical','2')
   (profile/name).write_text(source)
  (profile/'Theme.qml').write_text((ROOT/'profiles/default/Theme.qml').read_text().replace('import Quickshell\n','').replace('Quickshell.shellPath("../../native/sysmon")','""'))
@@ -17,11 +18,13 @@ with tempfile.TemporaryDirectory(prefix='qs-popup-stack-') as directory:
 import QtQuick
 QtObject {
  property bool doNotDisturb: false
+ property int invoked: 0
  signal dismissPopup()
+ signal dismissPopupById(int id)
  signal notificationRemoved(int id)
  function getIconSource(data) { return "" }
  function actionsFor(id) { return [] }
- function invokeAction(id,index) {}
+ function invokeAction(id,index) { invoked++ }
 }
 ''')
  (profile/'qmldir').write_text('singleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton NotificationDaemon 1.0 NotificationDaemon.qml\n')
@@ -39,6 +42,35 @@ Item {
    popup.dismissAll(); popup.maxVisible=3; popup.maxQueueLength=20
    popup.persistentDisplayDuration=2000
    Config.NotificationDaemon.doNotDisturb=false
+  }
+  function descendants(item) {
+   let result = []
+   for (const child of item.children || []) result = result.concat([child], descendants(child))
+   return result
+  }
+  function test_actionDoesNotDismissCard() {
+   const data = entry(95,0)
+   data.actions = [{identifier: "default", text: "Open"}]
+   popup.showNotification(data)
+   wait(300)
+   const button = descendants(popup).find(item => item.text === "Open" && typeof item.click === "function")
+   verify(!!button)
+   const before = Config.NotificationDaemon.invoked
+   mouseClick(button)
+   compare(Config.NotificationDaemon.invoked,before+1)
+   wait(300)
+   compare(popup.activeCount,1,"An action click must not also trigger the card dismissal handler")
+  }
+  function test_criticalDoesNotYieldToQueue() {
+   popup.maxVisible=1; popup.persistentDisplayDuration=40
+   popup.showNotification(entry(90,0,2))
+   popup.showNotification(entry(91,0))
+   wait(400)
+   compare(popup.newestId(),90,"A normal queued notification must not time out a critical alert")
+   compare(popup.queueCount,1)
+   popup.dismiss()
+   tryCompare(popup,"queueCount",0,600)
+   compare(popup.newestId(),91)
   }
   function test_rapidDismiss() {
    for(let id=101;id<=103;id++) popup.showNotification(entry(id,0))

@@ -17,6 +17,13 @@ Item {
     TestCase {
         name: "Slider"
         when: windowShown
+        function test_externalAmplification() {
+            slider.value = 1.2
+            compare(slider.visualValue, 1)
+            compare(slider.children[2].text, "100%")
+            slider.value = -0.2
+            compare(slider.visualValue, slider.minValue)
+        }
         function test_wheelMapping() {
             const track = slider.children[1]
             slider.value = 0.5

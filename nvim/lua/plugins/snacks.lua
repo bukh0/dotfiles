@@ -42,7 +42,7 @@ return {
     { "<leader>sd", function() Snacks.picker.diagnostics() end, desc = "Diagnostics" },
     { "<leader>sh", function() Snacks.picker.help() end, desc = "Help pages" },
     { "<leader>sk", function() Snacks.picker.keymaps() end, desc = "Keymaps" },
-    { "<leader>uc", function() Snacks.picker.colorschemes() end, desc = "Colorschemes" },
+    { "<leader>uc", function() require("utils.theme").pick_colorscheme() end, desc = "Colorschemes" },
     { "<leader>gg", function() Snacks.lazygit() end, desc = "Lazygit" },
     { "<leader>gl", function() Snacks.picker.git_log() end, desc = "Git log" },
     { "<leader>n", function() Snacks.notifier.show_history() end, desc = "Notification history" },

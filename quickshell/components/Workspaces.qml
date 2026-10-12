@@ -63,24 +63,44 @@ RowLayout {
     }
 
     function switchWorkspace(id) {
-        Hyprland.dispatch("workspace " + id)
+        Hyprland.dispatch(Hyprland.usingLua
+            ? "hl.dsp.focus({ workspace = " + JSON.stringify(String(id)) + " })"
+            : "workspace " + id)
+    }
+
+    function scrollWorkspace(backward) {
+        if (root.monitor) {
+            Hyprland.dispatch(Hyprland.usingLua
+                ? "hl.dsp.focus({ monitor = " + JSON.stringify(root.monitor.name) + " })"
+                : "focusmonitor " + root.monitor.name)
+        }
+        switchWorkspace(backward ? "e-1" : "e+1")
     }
 
     WheelHandler {
+        id: workspaceWheel
         target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         property real accumulated: 0
         onWheel: event => {
             const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y * 3 : event.angleDelta.y
             if (!delta) { event.accepted = false; return }
             // A notch per workspace; small touchpad deltas must accumulate.
+            if (accumulated * delta < 0) accumulated = 0
             accumulated += delta
+            wheelIdle.restart()
             if (Math.abs(accumulated) >= 120) {
-                if (root.monitor) Hyprland.dispatch("focusmonitor " + root.monitor.name)
-                Hyprland.dispatch(accumulated > 0 ? "workspace e-1" : "workspace e+1")
+                root.scrollWorkspace(accumulated > 0)
                 accumulated %= 120
             }
             event.accepted = true
         }
+    }
+
+    Timer {
+        id: wheelIdle
+        interval: 150
+        onTriggered: workspaceWheel.accumulated = 0
     }
 
     Repeater {

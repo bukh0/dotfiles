@@ -37,6 +37,8 @@ def call(conn, sender, path, interface, method, args, invocation):
   record('unregister'); invocation.return_value(None)
  elif method == 'Pair':
   record('pair')
+  if Path(os.environ['TEST_PAIR_MODE']).read_text() == 'already':
+   invocation.return_dbus_error('org.bluez.Error.AlreadyExists','Already paired'); return
   def confirmed(c, result):
    try:
     c.call_finish(result); invocation.return_value(None)
@@ -73,6 +75,16 @@ class Dialog:
   if self.callback: self.callback(os.environ['TEST_RESPONSE'])
  def close(self): pass
 notification._NotificationDialog=Dialog
+if os.environ.get('TEST_CLEANUP_FAILURE') == '1':
+ import blueman.main.applet.BluezAgent as agent_module
+ original_unregister = agent_module.BluezAgent.unregister
+ def unregister(self):
+  original_unregister(self)
+  raise RuntimeError('Injected unregister failure')
+ agent_module.BluezAgent.unregister = unregister
+ class BrokenWindow:
+  def destroy(self): raise RuntimeError('Injected window cleanup failure')
+ Gtk.Window.list_toplevels = lambda: [BrokenWindow()]
 spec=importlib.util.spec_from_file_location('pair_helper',sys.argv[1])
 helper=importlib.util.module_from_spec(spec); spec.loader.exec_module(helper)
 raise SystemExit(helper.main('AA:BB:CC:DD:EE:FF'))
@@ -84,7 +96,7 @@ with tempfile.TemporaryDirectory(prefix="qs-bluetooth-pair-") as directory:
     (stage / "client.py").write_text(CLIENT)
     # Redirect the helper's SYSTEM bus to this test's private session bus.
     env = dict(os.environ, DBUS_SYSTEM_BUS_ADDRESS=os.environ["DBUS_SESSION_BUS_ADDRESS"],
-               TEST_READY=str(stage / "ready"), TEST_EVENTS=str(stage / "events"))
+               TEST_PAIR_MODE=str(stage / "mode"), TEST_READY=str(stage / "ready"), TEST_EVENTS=str(stage / "events"))
     with (stage / "server.log").open("w") as log:
         server = subprocess.Popen([sys.executable, str(stage / "server.py")], env=env, stdout=log, stderr=log)
         try:
@@ -93,14 +105,15 @@ with tempfile.TemporaryDirectory(prefix="qs-bluetooth-pair-") as directory:
                     break
                 time.sleep(.02)
             assert (stage / "ready").exists(), (stage / "server.log").read_text()
-            for response in ("confirm", "deny"):
+            for response, mode, cleanup in (("confirm", "normal", "0"), ("deny", "normal", "0"), ("confirm", "already", "0"), ("confirm", "normal", "1")):
+                (stage / "mode").write_text(mode)
                 (stage / "events").write_text("")
                 result = subprocess.run([sys.executable, str(stage / "client.py"), str(ROOT / "native/bluetooth_pair.py")],
-                                        env=dict(env, TEST_RESPONSE=response), capture_output=True, text=True, timeout=12)
+                                        env=dict(env, TEST_RESPONSE=response, TEST_CLEANUP_FAILURE=cleanup), capture_output=True, text=True, timeout=12)
                 expected = ["register", "pair", "trusted", "connect", "unregister"] if response == "confirm" else ["register", "pair", "unregister"]
                 assert result.returncode == (0 if response == "confirm" else 1), result.stdout + result.stderr
                 assert (stage / "events").read_text().splitlines() == expected, result.stdout + result.stderr
-            print("PASS Bluetooth agent confirmation/rejection, trust/connect ordering, and cleanup on a private bus")
+            print("PASS Bluetooth agent confirmation/rejection, trust/connect ordering, AlreadyExists recovery, and failing cleanup on a private bus")
         finally:
             server.terminate()
             server.wait(timeout=5)

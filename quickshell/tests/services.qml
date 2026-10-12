@@ -133,7 +133,9 @@ ShellRoot {
                     popup.showNotification({notifId: 72, summary: "ordinary successor", expireTimeout: 5000})
                     break
                 case 4:
-                    check(popup.store[popup.newestId()].notifId === 72, "persistent alert starved queued notification")
+                    check(popup.store[popup.newestId()].notifId === 71, "normal queue dismissed critical alert")
+                    popup.dismissAll()
+                    popup.showNotification({notifId: 72, summary: "ordinary successor", expireTimeout: 5000})
                     popup.persistentDisplayDuration = 2000
                     popup.showNotification({notifId: 73, summary: "waiting", expireTimeout: 5000})
                     popup.dismiss()  // schedules advanceTimer
@@ -165,10 +167,33 @@ ShellRoot {
                 case 9:
                     check(!network.busy, "missing executable left busy state")
                     check(root.networkErrors.includes("Could not start network command"), "missing executable had no error")
+                    network.awaitingPasswordFor = "active"
                     check(network.runCommand(["nmcli", "test-status-failure"]), "status failure setup did not start")
                     break
                 case 10:
-                    check(network.connectionType === "none" && !network.wifiOn && network.ssid === "" && network.activeWifiDevice === "" && network.signalStrength === 0, "failed network poll left stale state")
+                    check(network.connectionType === "none" && network.wifiOn && network.ssid === "" && network.activeWifiDevice === "" && network.signalStrength === 0, "failed network poll left stale state")
+                    check(network.networks.length === 5 && network.awaitingPasswordFor === "active", "failed status poll removed password prompt")
+                    check(network.runCommand(["nmcli", "test-mode-scan"]), "scan failure setup failed")
+                    break
+                case 11:
+                    network.scan()
+                    network.scan()
+                    break
+                case 12:
+                    check(network.networks.length === 5 && network.awaitingPasswordFor === "active", "failed scan published partial results or removed prompt")
+                    check(network.runCommand(["nmcli", "test-mode-empty"]), "empty scan setup failed")
+                    break
+                case 13:
+                    network.scan()
+                    break
+                case 14:
+                    check(network.networks.length === 0 && network.awaitingPasswordFor === "", "disappeared SSID left an invisible password prompt")
+                    network.networks = [{ssid: "active", signal: 50, security: true, active: false, activeDevices: []}]
+                    network.awaitingPasswordFor = "active"
+                    check(network.runCommand(["nmcli", "test-mode-off"]), "radio-off setup failed")
+                    break
+                case 15:
+                    check(!network.wifiOn && network.networks.length === 0 && network.awaitingPasswordFor === "", "confirmed radio-off retained networks or prompt")
                     console.log("REGRESSION PASS: services")
                     Qt.quit()
                 }

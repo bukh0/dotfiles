@@ -7,6 +7,7 @@ Item {
     id: root
 
     property bool wifiOn: false
+    property bool _radioOff: false
     property string ssid: ""
     property string connectionType: "none"
     property var networks: []
@@ -18,6 +19,10 @@ Item {
     readonly property bool busy: actionKind !== ""
 
     property string awaitingPasswordFor: ""
+    onNetworksChanged: {
+        if (awaitingPasswordFor !== "" && !networks.some(n => n.ssid === awaitingPasswordFor))
+            cancelPasswordPrompt()
+    }
     property string _lastPasswordFailureSsid: ""
     property bool _statusErrorLogged: false
 
@@ -72,12 +77,12 @@ Item {
     }
 
     function clearStatus() {
+        // A failed poll is not evidence that the radio was switched off.
+        // Keep scan rows (and any password field) until a confirmed update.
         connectionType = "none"
         ssid = ""
-        wifiOn = false
         signalStrength = 0
         activeWifiDevice = ""
-        networks = []
     }
 
     // Returns true if the command was started, false if it was dropped
@@ -113,6 +118,11 @@ Item {
                 root._statusErrorLogged = false
                 const lines = text.trim().split("\n")
                 root.wifiOn = (lines.length > 0 ? lines[0].trim() : "") === "enabled"
+                root._radioOff = !root.wifiOn
+                if (root._radioOff) {
+                    root.networks = []
+                    root.cancelPasswordPrompt()
+                }
 
                 const activeNetworks = []
                 const wifiDevices = []
@@ -250,41 +260,23 @@ Item {
 
     Process {
         id: scanPoll
+        property string output: ""
+        property bool stdoutDone: false
+        property bool exited: false
+        property bool succeeded: false
+        property bool started: false
+        onStarted: started = true
+        onExited: (code, status) => {
+            exited = true
+            succeeded = code === 0 && status === 0
+            scanSettled.restart()
+        }
         command: ["env", "LC_ALL=C", "nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE", "dev", "wifi", "list", "--rescan", "no"]
         stdout: StdioCollector {
             onStreamFinished: {
-                root.scanning = false
-                const lines = text.split("\n").filter(l => l !== "")
-                const seen = Object.create(null)
-                for (const line of lines) {
-                    const parts = root.parseNmcliFields(line)
-                    if (parts.length < 5) continue
-                    const name = parts[0]
-                    if (!name) continue
-                    const sig = parseInt(parts[1]) || 0
-                    const active = parts[3] === "yes"
-                    const device = parts[4]
-
-                    if (seen[name]) {
-                        seen[name].active = seen[name].active || active
-                        seen[name].signal = Math.max(seen[name].signal, sig)
-                        if (active && device && !seen[name].activeDevices.includes(device))
-                            seen[name].activeDevices.push(device)
-                    } else {
-                        seen[name] = {
-                            ssid: name,
-                            signal: sig,
-                            security: parts[2] !== "" && parts[2] !== "--",
-                            active: active,
-                            activeDevices: active && device ? [device] : []
-                        }
-                    }
-                }
-                const parsed = Object.values(seen)
-                parsed.sort((a, b) => Number(b.active) - Number(a.active) || b.signal - a.signal)
-                root.networks = parsed.slice(0, 20)
-                root.scanning = false
-                if (root._scanPending) scanRestart.restart()
+                scanPoll.output = text
+                scanPoll.stdoutDone = true
+                scanSettled.restart()
             }
         }
         stderr: StdioCollector {
@@ -292,6 +284,49 @@ Item {
         }
         onRunningChanged: {
             if (running) return
+            if (!started) { exited = true; stdoutDone = true; succeeded = false }
+            scanSettled.restart()
+        }
+    }
+
+    function parseScan(text) {
+        const lines = text.split("\n").filter(l => l !== "")
+        const seen = Object.create(null)
+        for (const line of lines) {
+            const parts = root.parseNmcliFields(line)
+            if (parts.length < 5) continue
+            const name = parts[0]
+            if (!name) continue
+            const sig = parseInt(parts[1]) || 0
+            const active = parts[3] === "yes"
+            const device = parts[4]
+
+            if (seen[name]) {
+                seen[name].active = seen[name].active || active
+                seen[name].signal = Math.max(seen[name].signal, sig)
+                if (active && device && !seen[name].activeDevices.includes(device))
+                    seen[name].activeDevices.push(device)
+            } else {
+                seen[name] = {
+                    ssid: name,
+                    signal: sig,
+                    security: parts[2] !== "" && parts[2] !== "--",
+                    active: active,
+                    activeDevices: active && device ? [device] : []
+                }
+            }
+        }
+        const parsed = Object.values(seen)
+        parsed.sort((a, b) => Number(b.active) - Number(a.active) || b.signal - a.signal)
+        return parsed.slice(0, 20)
+    }
+
+    Timer {
+        id: scanSettled
+        interval: 0
+        onTriggered: {
+            if (!scanPoll.exited || !scanPoll.stdoutDone) return
+            if (scanPoll.succeeded && !root._radioOff) root.networks = root.parseScan(scanPoll.output)
             root.scanning = false
             if (root._scanPending) scanRestart.restart()
             root._drainMonitor()
@@ -310,12 +345,17 @@ Item {
     }
 
     function scan() {
-        if (scanPoll.running) {
+        if (scanPoll.running || root.scanning) {
             root._scanPending = true
             root.scanning = true
             return
         }
         scanning = true
+        scanPoll.output = ""
+        scanPoll.stdoutDone = false
+        scanPoll.exited = false
+        scanPoll.succeeded = false
+        scanPoll.started = false
         scanPoll.running = true
     }
 

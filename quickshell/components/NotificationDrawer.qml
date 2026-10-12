@@ -33,10 +33,10 @@ PanelWindow {
     // Hover mode only intercepts the drawer. Pinning enables outside-click dismissal.
     mask: Region {
         readonly property bool full: NotificationDaemon.drawerPinned
-        x: full ? 0 : drawerBg.x
-        y: full ? 0 : drawerBg.y
-        width: !root.isOpen ? 0 : full ? root.width : drawerBg.width
-        height: !root.isOpen ? 0 : full ? root.height : drawerBg.height
+        x: full ? 0 : hoverBridge.x
+        y: Theme.barTotalHeight
+        width: !root.isOpen ? 0 : full ? root.width : hoverBridge.width
+        height: !root.isOpen ? 0 : full ? Math.max(0, root.height - Theme.barTotalHeight) : hoverBridge.height
     }
 
     property double now: Date.now()
@@ -51,6 +51,32 @@ PanelWindow {
         context: Qt.WindowShortcut
         enabled: root.isOpen && NotificationDaemon.drawerPinned
         onActivated: NotificationDaemon.isDrawerOpen = false
+    }
+    Shortcut {
+        sequence: "PgDown"
+        enabled: root.isOpen && NotificationDaemon.drawerPinned
+        onActivated: notifList.scrollTo(notifList.contentY + notifList.height * 0.9)
+    }
+    Shortcut {
+        sequence: "PgUp"
+        enabled: root.isOpen && NotificationDaemon.drawerPinned
+        onActivated: notifList.scrollTo(notifList.contentY - notifList.height * 0.9)
+    }
+    Shortcut {
+        sequence: "Home"
+        enabled: root.isOpen && NotificationDaemon.drawerPinned
+        onActivated: {
+            notifList.scrollTo(notifList.originY)
+            notifList.positionViewAtBeginning()
+        }
+    }
+    Shortcut {
+        sequence: "End"
+        enabled: root.isOpen && NotificationDaemon.drawerPinned
+        onActivated: {
+            notifList.scrollTo(notifList.contentY)
+            notifList.positionViewAtEnd()
+        }
     }
 
     MouseArea {
@@ -69,15 +95,34 @@ PanelWindow {
         }
     }
 
+    // Own the controls and the gap below the bell, so crossing between them
+    // cannot schedule a close while the pointer is still inside the panel.
+    Item {
+        id: hoverBridge
+        x: root.width - width - root.drawerRightMargin
+        y: Theme.barTotalHeight
+        width: drawerBg.width
+        height: Math.max(0, drawerBg.y + drawerBg.height)
+        HoverHandler {
+            id: drawerHover
+            enabled: root.isOpen
+        }
+    }
+    Binding {
+        target: NotificationDaemon
+        property: "drawerHovered"
+        value: root.isOpen && drawerHover.hovered
+    }
+
     Rectangle {
         id: drawerBg
+        parent: hoverBridge
         width: Math.min(Theme.notificationWidth, Math.max(0, root.width - root.drawerRightMargin * 2))
         height: Math.min(Theme.notificationHeight, Math.max(0, root.height - root.drawerY - 8),
                          2 * Theme.drawerPaddingV + drawerHeader.implicitHeight + Theme.drawerSpacing +
                          (NotificationDaemon.notificationModel.count ? notifList.contentHeight : 140))
 
-        x: parent.width - width - root.drawerRightMargin
-        y: root.isOpen ? root.drawerY : root.drawerY - 10
+        y: (root.isOpen ? root.drawerY : root.drawerY - 10) - hoverBridge.y
 
         Behavior on y {
             NumberAnimation { duration: root.fadeOutDuration; easing.type: Easing.OutCubic }
@@ -96,17 +141,6 @@ PanelWindow {
         MouseArea {
             anchors.fill: parent
             onClicked: (mouse) => { mouse.accepted = true }
-        }
-
-        HoverHandler {
-            onHoveredChanged: {
-                if (hovered) {
-                    NotificationDaemon.cancelHoverClose()
-                    NotificationDaemon.isDrawerOpen = true
-                } else {
-                    NotificationDaemon.scheduleHoverClose()
-                }
-            }
         }
 
         ColumnLayout {
@@ -189,6 +223,12 @@ PanelWindow {
                 rightMargin: 8
                 cacheBuffer: 300
 
+                function scrollTo(y) {
+                    wheelAnimation.running = false
+                    cancelFlick()
+                    contentY = trackpadScroll.bounded(y)
+                }
+
                 // Animate discrete wheel steps; preserve native touchpad momentum.
                 onDraggingChanged: if (dragging) wheelAnimation.running = false
                 onVisibleChanged: if (!visible) wheelAnimation.running = false
@@ -246,21 +286,19 @@ PanelWindow {
                     }
                 }
 
-                add: Transition {
-                    NumberAnimation { property: "opacity"; from: 0; to: 1.0; duration: 250 }
-                    NumberAnimation { property: "x"; from: 30; to: 0; duration: 250; easing.type: Easing.OutCubic }
-                }
+                // Keep insertion and displacement synchronous: text and actions
+                // can resize cards mid-transition and leave stale list positions.
                 remove: Transition {
                     NumberAnimation { property: "opacity"; to: 0; duration: 200 }
                     NumberAnimation { property: "scale"; to: 0.9; duration: 200 }
-                }
-                displaced: Transition {
-                    NumberAnimation { properties: "x,y"; duration: 200; easing.type: Easing.OutQuad }
                 }
 
                 ScrollBar.vertical: ScrollBar {
                     onPressedChanged: if (pressed) wheelAnimation.running = false
                     policy: ScrollBar.AsNeeded
+                    // A custom contentItem does not inherit the style's
+                    // hide-when-full opacity binding.
+                    visible: notifList.contentHeight > notifList.height + 0.5
                     interactive: true
                     width: 6
                     contentItem: Rectangle {
@@ -280,6 +318,8 @@ PanelWindow {
                     required property double timestamp
                     required property int urgency
                     required property string iconSource
+                    property bool bodyExpanded: false
+                    onBodyChanged: bodyExpanded = false
 
                     width: ListView.view.width - ListView.view.rightMargin
                     implicitHeight: notifContent.implicitHeight + 24
@@ -339,7 +379,7 @@ PanelWindow {
 
                             Image {
                                 source: delegateRoot.iconSource
-                                visible: source.toString() !== ""
+                                visible: source.toString() !== "" && status !== Image.Error
                                 Layout.preferredWidth: 48
                                 Layout.preferredHeight: 48
                                 Layout.alignment: Qt.AlignTop
@@ -368,17 +408,26 @@ PanelWindow {
                                 }
 
                                 Text {
+                                    id: bodyText
                                     text: delegateRoot.body.replace(/<img\b[^>]*>/gi, "")
                                     textFormat: Text.StyledText
                                     color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.7)
                                     font.pixelSize: 12
                                     font.family: root.uiFont
                                     wrapMode: Text.Wrap
-                                    maximumLineCount: 4
-                                    elide: Text.ElideRight
+                                    maximumLineCount: delegateRoot.bodyExpanded ? 2147483647 : 4
+                                    elide: delegateRoot.bodyExpanded ? Text.ElideNone : Text.ElideRight
                                     Layout.minimumWidth: 0
                                     Layout.fillWidth: true
                                     visible: text !== ""
+                                }
+                                NotificationButton {
+                                    visible: bodyText.truncated || delegateRoot.bodyExpanded
+                                    text: delegateRoot.bodyExpanded ? "Show less" : "Show more"
+                                    glyph: delegateRoot.bodyExpanded ? "▴" : "▾"
+                                    quiet: true
+                                    hint: delegateRoot.bodyExpanded ? "Collapse message" : "Read full message"
+                                    onClicked: delegateRoot.bodyExpanded = !delegateRoot.bodyExpanded
                                 }
                             }
                         }

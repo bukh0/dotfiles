@@ -25,7 +25,13 @@ QtObject {
         if (doNotDisturb) root.dismissPopup()
     }
     property var surfaceScreen: null
-    property int hoverCloseDelay: 300
+    property int hoverCloseDelay: 530
+    property var hoveredTrigger: null
+    property bool drawerHovered: false
+    onDrawerHoveredChanged: {
+        if (drawerHovered) cancelHoverClose()
+        else scheduleHoverClose()
+    }
 
     property FileView _dndStore: FileView {
         path: (Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")) + "/quickshell_dnd"
@@ -38,6 +44,7 @@ QtObject {
 
     signal newNotification(var data)
     signal dismissPopup()
+    signal dismissPopupById(int id)
     signal notificationRemoved(int id)
 
     // The shell's PersistentProperties keeps this small primitive map across
@@ -56,7 +63,8 @@ QtObject {
     property Timer closeTimer: Timer {
         interval: root.hoverCloseDelay
         onTriggered: {
-            root.isDrawerOpen = false
+            if (!root.drawerPinned && !root.hoveredTrigger && !root.drawerHovered)
+                root.isDrawerOpen = false
         }
     }
 
@@ -66,7 +74,17 @@ QtObject {
     }
 
     function scheduleHoverClose() {
-        if (!drawerPinned) closeTimer.restart()
+        if (isDrawerOpen && !drawerPinned && !hoveredTrigger && !drawerHovered) closeTimer.restart()
+    }
+
+    function setTriggerHovered(trigger, hovered) {
+        if (hovered) {
+            hoveredTrigger = trigger
+            cancelHoverClose()
+        } else if (hoveredTrigger === trigger) {
+            hoveredTrigger = null
+            scheduleHoverClose()
+        }
     }
 
     function cancelHoverClose() {
@@ -101,8 +119,6 @@ QtObject {
 
     function _forgetLocalId(id) {
         if (!Object.values(root._serverIds).includes(id)) return
-        root.notificationRemoved(id)
-        root.actionRevision++
         delete root._closers[id]
         for (const serverId in root._serverIds) {
             if (root._serverIds[serverId] === id) {
@@ -113,6 +129,10 @@ QtObject {
                 delete root._serverObjects[serverId]
             }
         }
+        // Bindings and signal handlers run synchronously; expose the completed
+        // removal before letting them inspect actions or dismiss another row.
+        root.actionRevision++
+        root.notificationRemoved(id)
     }
 
     function clearAll() {
@@ -141,12 +161,23 @@ QtObject {
         }
     }
 
+    function _actionData(notif) {
+        return Array.from(notif.actions).map((action, index) => {
+            const identifier = action.identifier || ""
+            const label = (action.text || "").trim()
+            return {
+                identifier: identifier,
+                text: label || (identifier === "default" ? "Open" : "Action " + (index + 1))
+            }
+        })
+    }
+
     function actionsFor(id) {
         const revision = root.actionRevision
         for (const serverId in root._serverIds) {
             if (root._serverIds[serverId] === id) {
                 const notif = root._serverObjects[serverId]
-                return notif ? Array.from(notif.actions).map(a => ({text: a.text})) : []
+                return notif ? root._actionData(notif) : []
             }
         }
         return []
@@ -198,7 +229,7 @@ QtObject {
             image: notif.image || "",
             urgency: Number(notif.urgency),
             expireTimeout: notif.expireTimeout,
-            actions: Array.from(notif.actions).map(a => ({text: a.text})),
+            actions: root._actionData(notif),
             close: () => {
                 try {
                     // Notification has no close(); dismiss() is the
@@ -249,6 +280,8 @@ QtObject {
 
         if (!restoring && (!root.doNotDisturb || data.urgency === NotificationUrgency.Critical))
             root.newNotification(Object.assign(data, { notifId: id }))
+        else if (!restoring && existingId)
+            root.dismissPopupById(id)
 
         if (alreadyConnected) return
         // Replacements mutate the existing Notification; the server does not

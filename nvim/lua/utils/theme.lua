@@ -124,14 +124,59 @@ end
 
 -- Persist the active colorscheme, deduped against what's already on disk so
 -- transparency toggles do not rewrite the same name on every reload.
+local previewing = false
 local last_persisted = state.read("colorscheme.state", nil)
 M.on_colorscheme(function()
+  if previewing then return end
   local name = active_colorscheme or vim.g.colors_name
   if name and name ~= "" and name ~= last_persisted then
     state.write("colorscheme.state", name)
     last_persisted = name
   end
 end)
+
+-- Own the preview lifecycle so cancellation restores the exact theme variant.
+function M.pick_colorscheme(opts)
+  if previewing then return end
+  local original = active_colorscheme or vim.g.colors_name or "default"
+  local background = vim.o.background
+  local selected
+  previewing = true
+  local ok, picker = pcall(Snacks.picker.colorschemes, vim.tbl_extend("force", opts or {}, {
+    config = function()
+      -- Snacks also calls this when resuming a closed picker.
+      original = active_colorscheme or vim.g.colors_name or "default"
+      background = vim.o.background
+      selected = nil
+      previewing = true
+    end,
+    preview = function(ctx)
+      vim.schedule(function()
+        if not ctx.picker.closed then
+          vim.cmd.colorscheme(ctx.item.text)
+        end
+      end)
+      Snacks.picker.preview.file(ctx)
+    end,
+    confirm = function(p, item)
+      selected = item and item.text
+      p:close()
+    end,
+    on_close = function()
+      vim.schedule(function()
+        if not selected then vim.o.background = background end
+        previewing = false
+        vim.cmd.colorscheme(selected or original)
+      end)
+    end,
+  }))
+  if not ok then
+    previewing = false
+    vim.cmd.colorscheme(original)
+    error(picker)
+  end
+  return picker
+end
 
 function M.set_transparent(value)
   M.transparent = value

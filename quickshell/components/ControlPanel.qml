@@ -15,7 +15,7 @@ PanelWindow {
     property bool pinned: false
     property bool triggerHovered: false
 
-    property int hoverCloseDelay: 560
+    property int hoverCloseDelay: 530
     property int fadeOutDuration: 200
     property int slideDuration: 250
     property int openY: 46
@@ -201,7 +201,7 @@ PanelWindow {
         ColumnLayout {
             spacing: Theme.panelSpacing
 
-            MusicWidget {}
+            MusicWidget { preferVerticalScroll: panelScroll.contentHeight > panelScroll.availableHeight }
             Divider {}
             VolumeSlider {}
             BrightnessSlider {}

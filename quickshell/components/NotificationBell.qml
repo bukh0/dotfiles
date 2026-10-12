@@ -11,6 +11,7 @@ Rectangle {
 
     property string uiFont: Theme.fontUI
     property string iconFont: Theme.fontMono
+    Component.onDestruction: NotificationDaemon.setTriggerHovered(root, false)
 
     implicitWidth: row.implicitWidth + Theme.spacingMD
     implicitHeight: row.implicitHeight + Theme.spacingSM
@@ -53,11 +54,10 @@ Rectangle {
         id: hover
         cursorShape: Qt.PointingHandCursor
         onHoveredChanged: {
+            NotificationDaemon.setTriggerHovered(root, hovered)
             if (hovered) {
                 NotificationDaemon.surfaceScreen = root.screen
                 NotificationDaemon.beginHoverOpen()
-            } else {
-                NotificationDaemon.scheduleHoverClose()
             }
         }
     }
