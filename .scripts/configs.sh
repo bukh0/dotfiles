@@ -17,11 +17,16 @@ case "$CHOICE" in
         ;;
 
     *Waybar)
-        PRESET=$(find "$WAYBAR_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | rofi -dmenu -i -p "󱗼 Select Waybar Layout" -config "$ROFI_CONF")
+        PRESET=$(find -H "$WAYBAR_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | rofi -dmenu -i -no-custom -p "󱗼 Select Waybar Layout" -config "$ROFI_CONF")
         
         if [[ -n "$PRESET" ]]; then
-            ln -sf "$WAYBAR_DIR/$PRESET/config.jsonc" "$WAYBAR_DIR/config.jsonc"
-            ln -sf "$WAYBAR_DIR/$PRESET/style.css" "$WAYBAR_DIR/style.css"
+            if [[ "$PRESET" == */* || "$PRESET" == . || "$PRESET" == .. ||
+                  ! -f "$WAYBAR_DIR/$PRESET/config.jsonc" || ! -f "$WAYBAR_DIR/$PRESET/style.css" ]]; then
+                notify-send -a "System" "Invalid Waybar layout" "$PRESET"
+                exit 1
+            fi
+            ln -sfnT "$WAYBAR_DIR/$PRESET/config.jsonc" "$WAYBAR_DIR/config.jsonc" || exit 1
+            ln -sfnT "$WAYBAR_DIR/$PRESET/style.css" "$WAYBAR_DIR/style.css" || exit 1
             
             pkill -x waybar 2>/dev/null || true
             waybar &

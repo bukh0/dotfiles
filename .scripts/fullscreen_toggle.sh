@@ -2,4 +2,4 @@
 set -euo pipefail
 
 command -v hyprctl >/dev/null
-exec hyprctl dispatch fullscreen
+exec hyprctl dispatch 'hl.dsp.window.fullscreen({ action = "toggle" })'
