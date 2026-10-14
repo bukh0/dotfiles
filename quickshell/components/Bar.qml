@@ -54,13 +54,17 @@ PanelWindow {
     readonly property string activeTitle: {
         if (!ToplevelManager.activeToplevel || !Hyprland.focusedMonitor || !root.screen || Hyprland.focusedMonitor.name !== root.screen.name) return ""
         const raw = ToplevelManager.activeToplevel.title || ""
-        return raw.split(" — ").pop().trim() || raw
+        return raw.trim()
     }
 
     component ClockInteraction: MouseArea {
         id: interaction
         anchors.fill: parent
+        anchors.margins: -6
         hoverEnabled: true
+        Binding { target: controlPanel; property: "clockTriggerWidth"; value: interaction.width }
+        // Both bar layouts center the clock vertically in the bar surface.
+        Binding { target: controlPanel; property: "clockTriggerBottom"; value: (root.implicitHeight + interaction.height) / 2 }
         cursorShape: Qt.PointingHandCursor
         Timer {
             id: openDelay
@@ -78,7 +82,7 @@ PanelWindow {
             openDelay.stop()
             controlPanel.scheduleHoverClose()
         }
-        Component.onDestruction: controlPanel.triggerHovered = false
+        Component.onDestruction: if (controlPanel) controlPanel.triggerHovered = false
         onClicked: {
             openDelay.stop()
             controlPanel.pinned = !controlPanel.pinned
@@ -158,7 +162,10 @@ PanelWindow {
                     SystemTray {}
                     NetworkIndicator {}
                     BatteryIndicator {}
-                    NotificationBell { screen: root.screen }
+                    NotificationBell {
+                        screen: root.screen
+                        hoverBottomMargin: Math.max(0, (root.implicitHeight - height) / 2)
+                    }
                 }
             }
         }
@@ -218,7 +225,10 @@ PanelWindow {
                 SystemTray {}
                 NetworkIndicator {}
                 BatteryIndicator {}
-                NotificationBell { screen: root.screen }
+                NotificationBell {
+                    screen: root.screen
+                    hoverBottomMargin: Math.max(0, (root.implicitHeight - height) / 2)
+                }
             }
         }
     }
@@ -226,6 +236,7 @@ PanelWindow {
     ControlPanel {
         id: controlPanel
         screen: root.screen
+        outputName: root.screen ? root.screen.name : ""
         openY: Theme.barTotalHeight + 4
         closedY: Theme.floatingBar ? root.implicitHeight - 20 : root.implicitHeight - 14
         barHeight: root.implicitHeight

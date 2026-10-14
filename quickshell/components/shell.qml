@@ -61,14 +61,13 @@ ShellRoot {
 
     NotificationPopup {
         id: notifPopup
-        screen: getActiveScreen()
     }
 
     Connections {
         target: NotificationDaemon
         function onTimestampsChanged() { notificationHistory.times = JSON.stringify(NotificationDaemon.timestamps) }
         function onNewNotification(data) {
-            notifPopup.showNotification(data)
+            notifPopup.showNotification(data, getActiveScreen())
         }
     }
 

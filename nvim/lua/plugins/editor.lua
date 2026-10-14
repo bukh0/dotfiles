@@ -51,8 +51,24 @@ return {
       { "<leader>qd", function() require("persistence").stop() end, desc = "Don't save session" },
     },
   },
+  {
+    "nvim-mini/mini.surround",
+    event = "VeryLazy",
+    opts = {
+      mappings = {
+        add = "gsa",            -- Add surrounding in Normal and Visual modes (e.g., gsaip" or gsaiw))
+        delete = "gsd",         -- Delete surrounding (e.g., gsd")
+        find = "gsf",           -- Find surrounding (to the right)
+        find_left = "gsF",      -- Find surrounding (to the left)
+        highlight = "gsh",      -- Highlight surrounding
+        replace = "gsr",        -- Replace surrounding (e.g., gsr"' to change " to ')
+        update_n_lines = "gsn", -- Update `n_lines`
+      },
+    },
+  },
   { "folke/ts-comments.nvim", event = "VeryLazy", opts = {} },
   { "windwp/nvim-ts-autotag", event = "VeryLazy", opts = {} },
   { "nvim-mini/mini.pairs", event = "VeryLazy", opts = {} },
   { "nvim-mini/mini.ai", event = "VeryLazy", opts = {} },
+  { "nvim-mini/mini.splitjoin", event = "VeryLazy", opts = {} },
 }

@@ -22,6 +22,7 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-test-') as directory:
         text = (ROOT / 'components' / name).read_text()
         if name in ('NotificationPopup.qml', 'NotificationDrawer.qml'):
             text = text.replace('PanelWindow {', 'Rectangle {', 1)
+            text = re.sub(r'    exclusionMode:.*', '', text)
             text = re.sub(r'    WlrLayershell\.\w+:.*', '', text)
             text = re.sub(r'    anchors \{.*?\n    \}', '', text, count=1, flags=re.S)
             text = re.sub(r'    margins \{.*?\n    \}', '', text, count=1, flags=re.S)

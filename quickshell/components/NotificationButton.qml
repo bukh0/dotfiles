@@ -63,7 +63,7 @@ Button {
             Layout.minimumWidth: 0
         }
     }
-    HoverHandler { cursorShape: Qt.PointingHandCursor }
+    HoverHandler { blocking: false; cursorShape: Qt.PointingHandCursor }
     ToolTip.visible: hovered && hint !== ""
     ToolTip.text: hint
     ToolTip.delay: 600

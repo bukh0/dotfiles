@@ -19,7 +19,7 @@ Item {
 
     readonly property string icon: {
         if (status === "Charging") return "󰂄"
-        if (status === "Full") return "󰚥"
+        if (status === "Full" || status === "Not charging") return "󰚥"
         const idx = Math.min(9, Math.max(0, Math.floor(capacity / 10)))
         return icons[idx]
     }

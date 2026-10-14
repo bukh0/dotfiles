@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <thread>
+#include <unordered_map>
 
 std::string trim(const std::string& str) {
     size_t first = str.find_first_not_of(" \t\r\n");
@@ -45,7 +46,8 @@ int main(int argc, char* argv[]) {
         : homeDir ? std::string(homeDir) + "/.cache/perf-mode" : "";
 
     std::uint64_t lastIdle = 0, lastTotal = 0;
-    std::uint64_t lastRx = 0, lastTx = 0;
+    struct Counters { std::uint64_t rx, tx; };
+    std::unordered_map<std::string, Counters> previousInterfaces;
     std::chrono::steady_clock::time_point lastTime = std::chrono::steady_clock::now();
     bool firstSample = true;
 
@@ -138,7 +140,8 @@ int main(int argc, char* argv[]) {
 
         // 3. Network
         netFile.clear(); netFile.seekg(0);
-        unsigned long long rxTotal = 0, txTotal = 0;
+        std::uint64_t rxDelta = 0, txDelta = 0;
+        std::unordered_map<std::string, Counters> interfaces;
         if (!std::getline(netFile, line) || !std::getline(netFile, line)) {
             std::cerr << "sysmon: failed to read /proc/net/dev" << std::endl;
             return 1;
@@ -154,8 +157,15 @@ int main(int argc, char* argv[]) {
                     unsigned long long rx = 0, tx = 0, dmy = 0;
                     if (iss >> rx) {
                         for (int i = 0; i < 7; ++i) iss >> dmy;
-                        iss >> tx;
-                        rxTotal += rx; txTotal += tx;
+                        if (!(iss >> tx)) continue;
+                        interfaces[iface] = {rx, tx};
+                        const auto previous = previousInterfaces.find(iface);
+                        if (previous != previousInterfaces.end()) {
+                            // New/reset interfaces establish a baseline; neither
+                            // should erase traffic from surviving interfaces.
+                            if (rx >= previous->second.rx) rxDelta += rx - previous->second.rx;
+                            if (tx >= previous->second.tx) txDelta += tx - previous->second.tx;
+                        }
                     }
                 }
             }
@@ -163,12 +173,13 @@ int main(int argc, char* argv[]) {
         const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
         const double dt = std::chrono::duration<double>(now - lastTime).count();
         std::string rxSpeed = !firstSample && dt > 0
-            ? formatSpeed((rxTotal > lastRx ? rxTotal - lastRx : 0) / dt)
+            ? formatSpeed(rxDelta / dt)
             : "0 B/s";
         std::string txSpeed = !firstSample && dt > 0
-            ? formatSpeed((txTotal > lastTx ? txTotal - lastTx : 0) / dt)
+            ? formatSpeed(txDelta / dt)
             : "0 B/s";
-        lastRx = rxTotal; lastTx = txTotal; lastTime = now;
+        previousInterfaces = std::move(interfaces);
+        lastTime = now;
         firstSample = false;
         std::string tooltipNet = "↓ " + rxSpeed + "   ↑ " + txSpeed;
 

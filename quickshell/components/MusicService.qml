@@ -7,7 +7,9 @@ QtObject {
     id: service
     property var sourcePlayers: Mpris.players.values
     property string selectedPlayer: ""
-    readonly property int selectedIndex: Math.max(0, snapshot.findIndex(p => p.player === selectedPlayer))
+    property int _selectedIndex: 0
+    readonly property int selectedIndex: _selectedIndex
+    property bool _synchronizing: false
     property ListModel model: ListModel {}
     readonly property var snapshot: sourcePlayers.map(p => ({
         player: p.dbusName,
@@ -24,11 +26,21 @@ QtObject {
         return spotify || weights[b.status] - weights[a.status] || a.player.localeCompare(b.player)
     })
     onSnapshotChanged: synchronize()
+    onSelectedPlayerChanged: if (!_synchronizing) updateSelectedIndex()
+    function updateSelectedIndex() {
+        if (!model) return
+        let index = 0
+        for (let i = 0; i < model.count; i++) {
+            if (model.get(i).player === selectedPlayer) { index = i; break }
+        }
+        _selectedIndex = index
+    }
     function initialize() {} // Touch the singleton once at shell startup.
     function findPlayer(name) { return sourcePlayers.find(p => p.dbusName === name) || null }
     function synchronize() {
         if (!model) return
         const rows = snapshot
+        _synchronizing = true
         for (let i = model.count - 1; i >= 0; i--)
             if (!rows.some(p => p.player === model.get(i).player)) model.remove(i)
         for (let i = 0; i < rows.length; i++) {
@@ -42,10 +54,13 @@ QtObject {
                     if (model.get(i)[key] !== rows[i][key]) model.setProperty(i, key, rows[i][key])
             }
         }
+        // Publish selection only after the rendered model has its final order.
         // Keep the visible player stable across sorting and metadata changes.
         // Once it disappears, remember the replacement rather than snapping back.
         if (!rows.some(p => p.player === selectedPlayer))
             selectedPlayer = rows.length ? rows[0].player : ""
+        _synchronizing = false
+        updateSelectedIndex()
     }
     Component.onCompleted: synchronize()
 }

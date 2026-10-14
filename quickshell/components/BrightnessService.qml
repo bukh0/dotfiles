@@ -34,6 +34,9 @@ Item {
     property bool _errorMuted: false
     property bool _writeFinished: false
     property bool _writeStarted: false
+    property int _discoveryAttempts: 0
+    readonly property int discoveryRetryMs: Math.min(300000, 10000 * Math.pow(2, Math.max(0, _discoveryAttempts - 1)))
+    onAvailableChanged: if (available) _discoveryAttempts = 0
 
     function _busy() {
         return root.interacting || setProc.running || root._wantedRaw >= 0 || settleTimer.running
@@ -42,6 +45,7 @@ Item {
     // ── Discovery: ask brightnessctl which device it will actually drive ──
     function discover() {
         if (root.available || discoverProc.running) return
+        _discoveryAttempts = Math.min(6, _discoveryAttempts + 1)
         discoverProc.running = true
     }
 
@@ -112,7 +116,8 @@ Item {
     }
 
     Timer {
-        interval: 10000
+        // Missing backlights: retry after 10s, 20s, 40s... up to five minutes.
+        interval: root.discoveryRetryMs
         running: !root.available
         repeat: true
         onTriggered: root.discover()

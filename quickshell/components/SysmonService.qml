@@ -22,7 +22,7 @@ Item {
             }
         }
         onExited: (exitCode, exitStatus) => {
-            if (exitCode !== 0) {
+            if (exitCode !== 0 || exitStatus !== 0) {
                 Quickshell.execDetached(["notify-send", "-a", "Power Profile", "--",
                     "Power profile change failed", "Authentication was cancelled or the profile could not be applied."])
             }

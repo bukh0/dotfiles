@@ -37,6 +37,14 @@ ShellRoot {
         for (const child of item.children || []) items = items.concat([child], descendants(child))
         return items
     }
+    function verifyHoverHandlers(item, seen) {
+        if (seen.has(item)) return
+        seen.add(item)
+        if (String(item).startsWith("QQuickHoverHandler"))
+            check(item.blocking === false, "blocking hover handler inside panel: " + item)
+        for (const child of item.children || []) verifyHoverHandlers(child, seen)
+        for (const resource of item.resources || []) verifyHoverHandlers(resource, seen)
+    }
     Component.onCompleted: Config.NetworkService.scan()
     Timer {
         interval: 600
@@ -47,10 +55,15 @@ ShellRoot {
                 const network = Config.NetworkService
                 switch (root.step++) {
                 case 0:
+                    const panelObjects = new Set()
+                    verifyHoverHandlers(panel, panelObjects)
+                    check(Array.from(panelObjects).filter(item => String(item).startsWith("QQuickHoverHandler")).length >= 4,
+                          "hover audit did not discover the loaded panel controls")
                     battery.device = {ready: true, isPresent: true, percentage: 0.75, state: 2}
                     check(battery.capacity === 75, "battery percentage scaled twice")
                     check(battery.visible, "present battery hidden")
                     battery.device = {ready: true, isPresent: true, percentage: 0.05, state: UPowerDeviceState.PendingCharge}
+                    check(battery.icon === "󰚥", "pending charge should show external power")
                     check(battery.isCritical, "pending charge concealed low battery")
                     battery.device = {ready: true, isPresent: false, percentage: 0, state: 0}
                     check(!battery.visible, "absent battery displayed as full")
@@ -75,6 +88,9 @@ ShellRoot {
                     check(network.wifiOn, "Wi-Fi radio state failed")
                     check(network.connectionType === "wifi", "connection state failed")
                     check(network.ssid === "active" && network.activeWifiDevice === "wlan0", "SSID and device came from different connections")
+                    check(network.signalStrength === 10, "signal must come from the selected active connection")
+                    check(network.signalIcon(10) === "󰤟" && network.signalIcon(25) === "󰤢"
+                        && network.signalIcon(50) === "󰤥" && network.signalIcon(75) === "󰤨", "signal icon levels failed")
                     check(network.networks.length === 5, "SSID grouping failed")
                     check(network.networks[0].ssid === "active", "weak active network sorted below others")
                     const backup = network.networks.find(n => n.ssid === "<b>Backup</b>")
@@ -83,8 +99,11 @@ ShellRoot {
                     check(!!backupLabel && backupLabel.textFormat === Text.PlainText, "SSID was interpreted as markup")
                     const spaced = network.networks.find(n => n.ssid === " spaced ")
                     check(spaced && !spaced.security, "SSID spaces or open-network security was corrupted")
-                    check(network.connectToNetwork(" spaced ", "test-password"), "connect failed to start")
+                    check(network.connectToNetwork(" spaced ", "test-password", "screen-a"), "connect failed to start")
                     check(network.busy, "connection did not hold shared busy state")
+                    check(network.submittingPassword && network.submittingPasswordScreen === "screen-a", "password submission lost its owning output")
+                    network.cancelPasswordPrompt("")
+                    check(network.submittingPassword, "unowned empty prompt let another output cancel submission")
                     check(!network.toggleWifiRadio(), "radio operation raced with connection")
                     break
                 case 1:
@@ -93,6 +112,7 @@ ShellRoot {
                     check(rectangles[0].height <= panel.height - panel.openY, "expanded panel grew off screen")
                     check(root.networkErrors.length === 0, "network command failed: " + root.networkErrors.join("; "))
                     check(!network.busy, "connect did not release shared busy state")
+                    check(!network.submittingPassword && network.submittingPasswordScreen === "", "successful authentication retained hold")
                     check(!network.disconnectActive("missing") && !network.disconnectActive(" spaced "), "inactive or missing SSID disconnected another network")
                     check(network.disconnectActive("<b>Backup</b>"), "disconnect failed to start")
                     check(network.targetSsid === "<b>Backup</b>", "disconnect did not identify the selected row")
@@ -150,11 +170,16 @@ ShellRoot {
                 case 6:
                     check(popup.store[popup.newestId()].notifId === 73, "queue failed to resume after critical dismissal")
                     popup.dismissAll()
-                    check(network.connectToNetwork("needs-password", ""), "failed to start missing-password test")
+                    check(network.connectToNetwork("needs-password", "", "screen-a"), "failed to start missing-password test")
+                    check(!network.submittingPassword && network.actionKind === "connect", "password-free connection must not hold panel")
                     break
                 case 7:
                     check(!network.busy, "failed connection stayed busy")
                     check(network.awaitingPasswordFor === "needs-password", "stderr secrets error did not open password prompt")
+                    check(network.awaitingPasswordScreen === "screen-a", "async connection lost prompt ownership")
+                    check(!network.submittingPassword && network.submittingPasswordScreen === "", "settled connection retained its screen hold")
+                    network.cancelPasswordPrompt("screen-b")
+                    check(network.awaitingPasswordFor === "needs-password", "other output cancelled password prompt")
                     check(Config.SysmonService.cpuPercent === "37%", "sysmon sample missing: " + Config.SysmonService.cpuPercent)
                     panel.isOpen = false
                     break
@@ -194,6 +219,21 @@ ShellRoot {
                     break
                 case 15:
                     check(!network.wifiOn && network.networks.length === 0 && network.awaitingPasswordFor === "", "confirmed radio-off retained networks or prompt")
+                    check(network.runCommand(["nmcli", "test-mode-fallback"]), "restore connection status for disconnect fallback")
+                    break
+                case 16:
+                    check(network.ssid === "active" && network.activeWifiDevice === "wlan0", "fresh status not ready")
+                    network.networks = []
+                    check(!network.disconnectActive("unrelated"), "fallback must not disconnect another SSID")
+                    check(network.disconnectActive("active"), "missing scan row must fall back to active status device")
+                    break
+                case 17:
+                    check(!network.busy, "fallback disconnect did not settle")
+                    network.networks = [{ssid: "active", activeDevices: []}]
+                    check(network.disconnectActive("active"), "empty scan device list must fall back to active status")
+                    break
+                case 18:
+                    check(!network.busy, "empty-list fallback disconnect did not settle")
                     console.log("REGRESSION PASS: services")
                     Qt.quit()
                 }

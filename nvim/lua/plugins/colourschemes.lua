@@ -27,4 +27,5 @@ return {
   { "webhooked/kanso.nvim", lazy = true, opts = {} },
   { "olivercederborg/poimandres.nvim", lazy = true },
   { "rockyzhang24/arctic.nvim", lazy = true, dependencies = { "rktjmp/lush.nvim" } },
+  { "kepano/flexoki-neovim", lazy = true },
 }

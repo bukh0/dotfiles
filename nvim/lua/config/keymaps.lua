@@ -8,6 +8,11 @@ map("n", "<C-j>", "<C-w>j", { desc = "Window down" })
 map("n", "<C-k>", "<C-w>k", { desc = "Window up" })
 map("n", "<C-l>", "<C-w>l", { desc = "Window right" })
 
+map("t", "<C-h>", [[<C-\><C-n><C-w>h]], { desc = "Window left" })
+map("t", "<C-j>", [[<C-\><C-n><C-w>j]], { desc = "Window down" })
+map("t", "<C-k>", [[<C-\><C-n><C-w>k]], { desc = "Window up" })
+map("t", "<C-l>", [[<C-\><C-n><C-w>l]], { desc = "Window right" })
+
 map("n", "<A-j>", "<cmd>m .+1<cr>==", { desc = "Move line down" })
 map("n", "<A-k>", "<cmd>m .-2<cr>==", { desc = "Move line up" })
 map("v", "<A-j>", ":m '>+1<cr>gv=gv", { desc = "Move selection down" })
@@ -32,3 +37,5 @@ map("n", "<leader>bd", function() Snacks.bufdelete() end, { desc = "Delete buffe
 map("n", "<leader>bo", function() Snacks.bufdelete.other() end, { desc = "Delete other buffers" })
 map("n", "]]", function() Snacks.words.jump(vim.v.count1) end, { desc = "Next reference" })
 map("n", "[[", function() Snacks.words.jump(-vim.v.count1) end, { desc = "Prev reference" })
+
+map("t", "<C-Esc>", "<C-\\><C-n>", { desc = "Terminal normal mode" })

@@ -52,7 +52,7 @@ RowLayout {
             elide: Text.ElideRight
         }
 
-        HoverHandler { id: hoverHandler }
+        HoverHandler { id: hoverHandler; blocking: false }
 
         ToolTip.visible: hoverHandler.hovered && statRoot.tooltipText !== ""
         ToolTip.text: statRoot.tooltipText
@@ -115,7 +115,7 @@ RowLayout {
             font.family: root.iconFont
             font.weight: Font.Bold
 
-            HoverHandler { id: profileHover }
+            HoverHandler { id: profileHover; blocking: false }
 
             ToolTip.visible: profileHover.hovered && root.tooltipProfile !== ""
             ToolTip.text: root.tooltipProfile

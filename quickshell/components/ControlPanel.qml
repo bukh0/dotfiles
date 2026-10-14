@@ -8,20 +8,35 @@ import "."
 PanelWindow {
     id: controlPanel
 
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+    exclusionMode: ExclusionMode.Ignore
+    WlrLayershell.layer: WlrLayer.Top
+    WlrLayershell.keyboardFocus: controlPanel.isOpen && controlPanel.heldByUser ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     property int barHeight: 42
     property bool isOpen: false
     property bool pinned: false
     property bool triggerHovered: false
+    property string outputName: ""
+    property real clockTriggerWidth: Theme.centerPillMinWidth + 12
+    property real clockTriggerBottom: barHeight
+    readonly property bool hasPasswordPrompt: NetworkService.awaitingPasswordFor !== ""
+                                               && NetworkService.awaitingPasswordScreen === outputName
+    readonly property bool passwordSubmissionInProgress: NetworkService.submittingPassword
+                                                        && NetworkService.submittingPasswordScreen === outputName
+    readonly property bool heldByUser: pinned || hasPasswordPrompt || passwordSubmissionInProgress
+    onHeldByUserChanged: {
+        if (heldByUser) cancelHoverClose()
+        else scheduleHoverClose()
+    }
 
-    property int hoverCloseDelay: 530
+    property int hoverCloseDelay: 510
     property int fadeOutDuration: 200
     property int slideDuration: 250
     property int openY: 46
     property int closedY: 26
 
     property int drawerWidth: Theme.drawerWidth
+    property int hoverEdgePadding: 18
     property int drawerTopMargin: Theme.drawerPaddingV
     property int drawerBottomMargin: Theme.drawerPaddingV
 
@@ -38,19 +53,18 @@ PanelWindow {
     }
 
     mask: Region {
-        readonly property bool full: controlPanel.pinned || NetworkService.awaitingPasswordFor !== ""
-        x: full ? 0 : hoverBridge.x
-        y: controlPanel.barHeight
-        width: !controlPanel.isOpen ? 0 : full ? controlPanel.width : hoverBridge.width
-        height: !controlPanel.isOpen ? 0 : full ? controlPanel.height - controlPanel.barHeight : hoverBridge.height
+        readonly property bool full: controlPanel.heldByUser
+        x: full ? 0 : hoverGuard.x
+        y: full ? controlPanel.barHeight : hoverGuard.y
+        width: !controlPanel.isOpen ? 0 : full ? controlPanel.width : hoverGuard.width
+        height: !controlPanel.isOpen ? 0 : full ? controlPanel.height - controlPanel.barHeight : hoverGuard.height
     }
 
     Timer {
         id: closeDelayTimer
         interval: controlPanel.hoverCloseDelay
         onTriggered: {
-            if (!controlPanel.pinned && !controlPanel.triggerHovered && !panelHover.hovered
-                    && NetworkService.awaitingPasswordFor === "")
+            if (!controlPanel.heldByUser && !controlPanel.triggerHovered && !panelHover.hovered)
                 controlPanel.isOpen = false
         }
     }
@@ -64,7 +78,7 @@ PanelWindow {
     onIsOpenChanged: {
         if (!isOpen) {
             pinned = false
-            NetworkService.cancelPasswordPrompt()
+            NetworkService.cancelPasswordPrompt(outputName)
         }
         if (isOpen) {
             _fadingOut = false
@@ -82,7 +96,7 @@ PanelWindow {
     }
 
     function scheduleHoverClose() {
-        if (!isOpen || pinned || triggerHovered || panelHover.hovered || NetworkService.awaitingPasswordFor !== "") return
+        if (!isOpen || heldByUser || triggerHovered || panelHover.hovered) return
         closeDelayTimer.restart()
     }
 
@@ -90,35 +104,67 @@ PanelWindow {
         closeDelayTimer.stop()
     }
 
-    // Keep pointer ownership below the bar throughout the slide animation.
-    // Include the gap above the drawer so moving into it cannot start a close.
+    // Match the input mask to the padded hover area, including the bar seam.
     Item {
-        id: hoverBridge
-        objectName: "controlPanelHoverBridge"
+        id: hoverGuard
+        objectName: "controlPanelHoverGuard"
         z: 1
         x: (controlPanel.width - width) / 2
-        y: controlPanel.barHeight
-        width: Math.min(controlPanel.drawerWidth, Math.max(0, controlPanel.width - 16))
-        height: Math.max(0, drawerBg.y + drawerBg.height)
+        y: Math.max(0, Math.floor(Math.min(controlPanel.barHeight - 2, controlPanel.clockTriggerBottom - 1)))
+        width: Math.min(controlPanel.drawerWidth + controlPanel.hoverEdgePadding * 2,
+                        Math.max(0, controlPanel.width - 16))
+        height: hoverBridge.height + hoverBridge.y
+        MouseArea {
+            // The overlapping strip receives clicks instead of the clock below it.
+            // Give those clicks the same pin action as clicking the clock itself.
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: Math.min(parent.width, controlPanel.clockTriggerWidth)
+            height: hoverBridge.y
+            z: 1
+            enabled: controlPanel.isOpen && !controlPanel.heldByUser
+            cursorShape: Qt.PointingHandCursor
+            onClicked: controlPanel.pinned = true
+        }
+        // Child hover handlers are nonblocking so both their feedback and
+        // this ancestor observer receive hover; no overlay sits above controls.
         HoverHandler {
             id: panelHover
+            blocking: false
             enabled: controlPanel.isOpen
-            onHoveredChanged: {
-                if (hovered) controlPanel.cancelHoverClose()
-                else controlPanel.scheduleHoverClose()
-            }
+            onHoveredChanged: if (hovered) controlPanel.cancelHoverClose()
+                              else controlPanel.scheduleHoverClose()
+        }
+        Item {
+            id: hoverBridge
+            objectName: "controlPanelHoverBridge"
+            x: (parent.width - width) / 2
+            y: controlPanel.barHeight - hoverGuard.y
+            width: Math.min(controlPanel.drawerWidth, Math.max(0, controlPanel.width - 16))
+            readonly property real targetDrawerHeight: Math.min(
+                contentLoader.implicitHeight + controlPanel.drawerTopMargin + controlPanel.drawerBottomMargin,
+                Math.max(0, controlPanel.height - controlPanel.openY - 8))
+            height: controlPanel.isOpen
+                    ? Math.max(0, controlPanel.openY - controlPanel.barHeight + targetDrawerHeight) : 0
         }
     }
 
     FocusScope {
         id: overlayScope
         anchors.fill: parent
-        enabled: controlPanel.isOpen
+        enabled: controlPanel.isOpen && controlPanel.heldByUser
 
         onEnabledChanged: {
             if (enabled) {
                 Qt.callLater(() => {
-                    if (overlayScope.enabled) overlayScope.forceActiveFocus()
+                    if (!overlayScope.enabled) return
+                    // Password fields may have acquired focus since this callback
+                    // was queued. Do not replace their focus with the background.
+                    let focused = overlayScope.Window.window ? overlayScope.Window.window.activeFocusItem : null
+                    while (focused) {
+                        if (focused === drawerBg) return
+                        focused = focused.parent
+                    }
+                    overlayScope.forceActiveFocus()
                 })
             }
         }
@@ -133,19 +179,17 @@ PanelWindow {
         Shortcut {
             sequence: "Escape"
             context: Qt.WindowShortcut
-            enabled: controlPanel.isOpen
+            enabled: overlayScope.enabled
             onActivated: controlPanel.isOpen = false
         }
     }
 
     Rectangle {
         id: drawerBg
-        // The hover region must own the controls, not sit behind them as a
-        // sibling: child hover handlers otherwise hide the pointer from it.
+        // Visual animation is independent of the ancestor hover/input region.
         parent: hoverBridge
         width: parent.width
-        height: Math.min(contentLoader.implicitHeight + controlPanel.drawerTopMargin + controlPanel.drawerBottomMargin,
-                         Math.max(0, controlPanel.height - controlPanel.openY - 8))
+        height: hoverBridge.targetDrawerHeight
 
         y: (controlPanel.isOpen ? controlPanel.openY : controlPanel.closedY) - controlPanel.barHeight
 
@@ -169,7 +213,6 @@ PanelWindow {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: mouse => mouse.accepted = true
         }
 
         ScrollView {
@@ -208,7 +251,7 @@ PanelWindow {
             Divider {}
             SystemResourceRow {}
             Divider {}
-            WifiToggle {}
+            WifiToggle { outputName: controlPanel.outputName }
             BluetoothToggle {}
         }
     }

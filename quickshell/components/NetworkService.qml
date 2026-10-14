@@ -19,6 +19,10 @@ Item {
     readonly property bool busy: actionKind !== ""
 
     property string awaitingPasswordFor: ""
+    property string awaitingPasswordScreen: ""
+    property bool submittingPassword: false
+    property string submittingPasswordScreen: ""
+    onAwaitingPasswordForChanged: if (awaitingPasswordFor === "") awaitingPasswordScreen = ""
     onNetworksChanged: {
         if (awaitingPasswordFor !== "" && !networks.some(n => n.ssid === awaitingPasswordFor))
             cancelPasswordPrompt()
@@ -225,7 +229,9 @@ Item {
     }
 
     Timer {
-        interval: 60000
+        // nmcli monitor reports connection changes, not every signal change.
+        // Read cached strength regularly without initiating Wi-Fi scans.
+        interval: root.connectionType === "wifi" ? 10000 : 60000
         running: true
         repeat: true
         onTriggered: {
@@ -380,6 +386,7 @@ Item {
                 if (t.includes("secrets were required")) {
                     const isRetry = root._lastPasswordFailureSsid === connectProc.targetSsid
                     root._lastPasswordFailureSsid = connectProc.targetSsid
+                    root.awaitingPasswordScreen = connectProc.targetScreen
                     root.awaitingPasswordFor = connectProc.targetSsid
                     if (isRetry) root.commandError("Incorrect password for " + connectProc.targetSsid)
                 } else if (stderrText.trim().length > 0) {
@@ -390,6 +397,8 @@ Item {
                 }
             }
             root.actionKind = ""
+            root.submittingPassword = false
+            root.submittingPasswordScreen = ""
             root.targetSsid = ""
             root.refresh()
             root.connectionSettled()
@@ -400,6 +409,7 @@ Item {
     Process {
         id: connectProc
         property string targetSsid: ""
+        property string targetScreen: ""
         stdout: StdioCollector {}
         stderr: StdioCollector {
             id: connectStderr
@@ -441,7 +451,7 @@ Item {
     }
 
     // Returns true if the connect was started (see runCommand).
-    function connectToNetwork(targetSsid, password) {
+    function connectToNetwork(targetSsid, password, screenName) {
         if (root.busy) return false
         root.actionKind = "connect"
         root.targetSsid = targetSsid
@@ -451,8 +461,12 @@ Item {
         connectSettledTimer.exitCode = -1
         connectProc.stdinEnabled = true
         connectProc.targetSsid = targetSsid
+        connectProc.targetScreen = screenName || ""
         connectProc._password = password || ""
         connectProc._stderrText = ""
+        // Publish ownership before enabling the hold; preserve it across prompt removal.
+        submittingPasswordScreen = connectProc._password !== "" ? connectProc.targetScreen : ""
+        submittingPassword = connectProc._password !== ""
         awaitingPasswordFor = ""
         connectProc.command = password
             ? ["env", "LC_ALL=C", "nmcli", "--wait", "30", "--ask", "dev", "wifi", "connect", targetSsid]
@@ -467,13 +481,22 @@ Item {
             return runCommand(["nmcli", "dev", "disconnect", root.activeWifiDevice], root.ssid)
         }
         const network = root.networks.find(n => n.ssid === networkSsid)
-        if (!network || !network.activeDevices.length) return false
-        // SSID rows combine APs; disconnect only adapters active on this SSID.
-        return runCommand(["nmcli", "dev", "disconnect"].concat(network.activeDevices), networkSsid)
+        let devices = network && Array.isArray(network.activeDevices) ? network.activeDevices : []
+        // A connection status update can arrive before its scan row/device list.
+        if (!devices.length && networkSsid === root.ssid && root.activeWifiDevice !== "")
+            devices = [root.activeWifiDevice]
+        if (!devices.length) return false
+        // concat copies the device list; never mutate a scan row's shared array.
+        return runCommand(["nmcli", "dev", "disconnect"].concat(devices), networkSsid)
     }
 
-    function cancelPasswordPrompt() {
+    function cancelPasswordPrompt(screenName) {
+        if (screenName !== undefined
+                && !(awaitingPasswordFor !== "" && screenName === awaitingPasswordScreen)
+                && !(submittingPassword && screenName === submittingPasswordScreen)) return
         awaitingPasswordFor = ""
+        submittingPassword = false
+        submittingPasswordScreen = ""
         _lastPasswordFailureSsid = ""
     }
 }

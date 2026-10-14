@@ -5,6 +5,7 @@ import "."
 Rectangle {
     id: root
 
+    property real hoverBottomMargin: 0
     property var screen
     property int count: NotificationDaemon.notificationModel.count
     property bool hasNotifs: count > 0
@@ -50,28 +51,34 @@ Rectangle {
         }
     }
 
-    HoverHandler {
-        id: hover
-        cursorShape: Qt.PointingHandCursor
-        onHoveredChanged: {
-            NotificationDaemon.setTriggerHovered(root, hovered)
-            if (hovered) {
-                NotificationDaemon.surfaceScreen = root.screen
-                NotificationDaemon.beginHoverOpen()
+    // Extend the trigger through the bar's bottom margin. The drawer starts
+    // immediately below the bar, so no surface overlap or proxy click is needed.
+    Item {
+        anchors.fill: parent
+        anchors.bottomMargin: -root.hoverBottomMargin
+        HoverHandler {
+            id: hover
+            cursorShape: Qt.PointingHandCursor
+            onHoveredChanged: {
+                NotificationDaemon.setTriggerHovered(root, hovered)
+                if (hovered) {
+                    NotificationDaemon.surfaceScreen = root.screen
+                    NotificationDaemon.beginHoverOpen()
+                }
             }
         }
-    }
 
-    TapHandler {
-        acceptedButtons: Qt.LeftButton
-        onTapped: {
-            NotificationDaemon.surfaceScreen = root.screen
-            NotificationDaemon.toggleDrawer()
+        TapHandler {
+            acceptedButtons: Qt.LeftButton
+            onTapped: {
+                NotificationDaemon.surfaceScreen = root.screen
+                NotificationDaemon.toggleDrawer()
+            }
         }
-    }
 
-    TapHandler {
-        acceptedButtons: Qt.RightButton
-        onTapped: NotificationDaemon.toggleDnd()
+        TapHandler {
+            acceptedButtons: Qt.RightButton
+            onTapped: NotificationDaemon.toggleDnd()
+        }
     }
 }

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell.Io
 import "."
 
@@ -15,6 +16,12 @@ Item {
         if (NetworkService.connectionType === "ethernet") return "󰈀"
         return "󰤭"
     }
+
+    ToolTip.visible: mouseArea.containsMouse
+    ToolTip.delay: 500
+    ToolTip.text: NetworkService.connectionType === "wifi"
+        ? NetworkService.ssid + " · " + NetworkService.signalStrength + "%"
+        : NetworkService.connectionType === "ethernet" ? "Ethernet connected" : "Disconnected"
 
     // Matches waybar's network module: clicking just launches
     // nm-connection-editor as its own top-level window. No SNI tray item,

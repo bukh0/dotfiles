@@ -1,5 +1,5 @@
 """Verify notification history and dismissals survive an isolated hot reload."""
-import os,sys,subprocess,tempfile,time,shutil
+import os,sys,subprocess,tempfile,time,shutil,re
 from pathlib import Path
 if os.environ.get('QS_AUDIT_BUS')!='1':
  raise SystemExit(subprocess.run(['dbus-run-session','--',sys.executable,__file__],env=dict(os.environ,QS_AUDIT_BUS='1')).returncode)
@@ -34,8 +34,10 @@ ShellRoot {
    const stamps=JSON.stringify(rows.map(row => [row.summary,row.timestamp]).sort((a,b) => a[0].localeCompare(b[0])))
    if (state.phase === 0) {
     if (state.popups !== 2) { fail("initial notifications missing"); return }
+    barState.shown=false
     state.stamps=stamps; state.summaries=summaries; state.phase=1; Quickshell.reload(false)
    } else if (state.phase === 1 || state.phase === 3) {
+    if (barState.shown) { fail("bar visibility preference lost on reload"); return }
     const expected=state.phase === 1 ? 2 : 3
     if (state.popups !== expected || stamps !== state.stamps) { fail("reload replayed popups or changed timestamps"); return }
     if (summaries !== state.summaries || Config.NotificationDaemon.server.trackedNotifications.values.length !== 2) {
@@ -62,6 +64,9 @@ ShellRoot {
 
 }
 ''')
+ actual_shell=(Path(__file__).resolve().parent.parent/'components/shell.qml').read_text()
+ bar_state=re.search(r'    PersistentProperties \{\n        id: barState.*?\n    \}', actual_shell, re.S).group(0)
+ shell.write_text(shell.read_text().replace('ShellRoot {', 'ShellRoot {\n'+bar_state, 1))
  env=dict(os.environ,QT_QPA_PLATFORM='offscreen',XDG_RUNTIME_DIR=directory,XDG_CACHE_HOME=directory)
  with (p/'log').open('w') as log:
   proc=subprocess.Popen(['quickshell','-p',str(shell)],env=env,stdout=log,stderr=log)

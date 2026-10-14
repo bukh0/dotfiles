@@ -9,12 +9,15 @@ import "."
 PanelWindow {
     id: root
 
-    WlrLayershell.keyboardFocus: NotificationDaemon.drawerPinned ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    exclusionMode: ExclusionMode.Ignore
+    WlrLayershell.layer: WlrLayer.Top
+    WlrLayershell.keyboardFocus: root.isOpen && NotificationDaemon.drawerPinned ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     property bool isOpen: NotificationDaemon.isDrawerOpen
     property int fadeOutDuration: 200
     property int drawerY: Theme.barTotalHeight + 4
     property int drawerRightMargin: 12
+    property int hoverEdgePadding: 18
     property string uiFont: Theme.fontUI
     property string iconFont: Theme.fontMono
 
@@ -41,7 +44,7 @@ PanelWindow {
 
     property double now: Date.now()
     Timer { interval: 60000; running: root.isOpen; repeat: true; onTriggered: root.now = Date.now() }
-    onIsOpenChanged: if (isOpen) { now = Date.now(); bgCloser.forceActiveFocus() }
+    onIsOpenChanged: if (isOpen) now = Date.now()
     function relativeTime(timestamp) {
         const minutes = Math.max(0, Math.floor((now - timestamp) / 60000))
         return minutes < 1 ? "now" : minutes < 60 ? minutes + "m" : minutes < 1440 ? Math.floor(minutes / 60) + "h" : Math.floor(minutes / 1440) + "d"
@@ -82,14 +85,9 @@ PanelWindow {
     MouseArea {
         id: bgCloser
         anchors.fill: parent
-        hoverEnabled: true
-        focus: true
-        enabled: root.isOpen
-
-        Keys.onEscapePressed: (event) => {
-            NotificationDaemon.isDrawerOpen = false
-            event.accepted = true
-        }
+        focus: enabled
+        enabled: root.isOpen && NotificationDaemon.drawerPinned
+        onEnabledChanged: if (enabled) forceActiveFocus()
         onClicked: (mouse) => {
             NotificationDaemon.isDrawerOpen = false
         }
@@ -99,10 +97,11 @@ PanelWindow {
     // cannot schedule a close while the pointer is still inside the panel.
     Item {
         id: hoverBridge
-        x: root.width - width - root.drawerRightMargin
+        x: Math.max(0, root.width - drawerBg.width - root.drawerRightMargin - root.hoverEdgePadding)
         y: Theme.barTotalHeight
-        width: drawerBg.width
-        height: Math.max(0, drawerBg.y + drawerBg.height)
+        width: Math.min(root.width - x, drawerBg.width + root.hoverEdgePadding * 2)
+        // Only content/layout changes affect input height, never the visual slide.
+        height: root.isOpen ? Math.max(0, root.drawerY - y + drawerBg.height) : 0
         HoverHandler {
             id: drawerHover
             enabled: root.isOpen
@@ -117,6 +116,7 @@ PanelWindow {
     Rectangle {
         id: drawerBg
         parent: hoverBridge
+        x: root.width - width - root.drawerRightMargin - hoverBridge.x
         width: Math.min(Theme.notificationWidth, Math.max(0, root.width - root.drawerRightMargin * 2))
         height: Math.min(Theme.notificationHeight, Math.max(0, root.height - root.drawerY - 8),
                          2 * Theme.drawerPaddingV + drawerHeader.implicitHeight + Theme.drawerSpacing +
@@ -140,7 +140,6 @@ PanelWindow {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: (mouse) => { mouse.accepted = true }
         }
 
         ColumnLayout {
@@ -409,7 +408,8 @@ PanelWindow {
 
                                 Text {
                                     id: bodyText
-                                    text: delegateRoot.body.replace(/<img\b[^>]*>/gi, "")
+                                    // Preserve formatting, without remote images or inert link styling.
+                                    text: delegateRoot.body.replace(/<img\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, "").replace(/<\/?a\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, "")
                                     textFormat: Text.StyledText
                                     color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.7)
                                     font.pixelSize: 12

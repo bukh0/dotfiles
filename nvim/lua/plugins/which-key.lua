@@ -6,6 +6,7 @@ return {
     preset = "classic",
     delay = 300,
     spec = {
+      { "gs", group = "surround" },
       { "<leader>b", group = "buffer" },
       { "<leader>c", group = "code" },
       { "<leader>f", group = "find" },
@@ -16,6 +17,8 @@ return {
       { "<leader>u", group = "ui" },
       { "<leader>w", group = "windows" },
       { "<leader>x", group = "diagnostics" },
+      { "<leader>o", group = "notes" },
+      { "<leader>t", group = "terminal" },
     },
   },
   keys = {

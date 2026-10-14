@@ -276,6 +276,8 @@ Item {
     // run before the collectors have finished and silently lost errors.
     Process {
         id: actionProc
+        property bool started: false
+        onStarted: { started = true; actionLaunchCheck.stop() }
         stdout: StdioCollector { id: actionOut }
         onRunningChanged: {
             if (!running && root.busy) actionFinalize.restart()
@@ -299,6 +301,7 @@ Item {
 
     function _startAction(kind, mac, script, args) {
         if (root.busy || actionProc.running) return false
+        actionProc.started = false
         root.busy = true
         root.actionKind = kind
         root.targetMac = mac || ""
@@ -312,8 +315,10 @@ Item {
     function _finishAction() {
         if (!root.busy) return
         actionLaunchCheck.stop()
+        actionFinalize.stop()
 
-        const raw = actionOut.text || ""
+        // A failed spawn can leave StdioCollector.text from the previous run.
+        const raw = actionProc.started ? (actionOut.text || "") : ""
         const nl = raw.indexOf("\n")
         const rc = parseInt(nl >= 0 ? raw.slice(0, nl) : raw)
         const out = root._stripAnsi(nl >= 0 ? raw.slice(nl + 1) : "").trim()

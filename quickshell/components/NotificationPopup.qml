@@ -70,12 +70,25 @@ PanelWindow {
         delete store[id]
         if (refill !== false) _fill()
     }
+    function _evictionId() {
+        // Reuse a closing slot first, then the oldest ordinary alert.
+        // Only evict a critical alert when all remaining cards are critical.
+        for (let i = active.count - 1; i >= 0; i--)
+            if (active.get(i).closing) return active.get(i).notifId
+        for (let i = active.count - 1; i >= 0; i--) {
+            const id = active.get(i).notifId
+            if (!store[id] || store[id].urgency !== NotificationUrgency.Critical) return id
+        }
+        return active.get(active.count - 1).notifId
+    }
     onMaxVisibleChanged: {
-        while (active.count > _max()) _remove(active.get(active.count - 1).notifId, false)
+        while (active.count > _max()) _remove(_evictionId(), false)
         _fill()
     }
-    function showNotification(data) {
+    function showNotification(data, targetScreen) {
         if (!data) return
+        // Keep one screen for the entire visible/queued burst, including fades.
+        if (targetScreen && active.count === 0 && _queue.length === 0) screen = targetScreen
         const id = data.notifId
         const index = _activeIndex(id)
         if (index >= 0) {
@@ -87,7 +100,7 @@ PanelWindow {
         const queued = _queue.findIndex(d => d.notifId === id)
         if (data.urgency === NotificationUrgency.Critical) {
             _queue = _queue.filter(d => d.notifId !== id)
-            while (active.count >= _max()) _remove(active.get(active.count - 1).notifId, false)
+            while (active.count >= _max()) _remove(_evictionId(), false)
             _open(data)
         } else if (queued >= 0) {
             const next = _queue.slice(); next[queued] = data; _queue = next
@@ -258,7 +271,8 @@ PanelWindow {
                             }
 
                             Text {
-                                text: (slot.entry ? (slot.entry.body || "") : "").replace(/<img\b[^>]*>/gi, "")
+                                // Preserve formatting, without remote images or inert link styling.
+                                text: (slot.entry ? (slot.entry.body || "") : "").replace(/<img\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, "").replace(/<\/?a\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, "")
                                 textFormat: Text.StyledText
                                 color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.7)
                                 font.pixelSize: 12
@@ -278,6 +292,7 @@ PanelWindow {
                         }
                     }
                     HoverHandler { id: hover; onHoveredChanged: slot.syncTimeout(true) }
+                    // Body/background taps hide the popup; action buttons handle their own clicks.
                     TapHandler { onTapped: slot.beginClose() }
                 }
             }

@@ -83,6 +83,7 @@ ColumnLayout {
 
         HoverHandler {
             id: hover
+            blocking: false
             cursorShape: Qt.PointingHandCursor
         }
 
@@ -142,7 +143,7 @@ ColumnLayout {
         clip: true
         focus: true
 
-        readonly property int currentIndex: MusicService.selectedIndex
+        readonly property int currentIndex: Math.max(0, Math.min(MusicService.selectedIndex, pageCount - 1))
         readonly property int pageCount: playersListModel.count
 
         function goTo(index) {

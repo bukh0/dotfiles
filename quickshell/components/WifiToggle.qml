@@ -17,11 +17,14 @@ ColumnLayout {
     readonly property bool scanning: NetworkService.scanning
 
     property bool expanded: false
+    property string outputName: ""
+    readonly property bool ownsPasswordPrompt: NetworkService.awaitingPasswordFor !== ""
+                                              && NetworkService.awaitingPasswordScreen === outputName
     readonly property bool actionInFlight: NetworkService.busy
     readonly property string targetSsid: NetworkService.targetSsid
 
     onExpandedChanged: {
-        if (!expanded) NetworkService.cancelPasswordPrompt()
+        if (!expanded) NetworkService.cancelPasswordPrompt(wifiRoot.outputName)
     }
 
     Connections {
@@ -153,7 +156,7 @@ ColumnLayout {
                 property bool isProcessing: wifiRoot.actionInFlight && wifiRoot.targetSsid === modelData.ssid
                 readonly property bool isConnecting: isProcessing && !modelData.active
                 readonly property bool isDisconnecting: isProcessing && modelData.active
-                readonly property bool needsPassword: NetworkService.awaitingPasswordFor === modelData.ssid
+                readonly property bool needsPassword: wifiRoot.ownsPasswordPrompt && NetworkService.awaitingPasswordFor === modelData.ssid
 
                 readonly property bool showActive: modelData.active && !isDisconnecting
 
@@ -221,7 +224,7 @@ ColumnLayout {
 
                                 modelData.active
                                     ? NetworkService.disconnectActive(modelData.ssid)
-                                    : NetworkService.connectToNetwork(modelData.ssid)
+                                    : NetworkService.connectToNetwork(modelData.ssid, "", wifiRoot.outputName)
                             }
                         }
                     }
@@ -249,7 +252,7 @@ ColumnLayout {
                             font.pixelSize: 11
                             font.family: wifiRoot.fontFamily
                             TapHandler {
-                                onTapped: { pwField.clear(); NetworkService.cancelPasswordPrompt() }
+                                onTapped: { pwField.clear(); NetworkService.cancelPasswordPrompt(wifiRoot.outputName) }
                             }
                         }
                         Text {
@@ -262,7 +265,7 @@ ColumnLayout {
 
                             function doConnect() {
                                 if (pwField.text.length === 0) return
-                                if (NetworkService.connectToNetwork(modelData.ssid, pwField.text)) {
+                                if (NetworkService.connectToNetwork(modelData.ssid, pwField.text, wifiRoot.outputName)) {
                                     pwField.clear()
                                 }
                             }

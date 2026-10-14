@@ -29,7 +29,7 @@ with tempfile.TemporaryDirectory(prefix='script-regressions-') as directory:
     (home/'.scripts').mkdir()
     mock(bins, 'hyprctl', 'echo "$*" >> "$TEST_ROOT/hyprctl-log"')
     run(['bash',str(SCRIPTS/'fullscreen_toggle.sh')],env)
-    assert (root/'hyprctl-log').read_text().splitlines() == ['dispatch fullscreen']
+    assert (root/'hyprctl-log').read_text().splitlines() == ['dispatch hl.dsp.window.fullscreen({ action = "toggle" })']
     print('PASS fullscreen dispatch helper')
     mock(bins, 'sudo', 'exit 0')
     mock(bins, 'notify-send', 'exit 0')

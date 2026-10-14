@@ -16,7 +16,7 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-layout-') as directory:
         if name == 'NotificationDrawer.qml':
             source = re.sub(r'^import Quickshell.*\n', '', source, flags=re.M)
             source = source.replace('PanelWindow {', 'Rectangle {', 1)
-            source = re.sub(r'^    WlrLayershell.keyboardFocus:.*\n', '', source, flags=re.M)
+            source = re.sub(r'^    (?:WlrLayershell\.\w+|exclusionMode):.*\n', '', source, flags=re.M)
             source = re.sub(r'^    (?:anchors|mask: Region) \{.*?\n    \}', '', source, flags=re.S | re.M)
             source = source.replace('NotificationUrgency.Critical', '2')
         (profile / name).write_text(source)
@@ -67,6 +67,13 @@ Item {
    drawer.width = 1000
    Config.NotificationDaemon.isDrawerOpen = true
    wait(300)
+  }
+  function test_bodyLinksAreNotInertAnchors() {
+   Config.NotificationDaemon.notificationModel.append(row(404, '<b>Message</b> <img alt="a > b" src="https://example.invalid/image"> <a title="a > b" href="https://example.invalid">Details</a>'))
+   wait(300)
+   const body = descendants(drawer).find(item => typeof item.text === "string" && item.text.includes("Details"))
+   verify(!!body)
+   compare(body.text, '<b>Message</b>  Details')
   }
   function verifyGeometry() {
    const view = list()

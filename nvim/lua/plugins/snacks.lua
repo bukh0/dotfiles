@@ -4,7 +4,23 @@ return {
   lazy = false,
   opts = {
     bigfile = { enabled = true },
-    dashboard = { enabled = true },
+    dashboard = {
+      enabled = true,
+      preset = {
+        keys = {
+          { icon = vim.fn.nr2char(0xf002) .. " ", key = "f", desc = "Find File", action = ":lua Snacks.dashboard.pick('files')" },
+          { icon = vim.fn.nr2char(0xf15b) .. " ", key = "n", desc = "New File", action = ":ene | startinsert" },
+          { icon = vim.fn.nr2char(0xf0ca) .. " ", key = "g", desc = "Find Text", action = ":lua Snacks.dashboard.pick('live_grep')" },
+          { icon = vim.fn.nr2char(0xf01e) .. " ", key = "r", desc = "Recent Files", action = ":lua Snacks.dashboard.pick('oldfiles')" },
+          { icon = vim.fn.nr2char(0xf249) .. " ", key = "o", desc = "Notes", action = ":Obsidian quick_switch" },
+          { icon = vim.fn.nr2char(0xf073) .. " ", key = "d", desc = "Daily Note", action = ":Obsidian today" },
+          { icon = vim.fn.nr2char(0xf013) .. " ", key = "c", desc = "Config", action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})" },
+          { icon = vim.fn.nr2char(0xf021) .. " ", key = "s", desc = "Restore Session", section = "session" },
+          { icon = vim.fn.nr2char(0xf186) .. " ", key = "L", desc = "Lazy", action = ":Lazy", enabled = package.loaded.lazy ~= nil },
+          { icon = vim.fn.nr2char(0xf426) .. " ", key = "q", desc = "Quit", action = ":qa" },
+        },
+      },
+    },
     explorer = { enabled = true },
     indent = { enabled = true },
     input = { enabled = true },
@@ -13,6 +29,13 @@ return {
     scope = { enabled = true },
     statuscolumn = { enabled = true },
     words = { enabled = true },
+    terminal = { enabled = true },
+    styles = {
+      terminal = {
+        position = "bottom",
+        height = 0.25,
+      },
+    },
     picker = {
       enabled = true,
       sources = {
@@ -47,5 +70,8 @@ return {
     { "<leader>gl", function() Snacks.picker.git_log() end, desc = "Git log" },
     { "<leader>n", function() Snacks.notifier.show_history() end, desc = "Notification history" },
     { "<leader>un", function() Snacks.notifier.hide() end, desc = "Dismiss notifications" },
+    { "<C-/>", function() Snacks.terminal() end, mode = { "n", "t" }, desc = "Toggle terminal" },
+    { "<leader>tt", function() Snacks.terminal() end, desc = "Terminal (cwd)" },
+    { "<leader>tT", function() Snacks.terminal(nil, { cwd = vim.fn.expand("%:p:h") }) end, desc = "Terminal (file dir)" },
   },
 }

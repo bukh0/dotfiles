@@ -38,7 +38,7 @@ Rectangle {
     property bool busy: false
     property string error: ""
     property string operation: ""
-    readonly property bool loading: page === "Wallpapers" ? wallProc.running : page === "Themes" && themeProc.running
+    readonly property bool loading: page === "Wallpapers" ? wallProc.pending : page === "Themes" && themeProc.pending
     readonly property string current: filtered.length ? filtered[Math.max(0, Math.min(selected, filtered.length - 1))] : ""
     readonly property int columns: 4
     readonly property int pageSize: page === "Wallpapers" ? columns * Math.max(1, Math.floor(grid.height / Math.max(1, grid.cellHeight))) : Math.max(1, Math.floor(themeList.height / rowHeight))
@@ -173,11 +173,26 @@ Rectangle {
         required property string page
         required property string failureMessage
         property bool startedSuccessfully: false
+        property bool pending: false
+        property bool rerunQueued: false
+        property bool exitReceived: false
+        property bool collectsOutput: false
+        property bool outputDone: true
+        function finish() {
+            if (!pending || !exitReceived || !outputDone) return
+            pending = false
+            const rerun = rerunQueued
+            rerunQueued = false
+            if (rerun && view.page === page && !view.busy) start()
+        }
         function reportFailure(message) {
             if (view.page === page && !view.busy && !view.error) view.error = message
         }
         function start() {
-            if (running) return
+            if (pending || running) { rerunQueued = true; return }
+            pending = true
+            exitReceived = false
+            outputDone = !collectsOutput
             startedSuccessfully = false
             running = true
             startupCheck.restart()
@@ -186,19 +201,26 @@ Rectangle {
         onExited: (code, status) => {
             startupCheck.stop()
             if (code !== 0 || status !== 0) reportFailure(failureMessage)
+            exitReceived = true
+            // Let exit and collector callbacks unwind before reusing the process.
+            Qt.callLater(job.finish)
         }
         // Quickshell does not emit exited when an executable is missing.
         property Timer startupCheck: Timer {
             interval: 500
             onTriggered: {
-                if (!job.startedSuccessfully && !job.running)
+                if (!job.startedSuccessfully && !job.running) {
                     job.reportFailure("Could not start " + job.command[0])
+                    job.pending = false
+                    job.rerunQueued = false
+                }
             }
         }
     }
 
     PageProcess {
         id: themeProc
+        collectsOutput: true
         page: "Themes"
         failureMessage: "Could not load themes. Press F5 to retry."
         command: [view.bin, "--list-themes"]
@@ -206,11 +228,14 @@ Rectangle {
             onStreamFinished: {
                 view.presets = text.split("\n").filter(Boolean)
                 if (view.page === "Themes") view.rebuild()
+                themeProc.outputDone = true
+                Qt.callLater(themeProc.finish)
             }
         }
     }
     PageProcess {
         id: wallProc
+        collectsOutput: true
         page: "Wallpapers"
         failureMessage: "Could not load wallpapers. Press F5 to retry."
         command: [view.bin, "--list-walls"]
@@ -227,6 +252,8 @@ Rectangle {
                 view.thumbnails = thumbs
                 view.walls = paths
                 if (view.page === "Wallpapers") view.rebuild()
+                wallProc.outputDone = true
+                Qt.callLater(wallProc.finish)
             }
         }
     }
@@ -684,7 +711,7 @@ Rectangle {
         }
         Text {
             Layout.fillWidth: true
-            visible: view.busy || (view.page === "Wallpapers" && thumbProc.running)
+            visible: view.busy || (view.page === "Wallpapers" && thumbProc.pending)
             text: view.busy ? view.operation : "Preparing previews…"
             textFormat: Text.PlainText
             color: view.muted

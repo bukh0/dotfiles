@@ -8,7 +8,7 @@ with tempfile.TemporaryDirectory(prefix='qs-popup-stack-') as directory:
  for name in ('NotificationPopup.qml','NotificationButton.qml','NotificationActions.qml','Colors.qml'):
   source=(ROOT/'components'/name).read_text()
   if name == 'NotificationPopup.qml':
-   source=re.sub(r'^import Quickshell.*\n','',source,flags=re.M).replace('PanelWindow {','Rectangle {',1)
+   source=re.sub(r'^import Quickshell.*\n','',source,flags=re.M).replace('PanelWindow {','Rectangle {\n    property var screen: null',1)
    source=re.sub(r'^    (?:anchors|margins) \{.*?\n    \}', '',source,flags=re.S | re.M)
    source=re.sub(r'^    WlrLayershell\.\w+:.*\n', '', source, flags=re.M)
    source=source.replace('NotificationUrgency.Critical','2')
@@ -48,6 +48,31 @@ Item {
    for (const child of item.children || []) result = result.concat([child], descendants(child))
    return result
   }
+  function test_screenLatchedForBurst() {
+   const left = {name: "left"}, right = {name: "right"}
+   popup.maxVisible = 1
+   popup.showNotification(entry(401,0), left)
+   compare(popup.screen, left)
+   popup.showNotification(entry(402,0), right)
+   compare(popup.screen, left, "queued notification must not move active cards")
+   popup.showNotification(entry(401,0), right)
+   compare(popup.screen, left, "replacement must not change screens")
+   popup.dismiss()
+   wait(300)
+   compare(popup.screen, left, "queue refill stays on original screen")
+   popup.dismissAll()
+   popup.showNotification(entry(403,0), right)
+   compare(popup.screen, right, "next burst follows current monitor")
+  }
+  function test_bodyLinksAreNotInertAnchors() {
+   const data = entry(404,0)
+   data.body = '<b>Message</b> <img alt="a > b" src="https://example.invalid/image"> <a title="a > b" href="https://example.invalid">Details</a>'
+   popup.showNotification(data)
+   wait(50)
+   const body = descendants(popup).find(item => typeof item.text === "string" && item.text.includes("Details"))
+   verify(!!body)
+   compare(body.text, '<b>Message</b>  Details')
+  }
   function test_actionDoesNotDismissCard() {
    const data = entry(95,0)
    data.actions = [{identifier: "default", text: "Open"}]
@@ -60,6 +85,37 @@ Item {
    compare(Config.NotificationDaemon.invoked,before+1)
    wait(300)
    compare(popup.activeCount,1,"An action click must not also trigger the card dismissal handler")
+  }
+  function test_criticalEvictsNormalFirst() {
+   popup.showNotification(entry(501,0,2))
+   popup.showNotification(entry(502,0))
+   popup.showNotification(entry(503,0))
+   popup.showNotification(entry(504,0,2))
+   verify(popup._activeIndex(501) >= 0, "new critical alert must preserve an existing critical alert when ordinary cards can yield")
+   compare(popup._activeIndex(502), -1, "oldest ordinary card yields first")
+   compare(popup.activeCount, 3)
+   popup.showNotification(entry(505,0,2))
+   compare(popup._activeIndex(503), -1)
+   popup.showNotification(entry(506,0,2))
+   compare(popup._activeIndex(501), -1, "all-critical overflow remains bounded by evicting the oldest")
+  }
+  function test_criticalReusesClosingSlot() {
+   popup.showNotification(entry(511,0))
+   popup.showNotification(entry(512,0,2))
+   popup.showNotification(entry(513,0,2))
+   popup._requestClose(512)
+   popup.showNotification(entry(514,0,2))
+   compare(popup._activeIndex(512), -1, "reuse an already closing card")
+   verify(popup._activeIndex(511) >= 0, "no additional visible card needs eviction")
+   wait(300)
+   compare(popup.activeCount, 3, "old removal timer must not remove a new card")
+  }
+  function test_reducingSlotsPreservesCritical() {
+   popup.showNotification(entry(521,0,2))
+   popup.showNotification(entry(522,0))
+   popup.showNotification(entry(523,0))
+   popup.maxVisible = 1
+   compare(popup.newestId(), 521)
   }
   function test_criticalDoesNotYieldToQueue() {
    popup.maxVisible=1; popup.persistentDisplayDuration=40

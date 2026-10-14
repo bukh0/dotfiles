@@ -99,7 +99,7 @@ elif "connect" in args:
         assert sys.stdin.read() == "test-password\\n"
     time.sleep(0.1)
 elif "disconnect" in args:
-    assert args[-1] == "wlan1", args
+    assert args[-1] == ("wlan0" if mode == "fallback" else "wlan1"), args
 elif args == ["radio", "wifi"]:
     print("disabled" if mode == "off" else "enabled")
 elif "ACTIVE,SSID,SIGNAL,DEVICE" in args:
@@ -121,6 +121,7 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
             # state machine and layout using a Rectangle as its window host.
             text = text.replace("PanelWindow {", "Rectangle {", 1)
             text = re.sub(r"    WlrLayershell\.\w+:.*", "", text)
+            text = re.sub(r"    exclusionMode:.*", "", text)
             text = re.sub(r"    anchors \{.*?\n    \}", "", text, count=1, flags=re.S)
             text = re.sub(r"    margins \{.*?\n    \}", "", text, count=1, flags=re.S)
         (profile / name).write_text(text)
@@ -135,6 +136,7 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
         if name == "ControlPanel.qml":
             text = text.replace("PanelWindow {", "Rectangle {", 1)
             text = re.sub(r"    WlrLayershell\.\w+:.*", "", text)
+            text = re.sub(r"    exclusionMode:.*", "", text)
             text = re.sub(r"    WlrLayershell.keyboardFocus:.*", "", text)
             text = re.sub(r"    anchors \{.*?\n    \}", "", text, count=1, flags=re.S)
             text = re.sub(r"    mask: Region \{.*?\n    \}", "", text, count=1, flags=re.S)
@@ -169,3 +171,6 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
 
 # Keyboard focus regression uses a standalone, isolated Qt scene.
 subprocess.run(["python3", str(ROOT / "tests/focus.py")], check=True)
+
+# Music selection is published only after model reconciliation.
+subprocess.run(["python3", str(ROOT / "tests/music_sync.py")], check=True)

@@ -25,7 +25,7 @@ QtObject {
         if (doNotDisturb) root.dismissPopup()
     }
     property var surfaceScreen: null
-    property int hoverCloseDelay: 530
+    property int hoverCloseDelay: 510
     property var hoveredTrigger: null
     property bool drawerHovered: false
     onDrawerHoveredChanged: {
@@ -51,8 +51,19 @@ QtObject {
     // reloads. Reloadable children inside a QML singleton are not restored.
     property var timestamps: ({})
     function restoreTimestamps(json) {
-        try { timestamps = JSON.parse(json) }
-        catch (_) { timestamps = ({}) }
+        const restored = ({})
+        try {
+            const parsed = JSON.parse(json)
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                for (const id of Object.keys(parsed)) {
+                    const value = parsed[id]
+                    if (typeof value === "number" && isFinite(value) && value >= 0
+                            && value <= 8640000000000000)
+                        restored[id] = value
+                }
+            }
+        } catch (_) {}
+        timestamps = restored
     }
 
     property int _nextId: 1
@@ -250,7 +261,7 @@ QtObject {
             notifId: id,
             appName: data.appName,
             summary: data.summary,
-            body: data.body.replace(/<img\b[^>]*>/gi, ""),
+            body: data.body.replace(/<img\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, ""),
             timeText: Qt.formatTime(data.time, "hh:mm"),
             timestamp: data.time.getTime(),
             urgency: data.urgency,

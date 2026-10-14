@@ -25,11 +25,13 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-state-') as directory:
         if name in ('NotificationDrawer.qml', 'NotificationPopup.qml'):
             component = re.sub(r'^import Quickshell.*\n', '', component, flags=re.M)
             component = component.replace('PanelWindow {', 'Rectangle {', 1)
+            component = re.sub(r'^    exclusionMode:.*\n', '', component, flags=re.M)
             component = re.sub(r'^    WlrLayershell\.\w+:.*\n', '', component, flags=re.M)
             component = re.sub(r'^    (?:anchors|margins|mask: Region) \{.*?\n    \}', '', component, flags=re.S | re.M)
             component = component.replace('NotificationUrgency.Critical', '2')
+        component = component.replace('id: hoverBridge', 'id: hoverBridge; objectName: "auditBridge"')
         (p / name).write_text(component)
-    (p / 'Theme.qml').write_text((ROOT / 'profiles/default/Theme.qml').read_text()
+    (p / 'Theme.qml').write_text((ROOT / 'profiles' / os.environ.get('QS_TEST_PROFILE', 'default') / 'Theme.qml').read_text()
         .replace('import Quickshell\n', '').replace('Quickshell.shellPath("../../native/sysmon")', '""'))
     (p / 'qmldir').write_text('singleton NotificationDaemon 1.0 NotificationDaemon.qml\nsingleton Colors 1.0 Colors.qml\nsingleton Theme 1.0 Theme.qml\n')
     (p / 'tst_state.qml').write_text('''import QtQuick
@@ -39,7 +41,7 @@ Item {
  width: 1000; height: 800
  Config.NotificationDrawer { id: drawer; width: 1000; height: 800 }
  Config.NotificationPopup { id: popup; x: 1100; width: 400 }
- Config.NotificationBell { id: bell; x: 930; y: 0; width: 60; height: 40; z: 2 }
+ Config.NotificationBell { id: bell; x: 930; y: (Config.Theme.barTotalHeight - height) / 2; width: 60; height: 30; z: 2; hoverBottomMargin: Math.max(0, (Config.Theme.barTotalHeight - height) / 2) }
  TestCase {
  id: testCase
  name: "NotificationState"; when: windowShown
@@ -82,6 +84,24 @@ Item {
   Config.NotificationDaemon.restoreTimestamps("{}")
   observedId = -1; removedActions = null; delivered = 0; removed = 0
  }
+ function test_imageWithQuotedGreaterThan() {
+  const n = notification(602)
+  n.body = 'Before<img alt="a > b" src="https://example.invalid/image">after'
+  Config.NotificationDaemon._receiveNotification(n)
+  compare(Config.NotificationDaemon.notificationModel.get(0).body, "Beforeafter")
+ }
+ function test_invalidSavedTimestamps() {
+  for (const saved of ["null", "[]", "42", '{"601": 1e999}', '{"601": 9e15}', '"invalid"', '{"601": "yesterday"}']) {
+   Config.NotificationDaemon.restoreTimestamps(saved)
+   const n = notification(601)
+   n.lastGeneration = true
+   Config.NotificationDaemon._receiveNotification(n)
+   compare(Config.NotificationDaemon.notificationModel.count, 1)
+   const timestamp = Config.NotificationDaemon.notificationModel.get(0).timestamp
+   verify(Number.isFinite(timestamp), "invalid saved state must fall back to a valid timestamp")
+   Config.NotificationDaemon.clearAll()
+  }
+ }
  function test_lateHoverClose() {
   Config.NotificationDaemon.beginHoverOpen()
   wait(250)
@@ -94,6 +114,46 @@ Item {
   mouseMove(parent, 5, 700)
   wait(60)
   verify(!Config.NotificationDaemon.isDrawerOpen)
+ }
+ function test_bellBottomMarginHoverAndPin() {
+  mouseMove(parent, bell.x + bell.width / 2, Config.Theme.barTotalHeight - 1)
+  wait(50)
+  verify(Config.NotificationDaemon.isDrawerOpen, "bottom bar margin must open drawer")
+  compare(Config.NotificationDaemon.hoveredTrigger, bell)
+  mouseClick(parent, bell.x + bell.width / 2, Config.Theme.barTotalHeight - 1)
+  verify(Config.NotificationDaemon.drawerPinned, "bell margin clicks must retain normal pin behavior")
+ }
+ function test_drawerHorizontalPadding() {
+  Config.NotificationDaemon.beginHoverOpen()
+  wait(250)
+  const bridge = findChild(drawer, "auditBridge")
+  mouseMove(drawer, bridge.x + 1, Config.Theme.barTotalHeight + 30)
+  wait(60)
+  verify(Config.NotificationDaemon.isDrawerOpen, "padded left edge keeps drawer open")
+  mouseMove(parent, 5, 700)
+  wait(60)
+  verify(!Config.NotificationDaemon.isDrawerOpen)
+ }
+ function test_hoverGapClickDoesNotDismiss() {
+  Config.NotificationDaemon.beginHoverOpen()
+  wait(250)
+  mouseClick(drawer, 800, Config.Theme.barTotalHeight + 2)
+  verify(Config.NotificationDaemon.isDrawerOpen, "hover-only bridge clicks must not hit outside dismissal")
+ }
+ function test_hoverOnlyEscape() {
+  Config.NotificationDaemon.beginHoverOpen()
+  wait(250)
+  keyClick(Qt.Key_Escape)
+  verify(Config.NotificationDaemon.isDrawerOpen, "hover-only drawer must not claim Escape")
+ }
+ function test_bridgeDoesNotFollowSlide() {
+  wait(250)
+  Config.NotificationDaemon.beginHoverOpen()
+  wait(30)
+  const bridge = findChild(drawer, "auditBridge")
+  const height = bridge.height
+  wait(90)
+  compare(bridge.height, height, "input height must not follow visual slide animation")
  }
  function test_hoverGap() {
   Config.NotificationDaemon.beginHoverOpen()
