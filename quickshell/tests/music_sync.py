@@ -11,7 +11,7 @@ with tempfile.TemporaryDirectory(prefix="music-sync-") as directory:
     source = (ROOT / "components/MusicService.qml").read_text()
     source = source.replace("import Quickshell.Services.Mpris\n", "")
     source = source.replace("Mpris.players.values", "[]")
-    source = source.replace("MprisPlaybackState.Playing", "1").replace("MprisPlaybackState.Paused", "2")
+    source = source.replace("MprisPlaybackState.Playing", "1").replace("MprisPlaybackState.Paused", "2").replace("MprisPlaybackState.Stopped", "0")
     (root / "MusicService.qml").write_text(source)
     (root / "qmldir").write_text("singleton MusicService 1.0 MusicService.qml\n")
     (root / "tst_music.qml").write_text("""
@@ -82,6 +82,15 @@ TestCase {
         compare(Config.MusicService.selectedIndex, 2)
         compare(changes.length, 1)
         verifyPublications()
+    }
+    function test_missingTitles() {
+        for (const state of [0, 1, 2]) {
+            Config.MusicService.sourcePlayers = [{dbusName: "mpv", identity: "mpv",
+                playbackState: state, trackTitle: ""}]
+            compare(Config.MusicService.model.get(0).title, state === 0 ? "Nothing playing" : "Unknown track")
+        }
+        Config.MusicService.sourcePlayers = [{dbusName: "mpv", playbackState: 1, trackTitle: "Live stream"}]
+        compare(Config.MusicService.model.get(0).title, "Live stream")
     }
     function test_metadataKeepsIndex() {
         const rows = [player("a"), player("b"), player("c")]

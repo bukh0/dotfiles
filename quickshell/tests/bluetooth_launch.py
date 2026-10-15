@@ -8,6 +8,23 @@ ROOT = Path(__file__).resolve().parent.parent
 source = (ROOT / 'components/BluetoothService.qml').read_text()
 action = source[source.index('    Process {\n        id: actionProc'):source.index('    function _validMac(')]
 action = action.replace('        actionProc.running = true', '        if (root.failSpawn) actionProc.command = ["/nonexistent/qs-bt-test"]\n        actionProc.running = true')
+# Delay delivery of the stream completion event beyond the old 40 ms grace
+# period, while retaining the real process and collector.
+if os.environ.get("QS_TEST_DELAY_STREAM") == "1":
+    action = action.replace(
+        "actionProc._streamDone = true\n                if (actionProc._exited) root._finishAction()",
+        "delayedStream.restart()")
+    action += """
+    Timer {
+        id: delayedStream
+        interval: 150
+        onTriggered: {
+            if (!root.busy) { console.log("FAIL finalized before stream completion"); Qt.quit(); return }
+            actionProc._streamDone = true
+            if (actionProc._exited) root._finishAction()
+        }
+    }
+"""
 helper = source[source.index('    function _stripAnsi('):source.index('    // ── State polling')]
 with tempfile.TemporaryDirectory(prefix='qs-bluetooth-launch-') as directory:
     stage = Path(directory)

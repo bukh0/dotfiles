@@ -11,7 +11,7 @@ PanelWindow {
 
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Top
-    WlrLayershell.keyboardFocus: root.isOpen && NotificationDaemon.drawerPinned ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: root.isOpen && NotificationDaemon.drawerPinned ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     property bool isOpen: NotificationDaemon.isDrawerOpen
     property int fadeOutDuration: 200
@@ -120,7 +120,7 @@ PanelWindow {
         width: Math.min(Theme.notificationWidth, Math.max(0, root.width - root.drawerRightMargin * 2))
         height: Math.min(Theme.notificationHeight, Math.max(0, root.height - root.drawerY - 8),
                          2 * Theme.drawerPaddingV + drawerHeader.implicitHeight + Theme.drawerSpacing +
-                         (NotificationDaemon.notificationModel.count ? notifList.contentHeight : 140))
+                         (NotificationDaemon.notificationModel.count ? notifList.measuredHeight : 140))
 
         y: (root.isOpen ? root.drawerY : root.drawerY - 10) - hoverBridge.y
 
@@ -222,6 +222,38 @@ PanelWindow {
                 rightMargin: 8
                 cacheBuffer: 300
 
+                // Retain exact measurements when delegates leave the cache.
+                // Unknown rows reserve the maximum height; once all rows are
+                // measured, short lists can fit without relying on estimates.
+                property var rowHeights: ({})
+                readonly property real measuredHeight: {
+                    let total = Math.max(0, count - 1) * spacing
+                    for (let i = 0; i < count; i++) {
+                        const h = rowHeights[String(model.get(i).notifId)]
+                        if (h === undefined) return Theme.notificationHeight
+                        total += h
+                    }
+                    return total
+                }
+                function measureRow(id, height) {
+                    if (id === undefined || height <= 0 || rowHeights[String(id)] === height) return
+                    const next = Object.assign({}, rowHeights)
+                    next[String(id)] = height
+                    rowHeights = next
+                }
+                function refreshMeasurements(reset) {
+                    const next = {}
+                    for (let i = 0; i < count; i++) {
+                        const id = String(model.get(i).notifId)
+                        const card = itemAtIndex(i)
+                        if (card) next[id] = card.implicitHeight
+                        else if (!reset && rowHeights[id] !== undefined) next[id] = rowHeights[id]
+                    }
+                    rowHeights = next
+                }
+                onCountChanged: Qt.callLater(() => refreshMeasurements(false))
+                onWidthChanged: Qt.callLater(() => refreshMeasurements(true))
+
                 function scrollTo(y) {
                     wheelAnimation.running = false
                     cancelFlick()
@@ -322,6 +354,8 @@ PanelWindow {
 
                     width: ListView.view.width - ListView.view.rightMargin
                     implicitHeight: notifContent.implicitHeight + 24
+                    onImplicitHeightChanged: notifList.measureRow(notifId, implicitHeight)
+                    Component.onCompleted: notifList.measureRow(notifId, implicitHeight)
                     radius: Theme.notificationItemRadius
                     color: Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
                     border.color: urgency === NotificationUrgency.Critical ? Colors.error : Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.2)

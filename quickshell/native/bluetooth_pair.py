@@ -12,8 +12,17 @@ def main(address):
     import gi
     gi.require_version("Gtk", "3.0")
     from gi.repository import Gio, GLib, Gtk
-    import blueman.main.applet.BluezAgent as agent_module
-    from blueman.gui.Notification import _NotificationDialog
+    api_changed = "Blueman API changed, pairing helper needs updating"
+    try:
+        import blueman.main.applet.BluezAgent as agent_module
+        from blueman.gui.Notification import _NotificationDialog
+        if not callable(_NotificationDialog) or not hasattr(agent_module, "Notification"):
+            raise AttributeError("Notification API missing")
+        agent_type = agent_module.BluezAgent
+        if not all(callable(getattr(agent_type, name, None)) for name in ("register", "unregister")):
+            raise AttributeError("Agent lifecycle API missing")
+    except (ImportError, AttributeError) as error:
+        raise RuntimeError(api_changed) from error
 
     # Keep confirmation/passkey prompts visible even when shell DND is on.
     # This changes only this short-lived helper, not Blueman preferences.
@@ -31,13 +40,13 @@ def main(address):
     if device is None:
         raise RuntimeError("Device is no longer available. Scan and try again.")
 
-    agent = agent_module.BluezAgent()
-    agent.register()
-    # Pair on the SAME Gio connection as the agent, so BlueZ chooses our
-    # agent for this request without replacing the session's default agent.
-    bus.call_sync("org.bluez", "/org/bluez", "org.bluez.AgentManager1", "RegisterAgent",
-                  GLib.Variant("(os)", (agent._path, "KeyboardDisplay")), None,
-                  Gio.DBusCallFlags.NONE, 5000, None)
+    try:
+        agent = agent_type()
+        agent_path = agent._path
+        if not isinstance(agent_path, str) or not GLib.Variant.is_object_path(agent_path):
+            raise AttributeError("Agent path missing or invalid")
+    except (AttributeError, TypeError) as error:
+        raise RuntimeError(api_changed) from error
     loop = GLib.MainLoop()
     success = False
     finished = False
@@ -83,20 +92,31 @@ def main(address):
         finish("Canceled or timed out")
         return GLib.SOURCE_REMOVE
 
-    timer = GLib.timeout_add_seconds(150, cancel)
-    signals = [GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, sig, cancel)
-               for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)]
+    sources = []
+    registration_attempted = False
     try:
+        agent.register()
+        # Pair on the same connection as our exported agent.
+        registration_attempted = True
+        bus.call_sync("org.bluez", "/org/bluez", "org.bluez.AgentManager1", "RegisterAgent",
+                      GLib.Variant("(os)", (agent_path, "KeyboardDisplay")), None,
+                      Gio.DBusCallFlags.NONE, 5000, None)
+        sources.append(GLib.timeout_add_seconds(150, cancel))
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            sources.append(GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, sig, cancel))
         bus.call("org.bluez", device, "org.bluez.Device1", "Pair", None, None,
                  Gio.DBusCallFlags.NONE, 120000, None, paired)
         loop.run()
     finally:
-        for source in [timer, *signals]:
+        for source in sources:
             if GLib.MainContext.default().find_source_by_id(source):
                 GLib.source_remove(source)
         try:
-            bus.call_sync("org.bluez", "/org/bluez", "org.bluez.AgentManager1", "UnregisterAgent",
-                          GLib.Variant("(o)", (agent._path,)), None, Gio.DBusCallFlags.NONE, 5000, None)
+            # Also try after a timeout: BlueZ may have registered the agent
+            # even if its reply never reached us.
+            if registration_attempted:
+                bus.call_sync("org.bluez", "/org/bluez", "org.bluez.AgentManager1", "UnregisterAgent",
+                              GLib.Variant("(o)", (agent_path,)), None, Gio.DBusCallFlags.NONE, 5000, None)
         except GLib.Error:
             pass
         # Cleanup must not change the result of Pair/Trust/Connect.

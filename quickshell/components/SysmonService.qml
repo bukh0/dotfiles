@@ -104,16 +104,31 @@ Item {
                 }
             }
         }
-        onRunningChanged: {
-            if (running) {
-                sysmonStableTimer.restart()
-                return
-            }
-            sysmonStableTimer.stop()
-            if (root.tempSourcePath !== "") {
-                if (!root._restartForTemperature) root._restartDelay = Math.min(root._restartDelay * 2, 30000)
-                sysmonRestart.interval = root._restartDelay
-                sysmonRestart.restart()
+        onStarted: {
+            startupCheck.stop()
+            sysmonStableTimer.restart()
+        }
+        onExited: root._scheduleRestart()
+    }
+
+
+    function _scheduleRestart() {
+        startupCheck.stop()
+        sysmonStableTimer.stop()
+        if (sysmonRestart.running) return
+        if (!root._restartForTemperature)
+            root._restartDelay = Math.min(root._restartDelay * 2, 30000)
+        sysmonRestart.interval = root._restartDelay
+        sysmonRestart.restart()
+    }
+
+    Timer {
+        id: startupCheck
+        interval: 500
+        onTriggered: {
+            if (!sysmonDaemon.running) {
+                console.warn("sysmon: failed to start", Theme.sysmonPath, "; retrying with backoff")
+                root._scheduleRestart()
             }
         }
     }
@@ -123,6 +138,7 @@ Item {
         interval: 250
         onTriggered: {
             root._restartForTemperature = false
+            startupCheck.restart()
             sysmonDaemon.running = true
         }
     }

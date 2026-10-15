@@ -133,6 +133,46 @@ Item {
    wait(350)
    verify(!button.visible, "Short replacements should clear expansion state")
   }
+  function test_compactThirdNotification() {
+   const model = Config.NotificationDaemon.notificationModel
+   model.append(row(201))
+   model.append(row(202))
+   wait(350)
+   const view = list()
+   const background = view.parent.parent
+   const before = background.height
+   model.append(row(203))
+   wait(350)
+   const third = view.itemAtIndex(2)
+   verify(!!third)
+   compare(background.height, Math.min(Config.Theme.notificationHeight,
+       before + third.height + view.spacing))
+   verify(background.height < Config.Theme.notificationHeight, "Three short cards should fit compactly")
+   model.remove(2)
+   wait(350)
+   compare(background.height, before)
+  }
+  function test_heightStableWhileScrolling() {
+   const model = Config.NotificationDaemon.notificationModel
+   for (let i = 0; i < 60; i++) {
+    const data = row(i, i % 3 ? "Short" : longBody.repeat(4))
+    data.summary = i % 3 ? "Brief" : longBody.repeat(3)
+    model.append(data)
+   }
+   wait(350)
+   const view = list()
+   const background = view.parent.parent
+   const bridge = background.parent
+   const height = background.height
+   const inputHeight = bridge.height
+   compare(height, Math.min(Config.Theme.notificationHeight, drawer.height - drawer.drawerY - 8))
+   for (let i = 0; i < view.count; i += 3) {
+    view.positionViewAtIndex(i, ListView.Beginning)
+    wait(30)
+    compare(background.height, height)
+    compare(bridge.height, inputHeight)
+   }
+  }
   function test_keyboardScroll() {
    const model = Config.NotificationDaemon.notificationModel
    for (let i = 0; i < 15; i++) model.append(row(i, i % 2 ? longBody : "Short"))

@@ -202,7 +202,12 @@ int main(int argc, char* argv[]) {
         std::string profile = "auto";
         if (!perfPath.empty()) {
             std::ifstream pFile(perfPath.c_str());
-            if (!(pFile >> profile)) profile = "auto";
+            // Match the toggle script's first-line state, including files
+            // without a trailing newline. Never publish arbitrary cache text.
+            std::string state;
+            std::getline(pFile, state);
+            if (state == "auto" || state == "powersave" || state == "performance")
+                profile = state;
         }
 
         const char delimiter = '\x1f';

@@ -324,7 +324,12 @@ Item {
         }
         const parsed = Object.values(seen)
         parsed.sort((a, b) => Number(b.active) - Number(a.active) || b.signal - a.signal)
-        return parsed.slice(0, 20)
+        const visible = parsed.slice(0, 20)
+        // Keep the password field's row if a concurrent scan pushes it below
+        // the display limit. An SSID absent from the full scan still cancels.
+        const prompted = parsed.find(n => n.ssid === root.awaitingPasswordFor)
+        if (prompted && !visible.includes(prompted)) visible[visible.length - 1] = prompted
+        return visible
     }
 
     Timer {

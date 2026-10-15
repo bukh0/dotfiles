@@ -92,6 +92,13 @@ ShellRoot {
                     check(network.signalIcon(10) === "󰤟" && network.signalIcon(25) === "󰤢"
                         && network.signalIcon(50) === "󰤥" && network.signalIcon(75) === "󰤨", "signal icon levels failed")
                     check(network.networks.length === 5, "SSID grouping failed")
+                    network.awaitingPasswordFor = "weak"
+                    const crowded = Array.from({length: 25}, (_, i) => "net" + i + ":90:WPA2:no:wlan0").join("\n")
+                        + "\nweak:1:WPA2:no:wlan0"
+                    const limited = network.parseScan(crowded)
+                    check(limited.length === 20 && limited.some(n => n.ssid === "weak"), "scan limit evicted password field")
+                    network.awaitingPasswordFor = ""
+
                     check(network.networks[0].ssid === "active", "weak active network sorted below others")
                     const backup = network.networks.find(n => n.ssid === "<b>Backup</b>")
                     check(JSON.stringify(backup.activeDevices) === '["wlan1"]', "inactive or duplicate AP added a disconnect target")

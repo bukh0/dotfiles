@@ -14,7 +14,7 @@ QtObject {
     readonly property var snapshot: sourcePlayers.map(p => ({
         player: p.dbusName,
         playerName: p.identity || p.dbusName,
-        title: p.trackTitle || "Nothing playing",
+        title: p.trackTitle || (p.playbackState === MprisPlaybackState.Stopped ? "Nothing playing" : "Unknown track"),
         artist: p.trackArtist || "",
         album: p.trackAlbum || "",
         artUrl: p.trackArtUrl || "",

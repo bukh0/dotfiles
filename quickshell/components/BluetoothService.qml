@@ -278,17 +278,19 @@ Item {
         id: actionProc
         property bool started: false
         onStarted: { started = true; actionLaunchCheck.stop() }
-        stdout: StdioCollector { id: actionOut }
-        onRunningChanged: {
-            if (!running && root.busy) actionFinalize.restart()
+        property bool _exited: false
+        property bool _streamDone: false
+        stdout: StdioCollector {
+            id: actionOut
+            onStreamFinished: {
+                actionProc._streamDone = true
+                if (actionProc._exited) root._finishAction()
+            }
         }
-    }
-
-    // Small grace period so the collector has certainly flushed.
-    Timer {
-        id: actionFinalize
-        interval: 40
-        onTriggered: root._finishAction()
+        onExited: {
+            actionProc._exited = true
+            if (actionProc._streamDone) root._finishAction()
+        }
     }
 
     // Safety net: if actionProc never starts, clear busy so the UI isn't
@@ -296,12 +298,14 @@ Item {
     Timer {
         id: actionLaunchCheck
         interval: 500
-        onTriggered: if (!actionProc.running && root.busy) root._finishAction()
+        onTriggered: if (!actionProc.started && !actionProc.running && root.busy) root._finishAction()
     }
 
     function _startAction(kind, mac, script, args) {
         if (root.busy || actionProc.running) return false
         actionProc.started = false
+        actionProc._exited = false
+        actionProc._streamDone = false
         root.busy = true
         root.actionKind = kind
         root.targetMac = mac || ""
@@ -315,7 +319,6 @@ Item {
     function _finishAction() {
         if (!root.busy) return
         actionLaunchCheck.stop()
-        actionFinalize.stop()
 
         // A failed spawn can leave StdioCollector.text from the previous run.
         const raw = actionProc.started ? (actionOut.text || "") : ""
@@ -350,14 +353,14 @@ Item {
             return
         }
 
-        const bad = lines.filter(l => /^(?:Failed to\b|org\.bluez\.Error\b)/i.test(l))
-        // Pairing often auto-connects, so the follow-up connect reports this.
-        if (bad.length > 0 && bad.every(l => /org\.bluez\.Error\.AlreadyConnected\b/i.test(l))) return
-
         if (rc === 124) {
             root.notify("Bluetooth Warning", "Timed out. Is the device on and in range?")
             return
         }
+        const bad = lines.filter(l => /^(?:Failed to\b|org\.bluez\.Error\b)/i.test(l))
+        // Pairing often auto-connects, so the follow-up connect reports this.
+        if (bad.length > 0 && bad.every(l => /org\.bluez\.Error\.AlreadyConnected\b/i.test(l))) return
+
         if (rc === 0 && bad.length === 0) return
 
         // Older bluetoothctl exits 0 even on failure, hence the text check.

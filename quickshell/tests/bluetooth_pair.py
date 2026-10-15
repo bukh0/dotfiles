@@ -32,7 +32,10 @@ def call(conn, sender, path, interface, method, args, invocation):
    '/org/bluez/hci0': {'org.bluez.Adapter1': {'Powered': GLib.Variant('b',True)}},
    device: {'org.bluez.Device1': props}},)))
  elif method == 'RegisterAgent':
-  agent=(sender,args.unpack()[0]); record('register'); invocation.return_value(None)
+  agent=(sender,args.unpack()[0]); record('register')
+  if Path(os.environ['TEST_PAIR_MODE']).read_text() == 'register-failure':
+   invocation.return_dbus_error('org.bluez.Error.Failed','Injected registration failure'); return
+  invocation.return_value(None)
  elif method == 'UnregisterAgent':
   record('unregister'); invocation.return_value(None)
  elif method == 'Pair':
@@ -75,6 +78,18 @@ class Dialog:
   if self.callback: self.callback(os.environ['TEST_RESPONSE'])
  def close(self): pass
 notification._NotificationDialog=Dialog
+import blueman.main.applet.BluezAgent as agent_module
+original_cleanup = agent_module.BluezAgent.unregister
+def record_cleanup(self):
+ original_cleanup(self)
+ with open(os.environ['TEST_EVENTS'], 'a') as log: log.write('local-unregister\n')
+agent_module.BluezAgent.unregister = record_cleanup
+if os.environ.get('TEST_LOCAL_REGISTER_FAILURE') == '1':
+ original_register = agent_module.BluezAgent.register
+ def fail_register(self):
+  original_register(self)
+  raise RuntimeError('Injected local registration failure')
+ agent_module.BluezAgent.register = fail_register
 if os.environ.get('TEST_CLEANUP_FAILURE') == '1':
  import blueman.main.applet.BluezAgent as agent_module
  original_unregister = agent_module.BluezAgent.unregister
@@ -105,15 +120,20 @@ with tempfile.TemporaryDirectory(prefix="qs-bluetooth-pair-") as directory:
                     break
                 time.sleep(.02)
             assert (stage / "ready").exists(), (stage / "server.log").read_text()
-            for response, mode, cleanup in (("confirm", "normal", "0"), ("deny", "normal", "0"), ("confirm", "already", "0"), ("confirm", "normal", "1")):
+            for response, mode, cleanup in (("confirm", "normal", "0"), ("deny", "normal", "0"), ("confirm", "already", "0"), ("confirm", "normal", "1"), ("confirm", "register-failure", "0"), ("confirm", "local-register-failure", "0")):
                 (stage / "mode").write_text(mode)
                 (stage / "events").write_text("")
                 result = subprocess.run([sys.executable, str(stage / "client.py"), str(ROOT / "native/bluetooth_pair.py")],
-                                        env=dict(env, TEST_RESPONSE=response, TEST_CLEANUP_FAILURE=cleanup), capture_output=True, text=True, timeout=12)
+                                        env=dict(env, TEST_RESPONSE=response, TEST_CLEANUP_FAILURE=cleanup, TEST_LOCAL_REGISTER_FAILURE="1" if mode == "local-register-failure" else "0"), capture_output=True, text=True, timeout=12)
                 expected = ["register", "pair", "trusted", "connect", "unregister"] if response == "confirm" else ["register", "pair", "unregister"]
-                assert result.returncode == (0 if response == "confirm" else 1), result.stdout + result.stderr
+                expected.append("local-unregister")
+                if mode == "register-failure":
+                    expected = ["register", "unregister", "local-unregister"]
+                elif mode == "local-register-failure":
+                    expected = ["local-unregister"]
+                assert result.returncode == (0 if response == "confirm" and "failure" not in mode else 1), result.stdout + result.stderr
                 assert (stage / "events").read_text().splitlines() == expected, result.stdout + result.stderr
-            print("PASS Bluetooth agent confirmation/rejection, trust/connect ordering, AlreadyExists recovery, and failing cleanup on a private bus")
+            print("PASS Bluetooth agent confirmation/rejection, trust/connect ordering, AlreadyExists recovery, registration failures, and failing cleanup on a private bus")
         finally:
             server.terminate()
             server.wait(timeout=5)
