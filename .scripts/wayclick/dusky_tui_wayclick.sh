@@ -55,8 +55,8 @@ register_items() {
 
     # Tab 0: Audio
     register 0 "Audio Pack"     "AUDIO_PACK|cycle||${audio_pack_options}||"           "audio_pack_1"
-    register 0 "Buffer Size"    'AUDIO_BUFFER_SIZE|cycle||128,256,512||'              "128"
-    register 0 "Sample Rate"    'AUDIO_SAMPLE_RATE|cycle||44100,48000||'              "48000"
+    register 0 "Buffer Size"    'AUDIO_BUFFER_SIZE|cycle||128,256,512||'              "256"
+    register 0 "Sample Rate"    'AUDIO_SAMPLE_RATE|cycle||44100,48000||'              "44100"
     register 0 "Mix Channels"   'AUDIO_MIX_CHANNELS|cycle||8,16,32,64||'             "16"
 
     # Tab 1: Devices

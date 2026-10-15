@@ -9,12 +9,12 @@ NOTES_DIR="$HOME/notes"
 
 MAIN_OPTIONS="1. Hyprland\n2. Notes\n3. Nvim\n4. Waybar\n5. Animations"
 
-CHOICE=$(echo -e "$MAIN_OPTIONS" | rofi -dmenu -i -p "󱊟 " -config "$ROFI_CONF")
+CHOICE=$(echo -e "$MAIN_OPTIONS" | rofi -dmenu -i -no-custom -p "󱊟 " -config "$ROFI_CONF")
 
 case "$CHOICE" in
   *Hyprland)
-    FILE=$(find "$HYPR_DIR" -maxdepth 1 -type f -name '*.lua' -printf '%f\n' | sort | rofi -dmenu -i -p "󰧨 Hyprland Configs" -config "$ROFI_CONF")
-    [[ -n "$FILE" ]] && kitty -e nvim "$HYPR_DIR/$FILE"
+    FILE=$(find "$HYPR_DIR" -maxdepth 1 -type f -name '*.lua' -printf '%f\n' | sort | rofi -dmenu -i -no-custom -p "󰧨 Hyprland Configs" -config "$ROFI_CONF")
+    [[ -n "$FILE" && "$FILE" != */* && -f "$HYPR_DIR/$FILE" ]] && kitty -e nvim "$HYPR_DIR/$FILE"
     ;;
 
   *Waybar)
@@ -40,8 +40,8 @@ case "$CHOICE" in
     ;;
 
   *Nvim)
-    FILE=$(find "$NVIM_DIR" -type f -name "*.lua" | sed "s|$NVIM_DIR/||" | rofi -dmenu -i -p " Nvim Configs" -config "$ROFI_CONF")
-    [[ -n "$FILE" ]] && kitty -e nvim "$NVIM_DIR/$FILE"
+    FILE=$(find -H "$NVIM_DIR" -type f -name "*.lua" -printf '%P\n' | rofi -dmenu -i -no-custom -p " Nvim Configs" -config "$ROFI_CONF")
+    [[ -n "$FILE" && "$FILE" != /* && "/$FILE/" != */../* && -f "$NVIM_DIR/$FILE" ]] && kitty -e nvim "$NVIM_DIR/$FILE"
     ;;
 
   *Notes)

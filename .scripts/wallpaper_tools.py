@@ -256,32 +256,36 @@ def smart_upscale(path, root, scale=2.0):
     path = Path(path)
     if not math.isfinite(scale) or scale <= 1:
         return None
-    with Image.open(path) as original:
-        if getattr(original, "n_frames", 1) > 1:
-            return None
-        image = ImageOps.exif_transpose(original)
-        width, height = image.size
-        factor = min(scale, 1920 / width, 1080 / height)
-        if factor <= 1:
-            return None
-        size = (max(1, int(width * factor)), max(1, int(height * factor)))
-        backups = root / ".originals_backup"
-        backups.mkdir(exist_ok=True)
-        backup = backups / f"{path.stem}-{digest(path)[:16]}{path.suffix}"
-        if not backup.exists():
-            shutil.copy2(path, backup)
-        fd, temporary = tempfile.mkstemp(prefix=".upscale-", suffix=path.suffix, dir=path.parent)
-        os.close(fd)
-        try:
-            resized = image.resize(size, Image.Resampling.LANCZOS)
-            options = {"quality": 95} if original.format in {"JPEG", "WEBP"} else {}
-            resized.save(temporary, format=original.format, **options)
-            os.chmod(temporary, path.stat().st_mode & 0o777)
-            os.replace(temporary, path)
-        finally:
-            if os.path.exists(temporary):
-                os.unlink(temporary)
-        return (width, height, *size)
+    try:
+        with Image.open(path) as original:
+            if getattr(original, "n_frames", 1) > 1:
+                return None
+            image = ImageOps.exif_transpose(original)
+            width, height = image.size
+            factor = min(scale, 1920 / width, 1080 / height)
+            if factor <= 1:
+                return None
+            size = (max(1, int(width * factor)), max(1, int(height * factor)))
+            backups = root / ".originals_backup"
+            backups.mkdir(exist_ok=True)
+            backup = backups / f"{path.stem}-{digest(path)[:16]}{path.suffix}"
+            if not backup.exists():
+                shutil.copy2(path, backup)
+            fd, temporary = tempfile.mkstemp(prefix=".upscale-", suffix=path.suffix, dir=path.parent)
+            os.close(fd)
+            try:
+                resized = image.resize(size, Image.Resampling.LANCZOS)
+                options = {"quality": 95} if original.format in {"JPEG", "WEBP"} else {}
+                resized.save(temporary, format=original.format, **options)
+                os.chmod(temporary, path.stat().st_mode & 0o777)
+                os.replace(temporary, path)
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+            return (width, height, *size)
+    except (OSError, ValueError) as error:
+        print(f"Cannot upscale {path.name}: {error}")
+        return None
 
 
 def process_directory(root, *, deduplicate=False, upscale=False, dry_run=False, sync=False):

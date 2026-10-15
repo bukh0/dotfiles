@@ -66,6 +66,14 @@ quickshell_stop() {
         quickshell_running || return 0
         sleep 0.1
     done
+    # Recheck profile ownership before escalating; the original PIDs may be gone.
+    mapfile -t pids < <(quickshell_pids)
+    for pid in "${pids[@]}"; do kill -KILL "$pid" 2>/dev/null || true; done
+    for _ in {1..10}; do
+        quickshell_running || return 0
+        sleep 0.1
+    done
+    quickshell_running || return 0
     printf 'Could not stop the running Quickshell profile\n' >&2
     return 1
 }

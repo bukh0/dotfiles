@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from PIL import Image, ImageDraw
 
@@ -47,6 +48,40 @@ class WallpaperThemeTests(unittest.TestCase):
             for gray, expected in ((240, "e-ink"), (20, "e-ink-dark")):
                 Image.new("RGB", (32, 32), (gray,) * 3).save(path)
                 self.assertEqual(wallpapers.classify_wallpaper(str(path)), expected)
+
+    def test_upscale_continues_after_corrupt_image(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            broken = root / "00-broken.png"
+            broken.write_bytes(b"not an image")
+            good = self.make_wallpaper(root, "nord")
+            wallpapers.process_directory(root, upscale=True)
+            self.assertEqual(broken.read_bytes(), b"not an image")
+            with Image.open(good) as image:
+                self.assertEqual(image.size, (240, 200))
+            self.assertTrue((root / "nord" / good.name).is_file())
+
+    def test_upscale_save_failure_preserves_original_and_cleans_temp(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = self.make_wallpaper(root, "nord")
+            before = path.read_bytes()
+            with patch.object(Image.Image, "save", side_effect=OSError("save failed")):
+                self.assertIsNone(wallpapers.smart_upscale(path, root))
+            self.assertEqual(path.read_bytes(), before)
+            self.assertEqual(list(root.glob(".upscale-*")), [])
+
+    def test_upscale_uses_detected_format_for_renamed_png(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for mode in ("P", "RGBA"):
+                with self.subTest(mode=mode):
+                    path = root / f"{mode}.jpg"
+                    Image.new(mode, (16, 16)).save(path, format="PNG")
+                    self.assertEqual(wallpapers.smart_upscale(path, root), (16, 16, 32, 32))
+                    with Image.open(path) as image:
+                        self.assertEqual(image.format, "PNG")
+                        self.assertEqual(image.mode, mode)
 
     def test_entry_points_preserve_library(self):
         for script in ("wallpaper_manager.py", "sort_wallpapers.py", "pywal-generate.py"):

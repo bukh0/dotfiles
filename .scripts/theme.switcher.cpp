@@ -125,7 +125,7 @@ std::vector<Wallpaper> scan(const fs::path& root) {
     }
     std::sort(walls.begin(), walls.end()); return walls;
 }
-int thumbOne(const fs::path& source, const fs::path& dest) {
+int thumbOne(const fs::path& source, const fs::path& dest, bool announce = true) {
     Temp temp(dest.string() + ".part.XXXXXX.jpg", 4);
     // Explicit format: mkstemp's random suffix does not identify JPEG.
     const std::string output = temp.path.string() + "[Q=82,keep=none]";
@@ -136,9 +136,11 @@ int thumbOne(const fs::path& source, const fs::path& dest) {
     if (!ok || fs::file_size(temp.path) == 0) return 1;
     fs::permissions(temp.path, fs::perms::owner_read | fs::perms::owner_write);
     fs::rename(temp.path, dest);
-    // One write per record keeps output from parallel workers intact.
-    const auto line = dest.string() + '\n';
-    if (write(STDOUT_FILENO, line.data(), line.size()) < 0) return 1;
+    if (announce) {
+        // One write per record keeps output from parallel workers intact.
+        const auto line = dest.string() + '\n';
+        if (write(STDOUT_FILENO, line.data(), line.size()) < 0) return 1;
+    }
     return 0;
 }
 int thumbnails(const std::vector<Wallpaper>& walls, const fs::path& cache) {
@@ -289,7 +291,7 @@ int main(int argc, char** argv) {
                 Wallpaper selected{wall, {}};
                 if (stat(wall.c_str(), &selected.info) != 0) throw std::runtime_error("Cannot read wallpaper metadata");
                 const auto input = selected.thumb(cache);
-                if ((!fs::is_regular_file(input) || fs::file_size(input) == 0) && thumbOne(wall, input) != 0)
+                if ((!fs::is_regular_file(input) || fs::file_size(input) == 0) && thumbOne(wall, input, false) != 0)
                     throw std::runtime_error("Cannot prepare wallpaper for Pywal");
                 if (!run("wal --backend colorthief -i " + quote(input.string()) + " -n -e -s -t -q"))
                     throw std::runtime_error("Pywal theme generation failed");

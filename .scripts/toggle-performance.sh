@@ -20,6 +20,9 @@ case "$mode" in
 esac
 state_tmp=$(mktemp "${PERF_STATE}.XXXXXX")
 trap 'rm -f -- "$state_tmp"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 printf '%s\n' "$next" > "$state_tmp"
 sudo auto-cpufreq --force="$cpu"
 # Commit the CPU state before GPU writes; failure there cannot leave the UI
