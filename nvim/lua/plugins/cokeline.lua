@@ -2,6 +2,7 @@ return {
   {
     "willothy/nvim-cokeline",
     event = "VeryLazy",
+    cmd = "ToggleCokeline",
     dependencies = {
       "nvim-lua/plenary.nvim",
       "nvim-tree/nvim-web-devicons",
@@ -136,6 +137,8 @@ return {
         },
       })
 
+      require("config.cokeline").setup()
+
       -- vim.diagnostic events don't trigger a tabline redraw on their own —
       -- force one so error/warning counts update the instant the LSP reports
       -- them, rather than waiting for the next unrelated redraw.
@@ -148,8 +151,9 @@ return {
       })
     end,
     keys = {
-      { "<S-h>", "<Plug>(cokeline-focus-prev)", desc = "Prev buffer" },
-      { "<S-l>", "<Plug>(cokeline-focus-next)", desc = "Next buffer" },
+      { "<leader>ub", function() require("config.cokeline").toggle() end, desc = "Toggle Cokeline buffer bar" },
+      { "<S-h>", function() require("config.cokeline").cycle(-1) end, desc = "Prev buffer" },
+      { "<S-l>", function() require("config.cokeline").cycle(1) end, desc = "Next buffer" },
     },
   }
 }

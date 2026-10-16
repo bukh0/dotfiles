@@ -3,6 +3,7 @@ require("config.lazy")
 require("config.keymaps")
 require("config.autocmds")
 require("config.transparency").setup()
+require("config.winbar").setup()
 
 local state = require("utils.state")
 local FALLBACK = "ayu-dark"
