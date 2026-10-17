@@ -71,6 +71,14 @@ declare -A SYNC_MAP=(
   ["$CONFIG/matugen"]="$DOTFILES/matugen"
   ["$CONFIG/waybar"]="$DOTFILES/waybar"
 
+  # mpv interface, controls, thumbnail previews and bundled fonts/scripts.
+  # Map only portable configuration; leave backups and playback history local.
+  ["$CONFIG/mpv/mpv.conf"]="$DOTFILES/mpv/mpv.conf"
+  ["$CONFIG/mpv/input.conf"]="$DOTFILES/mpv/input.conf"
+  ["$CONFIG/mpv/script-opts"]="$DOTFILES/mpv/script-opts"
+  ["$CONFIG/mpv/scripts"]="$DOTFILES/mpv/scripts"
+  ["$CONFIG/mpv/fonts"]="$DOTFILES/mpv/fonts"
+
   # --- Session env, GTK and cursor settings ---
   ["$CONFIG/uwsm"]="$DOTFILES/uwsm"
   ["$CONFIG/gtk-3.0/settings.ini"]="$DOTFILES/gtk-3.0/settings.ini"
