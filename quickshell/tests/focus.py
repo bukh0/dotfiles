@@ -5,6 +5,7 @@ import os, pathlib, re, subprocess, tempfile
 src=pathlib.Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='qs-focus-audit-') as d:
  p=pathlib.Path(d)
+ (p/'art#100% ?.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="red"/></svg>')
  s=(src/'components/ControlPanel.qml').read_text()
  s=re.sub(r'^import Quickshell.*\n','',s,flags=re.M).replace('PanelWindow {','Rectangle {',1)
  s=re.sub(r'    exclusionMode:.*\n', '', s)
@@ -54,6 +55,7 @@ with tempfile.TemporaryDirectory(prefix='qs-focus-audit-') as d:
   source = re.sub(r'^import Quickshell.*\n', '', source, flags=re.M)
   if name == 'MusicWidget.qml':
    source = source.replace('id: pager', 'id: pager; objectName: "auditPager"', 1)
+   source = source.replace('id: artImage', 'id: artImage; objectName: "auditArtwork"', 1)
   (p/name).write_text(source)
  (p/'MusicService.qml').write_text('''pragma Singleton
 import QtQuick
@@ -99,6 +101,19 @@ Item {
    NetworkService.awaitingPasswordFor = ""
    mouseMove(panel, 2, 2)
    wait(panel.slideDuration + 30)
+  }
+  function test_musicArtworkPath() {
+   panel.beginHoverOpen()
+   wait(50)
+   const art = findChild(panel, "auditArtwork")
+   verify(art !== null)
+   const old = MusicService.model.get(0).artUrl
+   try {
+    MusicService.model.setProperty(0, "artUrl", "ARTWORK_PATH")
+    tryCompare(art, "status", Image.Ready)
+    MusicService.model.setProperty(0, "artUrl", "ARTWORK_URL")
+    tryCompare(art, "status", Image.Ready)
+   } finally { MusicService.model.setProperty(0, "artUrl", old) }
   }
   function test_musicIndexDuringRemoval() {
    panel.beginHoverOpen()
@@ -373,6 +388,8 @@ Item {
  }
 }
 ''')
+ test_path = p/'tst_focus.qml'
+ test_path.write_text(test_path.read_text().replace('ARTWORK_PATH', str(p/'art#100% ?.svg')).replace('ARTWORK_URL', (p/'art#100% ?.svg').as_uri()))
  env=dict(os.environ,QT_QPA_PLATFORM='offscreen',XDG_RUNTIME_DIR=d)
  runner = qmltestrunner()
  r=subprocess.run([runner,'-input',str(p/'tst_focus.qml')],env=env,capture_output=True,text=True,timeout=40)

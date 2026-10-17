@@ -203,17 +203,21 @@ QtObject {
         }
     }
 
+    function localFileUrl(path) {
+        return "file://" + path.split("/").map(encodeURIComponent).join("/")
+    }
+
     function getIconSource(data) {
         if (!data) return ""
         if (data.image) {
             const img = data.image.toString()
             if (img.startsWith("file://") || img.startsWith("image://")) return img
-            return img.startsWith("/") ? "file://" + img : img
+            return img.startsWith("/") ? localFileUrl(img) : img
         }
         if (data.appIcon) {
             const icon = data.appIcon.toString()
             if (icon.startsWith("file://") || icon.startsWith("image://")) return icon
-            if (icon.startsWith("/")) return "file://" + icon
+            if (icon.startsWith("/")) return localFileUrl(icon)
             return Quickshell.iconPath(icon, true)
         }
         return ""

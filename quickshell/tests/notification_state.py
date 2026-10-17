@@ -10,6 +10,8 @@ from qt_tools import qmltestrunner
 ROOT = Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='qs-notification-state-') as directory:
     p = Path(directory)
+    icon_path = p / 'icon#100% ?é.svg'
+    icon_path.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="red"/></svg>')
     source = (ROOT / 'components/NotificationDaemon.qml').read_text()
     source = re.sub(r'^import Quickshell.*\n', '', source, flags=re.M)
     source = re.sub(r'    property FileView _dndStore: FileView \{.*?\n    \}', '''    property QtObject _dndStore: QtObject {
@@ -39,6 +41,7 @@ import QtTest
 import "." as Config
 Item {
  width: 1000; height: 800
+ Image { id: pathImage }
  Config.NotificationDrawer { id: drawer; width: 1000; height: 800 }
  Config.NotificationPopup { id: popup; x: 1100; width: 400 }
  Config.NotificationBell { id: bell; x: 930; y: (Config.Theme.barTotalHeight - height) / 2; width: 60; height: 30; z: 2; hoverBottomMargin: Math.max(0, (Config.Theme.barTotalHeight - height) / 2) }
@@ -83,6 +86,18 @@ Item {
   Config.NotificationDaemon.hoverCloseDelay = 20
   Config.NotificationDaemon.restoreTimestamps("{}")
   observedId = -1; removedActions = null; delivered = 0; removed = 0
+ }
+ function test_localImagePaths() {
+  const path = ICON_PATH
+  const url = ICON_URL
+  for (const data of [{image: path}, {appIcon: path}]) {
+   compare(Config.NotificationDaemon.getIconSource(data), url)
+   pathImage.source = Config.NotificationDaemon.getIconSource(data)
+   tryCompare(pathImage, "status", Image.Ready)
+  }
+  compare(Config.NotificationDaemon.getIconSource({image: url}), url)
+  compare(Config.NotificationDaemon.getIconSource({appIcon: url}), url)
+  compare(Config.NotificationDaemon.getIconSource({image: "image://provider/icon"}), "image://provider/icon")
  }
  function test_imageWithQuotedGreaterThan() {
   const n = notification(602)
@@ -263,7 +278,8 @@ Item {
  }
  }
 }
-'''.replace('PREVIEW_PATH', json.dumps(os.environ.get('QS_NOTIFICATION_PREVIEW', ''))))
+'''.replace('PREVIEW_PATH', json.dumps(os.environ.get('QS_NOTIFICATION_PREVIEW', '')))
+   .replace('ICON_PATH', json.dumps(str(icon_path))).replace('ICON_URL', json.dumps(icon_path.as_uri())))
     result = subprocess.run([qmltestrunner(), '-input', str(p / 'tst_state.qml')],
         env=dict(os.environ, QT_QPA_PLATFORM='offscreen', XDG_RUNTIME_DIR=directory),
         capture_output=True, text=True, timeout=15)

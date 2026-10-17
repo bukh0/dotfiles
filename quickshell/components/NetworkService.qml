@@ -389,11 +389,13 @@ Item {
                 // Only the NM secrets error means "ask for a password". A bare
                 // "password" match fires on SSIDs such as "password-net".
                 if (t.includes("secrets were required")) {
-                    const isRetry = root._lastPasswordFailureSsid === connectProc.targetSsid
-                    root._lastPasswordFailureSsid = connectProc.targetSsid
-                    root.awaitingPasswordScreen = connectProc.targetScreen
-                    root.awaitingPasswordFor = connectProc.targetSsid
-                    if (isRetry) root.commandError("Incorrect password for " + connectProc.targetSsid)
+                    if (!connectProc._promptCancelled) {
+                        const isRetry = root._lastPasswordFailureSsid === connectProc.targetSsid
+                        root._lastPasswordFailureSsid = connectProc.targetSsid
+                        root.awaitingPasswordScreen = connectProc.targetScreen
+                        root.awaitingPasswordFor = connectProc.targetSsid
+                        if (isRetry) root.commandError("Incorrect password for " + connectProc.targetSsid)
+                    }
                 } else if (stderrText.trim().length > 0) {
                     // Any other failure used to vanish silently.
                     root.commandError(stderrText.trim())
@@ -451,6 +453,7 @@ Item {
         property bool _started: false
         property bool _exited: false
         property bool _stderrDone: false
+        property bool _promptCancelled: false
         property string _password: ""
         property string _stderrText: ""
     }
@@ -463,6 +466,7 @@ Item {
         connectProc._started = false
         connectProc._exited = false
         connectProc._stderrDone = false
+        connectProc._promptCancelled = false
         connectSettledTimer.exitCode = -1
         connectProc.stdinEnabled = true
         connectProc.targetSsid = targetSsid
@@ -498,7 +502,11 @@ Item {
     function cancelPasswordPrompt(screenName) {
         if (screenName !== undefined
                 && !(awaitingPasswordFor !== "" && screenName === awaitingPasswordScreen)
-                && !(submittingPassword && screenName === submittingPasswordScreen)) return
+                && !(submittingPassword && screenName === submittingPasswordScreen)
+                && !(actionKind === "connect" && screenName === connectProc.targetScreen)) return
+        // Let the connection settle normally, but don't restore dismissed UI
+        // when an in-flight request reports missing secrets later.
+        if (actionKind === "connect") connectProc._promptCancelled = true
         awaitingPasswordFor = ""
         submittingPassword = false
         submittingPasswordScreen = ""

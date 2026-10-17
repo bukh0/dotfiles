@@ -174,3 +174,6 @@ subprocess.run(["python3", str(ROOT / "tests/focus.py")], check=True)
 
 # Music selection is published only after model reconciliation.
 subprocess.run(["python3", str(ROOT / "tests/music_sync.py")], check=True)
+
+# Late authentication failures respect prompt cancellation and output ownership.
+subprocess.run(["python3", str(ROOT / "tests/network_cancel.py")], check=True)

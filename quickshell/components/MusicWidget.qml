@@ -39,7 +39,7 @@ ColumnLayout {
     function normalizeArt(raw) {
         if (!raw) return ""
         const s = raw.toString()
-        return s.startsWith("/") ? "file://" + s : s
+        return s.startsWith("/") ? "file://" + s.split("/").map(encodeURIComponent).join("/") : s
     }
 
     // ── Inline MediaButton component ───────────────────────────

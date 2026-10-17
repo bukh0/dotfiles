@@ -142,8 +142,9 @@ Item {
 
         const all = Object.values(known)
 
+        // Connected devices need disconnect controls even without a bond.
         const paired = all
-            .filter(d => d.paired)
+            .filter(d => d.paired || d.connected)
             .map(d => ({ mac: d.mac, name: d.name, connected: d.connected, icon: d.icon }))
             .sort((a, b) => (Number(b.connected) - Number(a.connected)) || a.name.localeCompare(b.name))
 
