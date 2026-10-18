@@ -110,7 +110,7 @@ int main(int argc, char* argv[]) {
         if (total > lastTotal) {
             auto dT = total - lastTotal;
             auto dI = (idle > lastIdle) ? (idle - lastIdle) : 0ULL;
-            cpuPct = (dT > dI) ? (dT - dI) * 100 / dT : 0;
+            cpuPct = (dT > dI) ? ((dT - dI) * 100 + dT / 2) / dT : 0;
         }
         lastIdle = idle; lastTotal = total;
         std::string tooltipCpu = "CPU: " + std::to_string(cpuPct) + "%\\n" + cpuModel;
@@ -134,7 +134,7 @@ int main(int argc, char* argv[]) {
             std::cerr << "sysmon: failed to read /proc/meminfo" << std::endl;
             return 1;
         }
-        long ramPct = memTotal > 0 ? (memTotal - memAvail) * 100 / memTotal : 0;
+        long ramPct = memTotal > 0 ? ((memTotal - memAvail) * 100 + memTotal / 2) / memTotal : 0;
         std::string tooltipRam = "Total: " + std::to_string(memTotal / 1024) + " MB\\nAvailable: " + std::to_string(memAvail / 1024) +
                                  " MB\\nSwap: " + std::to_string((swapTotal - swapFree) / 1024) + " MB / " + std::to_string(swapTotal / 1024) + " MB";
 

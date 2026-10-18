@@ -168,6 +168,24 @@ Item {
     compare(bridge.height, inputHeight)
    }
   }
+  function test_resizeScrolledThenShrink() {
+   const model = Config.NotificationDaemon.notificationModel
+   for (let i = 0; i < 40; i++) model.append(row(i, i < 3 ? "Short" : longBody.repeat(i % 5 + 1)))
+   wait(350)
+   const view = list()
+   keyClick(Qt.Key_End)
+   wait(200)
+   const last = view.itemAtIndex(39)
+   verify(!!last)
+   verify(last.y + last.height <= view.contentY + view.height + 1, "End must expose the real last row")
+   drawer.width = 340
+   wait(350)
+   model.remove(3, 37)
+   wait(450)
+   verify(view.atYBeginning && view.atYEnd, "Remaining short rows must fit after resize/removal")
+   verify(view.parent.parent.height < Config.Theme.notificationHeight, "Unknown offscreen heights must not lock drawer at maximum")
+   verifyGeometry()
+  }
   function test_keyboardScroll() {
    const model = Config.NotificationDaemon.notificationModel
    for (let i = 0; i < 15; i++) model.append(row(i, i % 2 ? longBody : "Short"))

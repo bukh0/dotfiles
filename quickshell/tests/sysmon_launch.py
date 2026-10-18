@@ -41,12 +41,20 @@ ShellRoot {
   property bool restored: false
   property int idleTicks: 0
   property int phase: 0
+  property bool sawImmediate: false
   onTriggered: {
    if (!restored && SysmonService._restartDelay >= 1000) {
     restored = true
     Theme.sysmonPath = "''' + str(mock) + '''"
    }
+   if (phase === 0 && restored && SysmonService.cpuPercent === "61%" && SysmonService.ramPercent === "50%") {
+    if (SysmonService.cpuTemp !== "45°C" || SysmonService.powerProfile !== "auto") {
+     console.log("FAIL instantaneous sample missing"); Qt.quit(); return
+    }
+    sawImmediate = true
+   }
    if (phase === 0 && restored && SysmonService.cpuPercent === "37%") {
+    if (!sawImmediate) { console.log("FAIL instantaneous values delayed until delta sample"); Qt.quit(); return }
     SysmonService.watchers = 0
     phase = 1
    } else if (phase === 1 && ++idleTicks >= 6) {

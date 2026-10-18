@@ -7,6 +7,7 @@ import Quickshell.Hyprland
 import "."
 
 ShellRoot {
+    id: shell
     PersistentProperties {
         id: barState
         property bool shown: true
@@ -24,7 +25,7 @@ ShellRoot {
         function hide(): void { barState.shown = false }
         function show(): void { barState.shown = true }
         // Compatibility with older helpers: refresh real state, never latch their snapshot.
-        function setFullscreen(hidden: bool): void { Hyprland.refreshWorkspaces() }
+        function setFullscreen(hidden: bool): void { Hyprland.refreshWorkspaces(); Hyprland.refreshToplevels() }
     }
 
     // Profiles import Colors.qml through a symlink. Watch the actual target:
@@ -58,15 +59,35 @@ ShellRoot {
         return Quickshell.screens[0]
     }
 
+    Connections {
+        target: Hyprland
+        // Workspace hasFullscreen merges maximize and fullscreen. Refresh the
+        // client mode snapshot on compositor events, without polling.
+        function onRawEvent(event) {
+            if (event.name === "fullscreen" || event.name === "openwindow" || event.name === "movewindowv2")
+                Hyprland.refreshToplevels()
+        }
+    }
+
+    function barVisibleOn(screen) {
+        const monitor = screen ? Hyprland.monitorFor(screen) : null
+        const workspace = monitor ? monitor.activeWorkspace : null
+        const windows = workspace && workspace.toplevels ? workspace.toplevels.values : []
+        // Hyprland's hasFullscreen includes maximized windows (mode 1).
+        // Only true internal fullscreen (mode 2) should hide the bar.
+        return barState.shown && !windows.some(window =>
+            window.lastIpcObject && Number(window.lastIpcObject.fullscreen) === 2)
+    }
+
     NotificationDrawer {
         id: notificationDrawer
         screen: NotificationDaemon.surfaceScreen || getActiveScreen()
-        barHeight: barState.shown ? Theme.barTotalHeight : 0
+        barHeight: shell.barVisibleOn(screen) ? Theme.barTotalHeight : 0
     }
 
     NotificationPopup {
         id: notifPopup
-        barHeight: barState.shown ? Theme.barTotalHeight : 0
+        barHeight: shell.barVisibleOn(screen) ? Theme.barTotalHeight : 0
     }
 
     Connections {
@@ -87,7 +108,7 @@ ShellRoot {
                 Bar {
                     id: bar
                     screen: modelData
-                    visible: barState.shown
+                    visible: shell.barVisibleOn(output.modelData)
                 }
             }
         }

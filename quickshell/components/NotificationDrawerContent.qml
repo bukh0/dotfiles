@@ -64,8 +64,7 @@ Rectangle {
         sequence: "End"
         enabled: root.isOpen && NotificationDaemon.drawerPinned
         onActivated: {
-            notifList.scrollTo(notifList.contentY)
-            notifList.positionViewAtEnd()
+            notifList.scrollToEnd()
         }
     }
 
@@ -240,6 +239,19 @@ Rectangle {
                 }
                 onCountChanged: Qt.callLater(() => refreshMeasurements(false))
                 onWidthChanged: Qt.callLater(() => refreshMeasurements(true))
+
+                function scrollToEnd() {
+                    scrollTo(contentY)
+                    positionViewAtEnd()
+                    // The first jump creates variable-height tail delegates.
+                    // Align again once their real sizes have reached the layout.
+                    Qt.callLater(function() {
+                        notifList.forceLayout()
+                        notifList.positionViewAtEnd()
+                        const last = notifList.itemAtIndex(notifList.count - 1)
+                        if (last) notifList.contentY = Math.max(notifList.originY, last.y + last.height - notifList.height)
+                    })
+                }
 
                 function scrollTo(y) {
                     wheelAnimation.running = false

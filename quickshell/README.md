@@ -52,3 +52,9 @@ To inspect the floating bar's real Wayland input region, run
 `QS_TEST_BAR_MASK=1 python3 tests/profile_load.py`. This briefly shows the test
 bar without reserving screen space or moving the pointer, and checks that bell
 and clock hit extensions are included while unrelated margins remain excluded.
+
+Super+F maximizes while keeping the bar visible. Super+Shift+F enters fullscreen
+and hides only that monitor's bar. Manual bar visibility remains independent.
+`python3 tests/bar_visibility.py` checks these modes and notification offsets.
+Additional audit regressions: `tests/network_command.py`, `tests/bluetooth_scan.py`
+and `tests/sysmon_sampling.py`.

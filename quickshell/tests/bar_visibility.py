@@ -10,22 +10,27 @@ controls=controls.replace('PersistentProperties {','QtObject {').replace('IpcHan
 start=source.index('            Item {',source.index('    Variants {'))
 output=source[start:source.index('\n        }\n    }\n}',start)].strip()
 output=output.replace('Hyprland.','fakeHyprland.').replace('Bar {','Rectangle {\n                    property var screen\n                    objectName: "bar"')
+visibility = source[source.index('    function barVisibleOn('):source.index('    NotificationDrawer {')].replace('Hyprland.', 'fakeHyprland.')
 with tempfile.TemporaryDirectory(prefix='qs-bar-visibility-') as directory:
  p=Path(directory)
  (p/'tst_bar.qml').write_text('''import QtQuick
 import QtTest
 Item {
+ id: shell
  width: 800; height: 600
  QtObject { id: notifications; property bool isDrawerOpen: false }
  QtObject { id: fakeHyprland; property int refreshes: 0
   function monitorFor(screen) { return screen }
   function refreshWorkspaces() { refreshes++ }
+  function refreshToplevels() {}
  }
-'''+controls+'''
+'''+controls+visibility+'''
  component Output: '''+output+'''
- QtObject { id: firstWorkspace; property bool hasFullscreen: false }
+ QtObject { id: client; property var lastIpcObject: ({fullscreen: 0, fullscreenClient: 0}) }
+ QtObject { id: secondClient; property var lastIpcObject: ({fullscreen: 0}) }
+ QtObject { id: firstWorkspace; property bool hasFullscreen: false; property var toplevels: ({values: [client]}) }
  QtObject { id: otherWorkspace; property bool hasFullscreen: false }
- QtObject { id: secondWorkspace; property bool hasFullscreen: false }
+ QtObject { id: secondWorkspace; property bool hasFullscreen: false; property var toplevels: ({values: [secondClient]}) }
  QtObject { id: first; property var activeWorkspace: firstWorkspace }
  QtObject { id: second; property var activeWorkspace: secondWorkspace }
  Output { id: a; modelData: first }
@@ -34,25 +39,44 @@ Item {
   name: "BarVisibility"; when: windowShown
   function bar(item) { return findChild(item,"bar") }
   function init() {
+   client.lastIpcObject = {fullscreen: 0}; secondClient.lastIpcObject = {fullscreen: 0}
+   firstWorkspace.toplevels = {values: [client]}
    first.activeWorkspace=firstWorkspace;second.activeWorkspace=secondWorkspace
    firstWorkspace.hasFullscreen=false;secondWorkspace.hasFullscreen=false
    otherWorkspace.hasFullscreen=false;controls.show()
   }
-  function test_fullscreenDoesNotHideBar() {
+  function test_maximizeVersusFullscreen() {
    compare(bar(a).visible,true);compare(bar(b).visible,true)
    firstWorkspace.hasFullscreen=true
-   compare(bar(a).visible,true);compare(bar(b).visible,true)
-   firstWorkspace.hasFullscreen=false
-   compare(bar(a).visible,true)
-   firstWorkspace.hasFullscreen=true;first.activeWorkspace=null
+   client.lastIpcObject = {fullscreen: 1, fullscreenClient: 1}
+   compare(bar(a).visible,true,"Super+F maximizes without hiding bar")
+   client.lastIpcObject = {fullscreen: 2, fullscreenClient: 2}
+   compare(bar(a).visible,false,"Super+Shift+F hides only its monitor's bar")
+   compare(bar(b).visible,true)
+   client.lastIpcObject = {fullscreen: 0, fullscreenClient: 2}
+   compare(bar(a).visible,true,"Client-requested fake fullscreen must not hide the bar")
+   client.lastIpcObject = {fullscreen: 2}
+   first.activeWorkspace=null
    compare(bar(a).visible,true)
   }
-  function test_workspaceSwitch() {
-   firstWorkspace.hasFullscreen=true
+  function test_workspaceSwitchAndClose() {
+   client.lastIpcObject = {fullscreen: 2}
    first.activeWorkspace=otherWorkspace
    compare(bar(a).visible,true)
    first.activeWorkspace=firstWorkspace
+   compare(bar(a).visible,false)
+   firstWorkspace.toplevels = {values: []}
    compare(bar(a).visible,true)
+  }
+  function test_notificationOffsets() {
+   client.lastIpcObject = {fullscreen: 2}
+   compare(shell.barVisibleOn(first),false)
+   compare(shell.barVisibleOn(second),true)
+   client.lastIpcObject = {fullscreen: 1}
+   compare(shell.barVisibleOn(first),true)
+   controls.hide()
+   compare(shell.barVisibleOn(first),false)
+   compare(shell.barVisibleOn(second),false)
   }
   function test_manualPreference() {
    notifications.isDrawerOpen=true
@@ -66,9 +90,9 @@ Item {
   function test_staleCompatibilityCall() {
    controls.setFullscreen(true)
    compare(bar(a).visible,true);compare(bar(b).visible,true)
-   firstWorkspace.hasFullscreen=true;controls.setFullscreen(false)
-   compare(bar(a).visible,true);compare(bar(b).visible,true)
-   firstWorkspace.hasFullscreen=false
+   client.lastIpcObject = {fullscreen: 2};controls.setFullscreen(false)
+   compare(bar(a).visible,false);compare(bar(b).visible,true)
+   client.lastIpcObject = {fullscreen: 0}
    compare(bar(a).visible,true)
   }
  }

@@ -187,6 +187,40 @@ Item {
    wait(300)
    compare(popup.activeCount,0,"Three dismissals should dismiss three cards")
   }
+  function test_oldestPersistentYields() {
+   popup.persistentDisplayDuration=80
+   for (let id=801; id<=804; id++) popup.showNotification(entry(id,0))
+   compare(JSON.stringify(popup.yieldingIds), JSON.stringify([801]))
+   wait(400)
+   compare(popup._activeIndex(801), -1)
+   verify(popup._activeIndex(802) >= 0 && popup._activeIndex(803) >= 0)
+   compare(popup.activeCount,3)
+  }
+  function test_hoveredOldestDoesNotBlockYield() {
+   popup.persistentDisplayDuration=80
+   for (let id=811; id<=813; id++) popup.showNotification(entry(id,0))
+   wait(300)
+   const oldest = descendants(popup).find(item => item.text === "Alert 811")
+   mouseMove(oldest, 5, 5)
+   wait(30)
+   popup.showNotification(entry(814,0))
+   compare(JSON.stringify(popup.yieldingIds), JSON.stringify([812]))
+   wait(400)
+   verify(popup._activeIndex(811) >= 0)
+   compare(popup._activeIndex(812), -1)
+  }
+  function test_closingCardsRejectActions() {
+   const data = entry(820,0)
+   data.actions = [{identifier: "default", text: "Open"}]
+   popup.showNotification(data)
+   wait(300)
+   const button = descendants(popup).find(item => item.text === "Open" && typeof item.click === "function")
+   popup.dismiss()
+   verify(!button.enabled, "Fading controls must not accept clicks")
+   const before = Config.NotificationDaemon.invoked
+   mouseClick(button)
+   compare(Config.NotificationDaemon.invoked, before)
+  }
   function test_oneWaitingPersistent() {
    popup.persistentDisplayDuration=60
    for(let id=201;id<=204;id++) popup.showNotification(entry(id,0))

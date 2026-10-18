@@ -383,9 +383,11 @@ Item {
     function setPower(on) {
         // rfkill first: a soft-blocked adapter otherwise fails with
         // "org.bluez.Error.Blocked".
-        return root._startAction("power", "",
+        const accepted = root._startAction("power", "",
             on ? "rfkill unblock bluetooth 2>/dev/null; timeout 15 bluetoothctl power on"
                : "timeout 15 bluetoothctl power off", [])
+        if (accepted && !on) stopScan()
+        return accepted
     }
 
     function toggleDevice(mac, connected) {
@@ -421,8 +423,15 @@ Item {
         onTriggered: root.scanning = false
     }
 
+    function stopScan() {
+        scanProc.running = false
+        root.scanning = false
+    }
+
+    onPoweredChanged: if (!powered) stopScan()
+
     function scan() {
-        if (!root.powered || scanProc.running) return
+        if (!root.powered || root.actionKind === "power" || scanProc.running) return
         root.scanning = true
         scanProc.running = true
     }

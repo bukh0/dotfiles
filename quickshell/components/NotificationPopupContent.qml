@@ -25,6 +25,23 @@ Rectangle {
         for (let i = 0; i < active.count; i++) if (active.get(i).closing) count++
         return count
     }
+    // Pick the oldest eligible cards explicitly, independent of timer order.
+    readonly property var yieldingIds: {
+        const revision = rev
+        const needed = Math.max(0, queueCount - closingCount)
+        const ids = []
+        for (let i = active.count - 1; i >= 0 && ids.length < needed; i--) {
+            const row = active.get(i)
+            const data = store[row.notifId]
+            if (!row.closing && !row.hovered && data && data.urgency !== criticalUrgency && _durationFor(data) === 0)
+                ids.push(row.notifId)
+        }
+        return ids
+    }
+    function setHovered(id, hovered) {
+        const index = _activeIndex(id)
+        if (index >= 0) active.setProperty(index, "hovered", hovered)
+    }
     property var store: ({})
     property int rev: 0
     signal updated(int id)
@@ -51,7 +68,7 @@ Rectangle {
     }
     function newestId() { return active.count ? active.get(0).notifId : -1 }
     function _put(data) { store[data.notifId] = data; rev++ }
-    function _open(data) { _put(data); active.insert(0, {notifId: data.notifId, closing: false}) }
+    function _open(data) { _put(data); active.insert(0, {notifId: data.notifId, closing: false, hovered: false}) }
     function _fill() {
         while (_queue.length && active.count < _max()) {
             const next = _queue[0]
@@ -151,6 +168,8 @@ Rectangle {
                 readonly property var entry: { popup.rev; return popup.store[notifId] || null }
                 readonly property int duration: entry ? popup._durationFor(entry) : 0
                 readonly property bool critical: entry !== null && entry.urgency === popup.criticalUrgency
+                readonly property bool shouldYield: popup.yieldingIds.includes(notifId)
+                onShouldYieldChanged: syncTimeout(false)
                 property bool shown: false
                 required property bool closing
                 width: stack.width
@@ -162,7 +181,7 @@ Rectangle {
                     else { removeTimer.stop(); syncTimeout(true) }
                 }
                 function syncTimeout(reset) {
-                    if (closing || critical || hover.hovered || (duration === 0 && popup.queueCount <= popup.closingCount)) hideTimer.stop()
+                    if (closing || critical || hover.hovered || (duration === 0 && !shouldYield)) hideTimer.stop()
                     else if (reset || !hideTimer.running) hideTimer.restart()
                 }
                 Timer { id: removeTimer; interval: 220; onTriggered: popup._remove(slot.notifId) }
@@ -171,7 +190,7 @@ Rectangle {
                     interval: slot.duration > 0 ? slot.duration : popup.persistentDisplayDuration
                     onTriggered: {
                         // Closing cards already reserve slots for queued entries.
-                        if (!slot.critical && (slot.duration > 0 || popup.queueCount > popup.closingCount)) slot.beginClose()
+                        if (!slot.critical && (slot.duration > 0 || slot.shouldYield)) slot.beginClose()
                     }
                 }
                 Connections {
@@ -185,6 +204,7 @@ Rectangle {
                 }
                 Rectangle {
                     id: card
+                    enabled: !slot.closing
                     width: parent.width
                     implicitHeight: content.implicitHeight + 24
                     height: implicitHeight
@@ -298,7 +318,13 @@ Rectangle {
 
                         }
                     }
-                    HoverHandler { id: hover; onHoveredChanged: slot.syncTimeout(true) }
+                    HoverHandler {
+                        id: hover
+                        onHoveredChanged: {
+                            popup.setHovered(slot.notifId, hovered)
+                            slot.syncTimeout(true)
+                        }
+                    }
                     // Link and action controls own their clicks; other taps activate the default action.
                     TapHandler {
                         onTapped: eventPoint => {

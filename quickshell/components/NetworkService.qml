@@ -55,21 +55,48 @@ Item {
     Process {
         id: cmdProc
         property bool started: false
+        property bool _exited: false
+        property bool _stderrDone: false
+        property string _stderrText: ""
         onStarted: { started = true; commandLaunchCheck.stop() }
         running: false
         stderr: StdioCollector {
-            onStreamFinished: root.reportStderr(text.trim())
+            onStreamFinished: {
+                if (!cmdProc.started) return // Failed spawns can retain old collector text.
+                cmdProc._stderrText = text
+                cmdProc._stderrDone = true
+                commandSettled.restart()
+            }
         }
-        onRunningChanged: if (!running) root.finishCommand()
+        onExited: {
+            cmdProc._exited = true
+            commandSettled.restart()
+        }
+        onRunningChanged: {
+            if (!running && !started && root.actionKind === "command") {
+                _exited = true
+                _stderrDone = true
+                commandSettled.restart()
+            }
+        }
+    }
+
+    // Finalize outside process signals: a settlement listener may start a new
+    // command immediately, after both the exit and collector callbacks return.
+    Timer {
+        id: commandSettled
+        interval: 0
+        onTriggered: root.finishCommand()
     }
 
     function finishCommand() {
-        if (root.actionKind !== "command") return
+        if (root.actionKind !== "command" || !cmdProc._exited || !cmdProc._stderrDone) return
         commandLaunchCheck.stop()
-        root.actionKind = ""
-        root.targetSsid = ""
         if (!cmdProc.started) root.commandError("Could not start network command")
+        else root.reportStderr(cmdProc._stderrText.trim())
+        root.targetSsid = ""
         root.refresh()
+        root.actionKind = ""
         root.connectionSettled()
         root._drainMonitor()
     }
@@ -77,7 +104,13 @@ Item {
     Timer {
         id: commandLaunchCheck
         interval: 500
-        onTriggered: if (!cmdProc.started && !cmdProc.running) root.finishCommand()
+        onTriggered: {
+            if (!cmdProc.started && !cmdProc.running && root.actionKind === "command") {
+                cmdProc._exited = true
+                cmdProc._stderrDone = true
+                commandSettled.restart()
+            }
+        }
     }
 
     function clearStatus() {
@@ -98,6 +131,10 @@ Item {
         root.targetSsid = commandSsid || ""
         root.actionKind = "command"
         cmdProc.started = false
+        cmdProc._exited = false
+        cmdProc._stderrDone = false
+        cmdProc._stderrText = ""
+        commandSettled.stop()
         commandLaunchCheck.restart()
         cmdProc.command = cmd
         cmdProc.running = true

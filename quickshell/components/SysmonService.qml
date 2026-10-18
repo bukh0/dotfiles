@@ -101,21 +101,20 @@ Item {
             onRead: line => {
                 const parts = line.split("\u001f")
                 if (parts.length >= 11) {
-                    // The first line only establishes CPU/network baselines.
-                    // Keep cached samples until a full measurement interval passes.
-                    if (root._skipFirst) { root._skipFirst = false; return }
-                    root.ramPercent   = parts[0]
-                    root.tooltipRam   = parts[1].replace(/\\n/g, "\n")
-                    root.cpuPercent   = parts[2]
-                    root.tooltipCpu   = parts[3].replace(/\\n/g, "\n")
-                    root.rxSpeed      = parts[4]
-                    root.txSpeed      = parts[5]
-                    root.tooltipNet   = parts[6].replace(/\\n/g, "\n")
-                    root.cpuTemp      = parts[7]
-                    root.cpuHot       = parts[8] === "1"
-                    root.tooltipTemp  = parts[9].replace(/\\n/g, "\n")
+                    root.ramPercent = parts[0]
+                    root.tooltipRam = parts[1].replace(/\\n/g, "\n")
+                    root.cpuTemp = parts[7]
+                    root.cpuHot = parts[8] === "1"
+                    root.tooltipTemp = parts[9].replace(/\\n/g, "\n")
                     root.powerProfile = parts[10]
                     root.tooltipProfile = `Power Profile: ${parts[10]}`
+                    // Only delta metrics need a full measurement interval.
+                    if (root._skipFirst) { root._skipFirst = false; return }
+                    root.cpuPercent = parts[2]
+                    root.tooltipCpu = parts[3].replace(/\\n/g, "\n")
+                    root.rxSpeed = parts[4]
+                    root.txSpeed = parts[5]
+                    root.tooltipNet = parts[6].replace(/\\n/g, "\n")
                 }
             }
         }
