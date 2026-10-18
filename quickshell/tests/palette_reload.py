@@ -40,12 +40,19 @@ with tempfile.TemporaryDirectory(prefix="qs-palette-reload-") as directory:
         try:
             for index, colour in enumerate(("#112233", "#445566", "#778899")):
                 if index:
+                    # Multiple atomic writes must produce only the final reload.
+                    update("#abcdef")
+                    time.sleep(0.06)
+                    update("#fedcba")
+                    time.sleep(0.06)
                     update(colour)
                 deadline = time.monotonic() + 5
                 while "PALETTE " + colour not in log_path.read_text():
                     assert process.poll() is None and time.monotonic() < deadline, log_path.read_text()
                     time.sleep(0.05)
             assert process.poll() is None, log_path.read_text()
+            assert "PALETTE #abcdef" not in log_path.read_text(), log_path.read_text()
+            assert "PALETTE #fedcba" not in log_path.read_text(), log_path.read_text()
             print("PASS successive atomic palette replacements reload colours in the same process")
         finally:
             process.terminate()

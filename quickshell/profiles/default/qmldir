@@ -30,3 +30,7 @@ singleton MusicService 1.0 MusicService.qml
 singleton SysmonService 1.0 SysmonService.qml
 NotificationActions 1.0 NotificationActions.qml
 NotificationButton 1.0 NotificationButton.qml
+
+BaseTheme 1.0 BaseTheme.qml
+NotificationPopupContent 1.0 NotificationPopupContent.qml
+NotificationDrawerContent 1.0 NotificationDrawerContent.qml

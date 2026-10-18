@@ -31,7 +31,10 @@ Item {
    plain.text = '<int> & "quoted"'
    styled.text = Body.styled('&lt;int&gt; &amp; &quot;quoted&quot;')
    compare(styled.implicitWidth,plain.implicitWidth)
-   compare(Body.styled('<img alt="a > b" src="https://example.invalid/x"><a href="https://example.invalid">link</a>'), 'link')
+   compare(Body.styled('<img alt="a > b" src="https://example.invalid/x"><a href="https://example.invalid">link</a>'), '<a href="https://example.invalid">link</a>')
+   compare(Body.styled('<a href="file:///tmp/test">file</a>'), 'file')
+   compare(Body.styled('<a href="javascript:alert(1)">bad</a>'), 'bad')
+   compare(Body.styled('<a href="https://example.invalid/?a=1&amp;b=2">web</a>'), '<a href="https://example.invalid/?a=1&amp;b=2">web</a>')
   }
  }
 }

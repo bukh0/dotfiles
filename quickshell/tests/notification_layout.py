@@ -12,14 +12,9 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-layout-') as directory:
     profile = p / 'profile'
     profile.mkdir()
     for name in ('NotificationDrawer.qml', 'NotificationButton.qml', 'NotificationActions.qml', 'Colors.qml', 'NotificationBody.js'):
-        source = (ROOT / 'components' / name).read_text()
-        if name == 'NotificationDrawer.qml':
-            source = re.sub(r'^import Quickshell.*\n', '', source, flags=re.M)
-            source = source.replace('PanelWindow {', 'Rectangle {', 1)
-            source = re.sub(r'^    (?:WlrLayershell\.\w+|exclusionMode):.*\n', '', source, flags=re.M)
-            source = re.sub(r'^    (?:anchors|mask: Region) \{.*?\n    \}', '', source, flags=re.S | re.M)
-            source = source.replace('NotificationUrgency.Critical', '2')
+        source = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
         (profile / name).write_text(source)
+    (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
     (profile / 'Theme.qml').write_text((ROOT / 'profiles' / os.environ.get('QS_TEST_PROFILE', 'default') / 'Theme.qml').read_text()
         .replace('import Quickshell\n', '').replace('Quickshell.shellPath("../../native/sysmon")', '""'))
     (profile / 'NotificationDaemon.qml').write_text('''pragma Singleton
@@ -41,7 +36,7 @@ QtObject {
  function closeNotificationById(id) {}
 }
 ''')
-    (profile / 'qmldir').write_text('singleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton NotificationDaemon 1.0 NotificationDaemon.qml\n')
+    (profile / 'qmldir').write_text('BaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton NotificationDaemon 1.0 NotificationDaemon.qml\n')
     (p / 'tst_layout.qml').write_text('''import QtQuick
 import QtTest
 import "profile" as Config
@@ -73,7 +68,7 @@ Item {
    wait(300)
    const body = descendants(drawer).find(item => typeof item.text === "string" && item.text.includes("Details"))
    verify(!!body)
-   compare(body.text, '<b>Message</b>  Details')
+   compare(body.text, '<b>Message</b>  <a href="https://example.invalid">Details</a>')
   }
   function verifyGeometry() {
    const view = list()

@@ -26,6 +26,7 @@ PanelWindow {
 
     implicitHeight: Theme.floatingBar ? barHeight + Theme.barOuterMargin * 2 : barHeight
     color: Theme.floatingBar ? "transparent" : Colors.surface
+    mask: Theme.floatingBar && layoutLoader.item ? layoutLoader.item.inputRegion : null
 
     property color pillBg: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.99)
     property color pillBorder: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
@@ -46,6 +47,7 @@ PanelWindow {
         anchors.margins: Theme.floatingBar ? Theme.barOuterMargin : 0
 
         Loader {
+            id: layoutLoader
             anchors.fill: parent
             sourceComponent: Theme.floatingBar ? floatingBarComponent : classicBarComponent
         }
@@ -95,8 +97,14 @@ PanelWindow {
 
         Item {
             anchors.fill: parent
+            property Region inputRegion: Region {
+                // Include the intentional clock padding and bell-to-drawer seam.
+                regions: [Region { item: leftPill }, Region { item: centerPillWrap },
+                    Region { item: rightPill }, Region { item: bell.hitArea }, Region { item: centerMa }]
+            }
 
             Rectangle {
+                id: leftPill
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 height: root.barHeight
@@ -146,6 +154,7 @@ PanelWindow {
             }
 
             Rectangle {
+                id: rightPill
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 height: root.barHeight
@@ -163,6 +172,7 @@ PanelWindow {
                     NetworkIndicator {}
                     BatteryIndicator {}
                     NotificationBell {
+                        id: bell
                         screen: root.screen
                         hoverBottomMargin: Math.max(0, (root.implicitHeight - height) / 2)
                     }

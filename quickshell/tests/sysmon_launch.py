@@ -14,23 +14,54 @@ import QtQuick
 QtObject { property string sysmonPath: "/nonexistent/qs-sysmon-test" }
 ''')
     mock = stage / "sysmon"
-    mock.write_text("#!/bin/sh\nprintf '%b\\n' '50%\\0037RAM\\003737%\\0037CPU\\00371 B/s\\00372 B/s\\0037Net\\003745°C\\00370\\0037Temp\\0037auto'\nexec sleep 10\n")
+    baseline = "50%\x1fRAM\x1f0%\x1fCPU\x1f0 B/s\x1f0 B/s\x1fNet\x1f45°C\x1f0\x1fTemp\x1fauto"
+    measured = "50%\x1fRAM\x1f37%\x1fCPU\x1f1 B/s\x1f2 B/s\x1fNet\x1f45°C\x1f0\x1fTemp\x1fauto"
+    mock.write_text("#!/bin/sh\nprintf '%s\\n' '" + baseline + "'\nsleep 0.4\nprintf '%s\\n' '" + measured + "'\nexec sleep 10\n")
     mock.chmod(0o755)
     (stage / "shell.qml").write_text('''import QtQuick
 import Quickshell
 import "."
 ShellRoot {
- Component.onCompleted: SysmonService.initialize()
+ Component.onCompleted: {
+  SysmonService.cpuPercent = "61%"
+  SysmonService.rxSpeed = "9 B/s"
+  SysmonService.watchers++
+ }
+ Connections {
+  target: SysmonService
+  function onCpuPercentChanged() {
+   if (SysmonService.cpuPercent === "0%") { console.log("FAIL baseline overwrote cached CPU"); Qt.quit() }
+  }
+  function onRxSpeedChanged() {
+   if (SysmonService.rxSpeed === "0 B/s") { console.log("FAIL baseline overwrote cached network rate"); Qt.quit() }
+  }
+ }
  Timer {
   interval: 100; running: true; repeat: true
   property bool restored: false
+  property int idleTicks: 0
+  property int phase: 0
   onTriggered: {
    if (!restored && SysmonService._restartDelay >= 1000) {
     restored = true
     Theme.sysmonPath = "''' + str(mock) + '''"
    }
-   if (restored && SysmonService.cpuPercent === "37%") {
-    console.log("SYSMON RECOVERY PASS")
+   if (phase === 0 && restored && SysmonService.cpuPercent === "37%") {
+    SysmonService.watchers = 0
+    phase = 1
+   } else if (phase === 1 && ++idleTicks >= 6) {
+    if (SysmonService.sampling || SysmonService.cpuPercent !== "37%") {
+     console.log("FAIL idle sampling or lost cached sample"); Qt.quit(); return
+    }
+    SysmonService.watchers = 2
+    phase = 2
+   } else if (phase === 2 && SysmonService.sampling) {
+    SysmonService.watchers--
+    phase = 3
+   } else if (phase === 3) {
+    if (!SysmonService.sampling) console.log("FAIL remaining watcher lost sampling")
+    else console.log("SYSMON RECOVERY PASS")
+    SysmonService.watchers = 0
     Qt.quit()
    }
   }
@@ -44,3 +75,4 @@ ShellRoot {
     print(output)
     assert result.returncode == 0 and "SYSMON RECOVERY PASS" in output and "FAIL " not in output
     assert output.count("sysmon: failed to start") >= 2
+    assert "Unable to assign" not in output and "ReferenceError" not in output

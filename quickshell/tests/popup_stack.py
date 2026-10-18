@@ -6,13 +6,9 @@ ROOT=Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='qs-popup-stack-') as directory:
  p=Path(directory); profile=p/'profile';profile.mkdir()
  for name in ('NotificationPopup.qml','NotificationButton.qml','NotificationActions.qml','Colors.qml', 'NotificationBody.js'):
-  source=(ROOT/'components'/name).read_text()
-  if name == 'NotificationPopup.qml':
-   source=re.sub(r'^import Quickshell.*\n','',source,flags=re.M).replace('PanelWindow {','Rectangle {\n    property var screen: null',1)
-   source=re.sub(r'^    (?:anchors|margins) \{.*?\n    \}', '',source,flags=re.S | re.M)
-   source=re.sub(r'^    WlrLayershell\.\w+:.*\n', '', source, flags=re.M)
-   source=source.replace('NotificationUrgency.Critical','2')
+  source=(ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
   (profile/name).write_text(source)
+ (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
  (profile/'Theme.qml').write_text((ROOT/'profiles/default/Theme.qml').read_text().replace('import Quickshell\n','').replace('Quickshell.shellPath("../../native/sysmon")','""'))
  (profile/'NotificationDaemon.qml').write_text('''pragma Singleton
 import QtQuick
@@ -27,13 +23,14 @@ QtObject {
  function invokeAction(id,index) { invoked++ }
 }
 ''')
- (profile/'qmldir').write_text('singleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton NotificationDaemon 1.0 NotificationDaemon.qml\n')
+ (profile/'qmldir').write_text('BaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton NotificationDaemon 1.0 NotificationDaemon.qml\n')
  (p/'tst_popup.qml').write_text('''import QtQuick
 import QtTest
 import "profile" as Config
 Item {
  width: 800; height: 900
  Config.NotificationPopup { id: popup; x: 30; y: 30; width: 430 }
+ SignalSpy { id: linkSpy; target: popup; signalName: "linkActivated" }
  TestCase {
   name: "PopupStack"; when: windowShown
   function entry(id, timeout, urgency) { return {notifId:id, summary:"Alert "+id, expireTimeout:timeout, urgency:urgency || 1} }
@@ -98,7 +95,36 @@ Item {
    wait(50)
    const body = descendants(popup).find(item => typeof item.text === "string" && item.text.includes("Details"))
    verify(!!body)
-   compare(body.text, '<b>Message</b>  Details')
+   compare(body.text, '<b>Message</b>  <a href="https://example.invalid">Details</a>')
+  }
+  function test_linkClickDoesNotInvokeDefault() {
+   const data = entry(97,0)
+   data.body = '<a href="https://example.invalid">Details</a>'
+   data.actions = [{identifier: "default", text: "Open"}]
+   popup.showNotification(data)
+   wait(300)
+   const body = descendants(popup).find(item => typeof item.text === "string" && item.text.includes("Details"))
+   const before = Config.NotificationDaemon.invoked
+   linkSpy.clear()
+   mouseClick(body, 8, body.height / 2)
+   compare(linkSpy.count, 1)
+   compare(linkSpy.signalArguments[0][0], "https://example.invalid")
+   compare(Config.NotificationDaemon.invoked, before)
+   wait(300)
+   compare(popup.activeCount, 1)
+  }
+  function test_bodyInvokesDefaultAction() {
+   const data = entry(96,0)
+   data.actions = [{identifier: "other", text: "Other"}, {identifier: "default", text: "Open"}]
+   popup.showNotification(data)
+   wait(300)
+   const summary = descendants(popup).find(item => item.text === "Alert 96")
+   verify(!!summary)
+   const before = Config.NotificationDaemon.invoked
+   mouseClick(summary)
+   compare(Config.NotificationDaemon.invoked, before + 1)
+   wait(300)
+   compare(popup.activeCount, 0)
   }
   function test_actionDoesNotDismissCard() {
    const data = entry(95,0)

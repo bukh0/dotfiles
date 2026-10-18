@@ -32,7 +32,12 @@ ShellRoot {
     FileView {
         path: Quickshell.shellPath("../../components/Colors.qml")
         watchChanges: true
-        onFileChanged: Quickshell.reload(false)
+        onFileChanged: paletteReload.restart()
+        property Timer debounce: Timer {
+            id: paletteReload
+            interval: 250
+            onTriggered: Quickshell.reload(false)
+        }
     }
 
     // Singletons are created lazily. Touch the ones that must run while
@@ -40,7 +45,6 @@ ShellRoot {
     // discovery) so they start with the shell.
     Component.onCompleted: {
         MusicService.initialize()
-        SysmonService.initialize()
         BluetoothService.refresh()
         BrightnessService.discover()
     }

@@ -60,15 +60,16 @@ elif "set" in sys.argv:
     notify.write_text("#!/bin/sh\nexit 0\n")
     notify.chmod(0o755)
     for name in ("BrightnessService.qml", "BrightnessSlider.qml", "SliderRow.qml", "Colors.qml"):
-        text = (ROOT / "components" / name).read_text()
+        text = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
         if name == "BrightnessService.qml":
             text = text.replace('"/sys/class/backlight/"', f'"{backlight.parent}/"')
         (profile / name).write_text(text)
     theme = (ROOT / "profiles" / "default" / "Theme.qml").read_text()
     theme = "\n".join(line for line in theme.splitlines()
                       if line != "import Quickshell" and "sysmonPath:" not in line)
+    (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
     (profile / "Theme.qml").write_text(theme)
-    (profile / "qmldir").write_text("singleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton BrightnessService 1.0 BrightnessService.qml\nSliderRow 1.0 SliderRow.qml\nBrightnessSlider 1.0 BrightnessSlider.qml\n")
+    (profile / "qmldir").write_text("BaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton BrightnessService 1.0 BrightnessService.qml\nSliderRow 1.0 SliderRow.qml\nBrightnessSlider 1.0 BrightnessSlider.qml\n")
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen", XDG_RUNTIME_DIR=str(runtime),
                TEST_BACKLIGHT=str(backlight.parent), TEST_WRITES=str(writes),
                TEST_FAILURE=str(failure), TEST_NETWORK_FAILURE=str(stage / "network-failure"), PATH=str(binaries) + os.pathsep + os.environ["PATH"])
@@ -115,22 +116,14 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
 ''')
     nmcli.chmod(0o755)
     for name in ("NetworkService.qml", "NotificationDaemon.qml", "NotificationPopup.qml", "NotificationBody.js"):
-        text = (ROOT / "components" / name).read_text()
-        if name == "NotificationPopup.qml":
-            # Offscreen Qt has no layer-shell backend. Exercise the real popup
-            # state machine and layout using a Rectangle as its window host.
-            text = text.replace("PanelWindow {", "Rectangle {", 1)
-            text = re.sub(r"    WlrLayershell\.\w+:.*", "", text)
-            text = re.sub(r"    exclusionMode:.*", "", text)
-            text = re.sub(r"    anchors \{.*?\n    \}", "", text, count=1, flags=re.S)
-            text = re.sub(r"    margins \{.*?\n    \}", "", text, count=1, flags=re.S)
+        text = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
         (profile / name).write_text(text)
     with (profile / "qmldir").open("a") as module:
         module.write("singleton NetworkService 1.0 NetworkService.qml\n"
                      "singleton NotificationDaemon 1.0 NotificationDaemon.qml\n"
                      "NotificationPopup 1.0 NotificationPopup.qml\n")
     for name in ("BatteryIndicator.qml", "ControlPanel.qml", "MusicWidget.qml", "MusicService.qml", "SysmonService.qml", "NotificationActions.qml", "NotificationButton.qml", "Divider.qml", "VDivider.qml", "VolumeSlider.qml", "SystemResourceRow.qml", "WifiToggle.qml", "BluetoothToggle.qml", "BluetoothService.qml"):
-        text = (ROOT / "components" / name).read_text()
+        text = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
         if name == "BatteryIndicator.qml":
             text = text.replace("readonly property var device: UPower.displayDevice", "property var device: null")
         if name == "ControlPanel.qml":
@@ -145,7 +138,7 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
         with (profile / "qmldir").open("a") as module:
             module.write(f"{prefix}{Path(name).stem} 1.0 {name}\n")
     for name, script in {"busctl": "echo '{\"data\":[{}]}'", "dbus-monitor": "sleep 20", "playerctl": "exit 0",
-                         "sysmon": "printf '%b\\n' '50%\\0037RAM\\003737%\\0037CPU\\00371 B/s\\00372 B/s\\0037Net\\003745°C\\00370\\0037Temp\\0037auto\\n'; exec sleep 20"}.items():
+                         "sysmon": "for sample in 1 2; do printf '%b\\n' '50%\\0037RAM\\003737%\\0037CPU\\00371 B/s\\00372 B/s\\0037Net\\003745°C\\00370\\0037Temp\\0037auto\\n'; sleep 0.2; done; exec sleep 20"}.items():
         executable = binaries / name
         executable.write_text("#!/bin/sh\n" + script + "\n")
         executable.chmod(0o755)
@@ -159,13 +152,14 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
         theme = (ROOT / "profiles" / theme_name / "Theme.qml").read_text()
         theme = "\n".join(line for line in theme.splitlines()
                           if line != "import Quickshell" and "sysmonPath:" not in line)
-        theme = theme.replace("QtObject {", 'QtObject {\n readonly property string sysmonPath: "' + str(binaries / "sysmon") + '"', 1)
+        theme = theme.replace("BaseTheme {", 'BaseTheme {\n readonly property string sysmonPath: "' + str(binaries / "sysmon") + '"', 1)
+        (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
         (profile / "Theme.qml").write_text(theme)
         (profile / "qmldir").write_text(module_text)
         run(["quickshell", "-p", str(stage / "services.qml")], env, "REGRESSION PASS: services")
         # Qt's standalone runner cannot load Quickshell's executable plugins.
         # Use the actual slider with just its two visual singletons.
-        (profile / "qmldir").write_text("singleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\n")
+        (profile / "qmldir").write_text("BaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\n")
         runner = qmltestrunner()
         run([runner, "-input", str(stage / "tst_slider.qml")], env)
 

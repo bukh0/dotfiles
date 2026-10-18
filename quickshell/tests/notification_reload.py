@@ -66,6 +66,7 @@ ShellRoot {
 ''')
  actual_shell=(Path(__file__).resolve().parent.parent/'components/shell.qml').read_text()
  bar_state=re.search(r'    PersistentProperties \{\n        id: barState.*?\n    \}', actual_shell, re.S).group(0)
+ bar_state=bar_state.replace('NotificationDaemon.', 'Config.NotificationDaemon.')
  shell.write_text(shell.read_text().replace('ShellRoot {', 'ShellRoot {\n'+bar_state, 1))
  env=dict(os.environ,QT_QPA_PLATFORM='offscreen',XDG_RUNTIME_DIR=directory,XDG_CACHE_HOME=directory)
  with (p/'log').open('w') as log:
@@ -86,5 +87,6 @@ ShellRoot {
    subprocess.run(['notify-send','--replace-id='+first,'-t','0','updated one'],env=env,check=True)
    try:proc.wait(timeout=8)
    finally:print((p/'log').read_text(),flush=True)
-   assert 'RELOAD PASS' in (p/'log').read_text() and 'FAIL' not in (p/'log').read_text()
+   output=(p/'log').read_text()
+   assert 'RELOAD PASS' in output and 'FAIL' not in output and 'ReferenceError' not in output, output
   finally:proc.terminate();proc.wait(timeout=5)

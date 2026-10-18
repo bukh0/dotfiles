@@ -19,17 +19,11 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-test-') as directory:
     profile = p / 'profile'
     profile.mkdir()
     for name in ('NotificationDaemon.qml', 'NotificationPopup.qml', 'NotificationDrawer.qml', 'NotificationActions.qml', 'NotificationButton.qml', 'Colors.qml', 'NotificationBody.js'):
-        text = (ROOT / 'components' / name).read_text()
-        if name in ('NotificationPopup.qml', 'NotificationDrawer.qml'):
-            text = text.replace('PanelWindow {', 'Rectangle {', 1)
-            text = re.sub(r'    exclusionMode:.*', '', text)
-            text = re.sub(r'    WlrLayershell\.\w+:.*', '', text)
-            text = re.sub(r'    anchors \{.*?\n    \}', '', text, count=1, flags=re.S)
-            text = re.sub(r'    margins \{.*?\n    \}', '', text, count=1, flags=re.S)
-            text = re.sub(r'    mask: Region \{.*?\n    \}', '', text, count=1, flags=re.S)
+        text = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
         (profile / name).write_text(text)
+    (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
     shutil.copyfile(ROOT / 'profiles/default/Theme.qml', profile / 'Theme.qml')
-    (profile / 'qmldir').write_text('singleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton NotificationDaemon 1.0 NotificationDaemon.qml\nNotificationActions 1.0 NotificationActions.qml\nNotificationButton 1.0 NotificationButton.qml\n')
+    (profile / 'qmldir').write_text('BaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton NotificationDaemon 1.0 NotificationDaemon.qml\nNotificationActions 1.0 NotificationActions.qml\nNotificationButton 1.0 NotificationButton.qml\n')
     (p / 'shell.qml').write_text('''import QtQuick
 import Quickshell
 import "profile" as Config

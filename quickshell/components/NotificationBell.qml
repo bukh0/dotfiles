@@ -5,6 +5,7 @@ import "."
 Rectangle {
     id: root
 
+    property alias hitArea: hitItem
     property real hoverBottomMargin: 0
     property var screen
     property int count: NotificationDaemon.notificationModel.count
@@ -54,6 +55,7 @@ Rectangle {
     // Extend the trigger through the bar's bottom margin. The drawer starts
     // immediately below the bar, so no surface overlap or proxy click is needed.
     Item {
+        id: hitItem
         anchors.fill: parent
         anchors.bottomMargin: -root.hoverBottomMargin
         HoverHandler {
@@ -71,7 +73,8 @@ Rectangle {
         TapHandler {
             acceptedButtons: Qt.LeftButton
             onTapped: {
-                NotificationDaemon.surfaceScreen = root.screen
+                if (!(NotificationDaemon.isDrawerOpen && NotificationDaemon.drawerPinned))
+                    NotificationDaemon.surfaceScreen = root.screen
                 NotificationDaemon.toggleDrawer()
             }
         }

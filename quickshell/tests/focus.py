@@ -48,6 +48,7 @@ with tempfile.TemporaryDirectory(prefix='qs-focus-audit-') as d:
  (p/'Colors.qml').write_bytes((src/'components/Colors.qml').read_bytes())
  theme=(src/'profiles/default/Theme.qml').read_text()
  theme='\n'.join(x for x in theme.splitlines() if x!='import Quickshell' and 'sysmonPath:' not in x)
+ (p / "BaseTheme.qml").write_text((src / "components/BaseTheme.qml").read_text())
  (p/'Theme.qml').write_text(theme)
  (p/'NetworkService.qml').write_text('pragma Singleton\nimport QtQuick\nQtObject { property string actionKind: ""; property bool submittingPassword: false; property string submittingPasswordScreen: ""; property string awaitingPasswordFor: ""; property string awaitingPasswordScreen: ""; function cancelPasswordPrompt(screenName) { if (screenName === undefined || (awaitingPasswordFor !== "" && screenName === awaitingPasswordScreen) || (submittingPassword && screenName === submittingPasswordScreen)) { awaitingPasswordFor = ""; submittingPassword = false; submittingPasswordScreen = "" } } }')
  for name in ('MusicWidget.qml', 'SliderRow.qml'):
@@ -77,7 +78,7 @@ QtObject {
  function findPlayer(name) { return backend }
 }
 ''')
- (p/'qmldir').write_text('singleton Colors 1.0 Colors.qml\nsingleton Theme 1.0 Theme.qml\nsingleton NetworkService 1.0 NetworkService.qml\nsingleton MusicService 1.0 MusicService.qml\n')
+ (p/'qmldir').write_text('singleton Colors 1.0 Colors.qml\nBaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton NetworkService 1.0 NetworkService.qml\nsingleton MusicService 1.0 MusicService.qml\n')
  (p/'tst_focus.qml').write_text('''import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts

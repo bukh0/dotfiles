@@ -10,6 +10,9 @@ RowLayout {
     Layout.fillWidth: true
     spacing: 8
 
+    Component.onCompleted: SysmonService.watchers++
+    Component.onDestruction: SysmonService.watchers--
+
     property string uiFont: Theme.fontUI
     property string iconFont: Theme.fontMono
 

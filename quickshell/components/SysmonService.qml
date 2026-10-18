@@ -6,7 +6,19 @@ import "."
 
 Item {
     id: root
-    function initialize() {} // Accessed once by the shell to start sampling.
+    property int watchers: 0
+    property bool sampling: false
+    property bool _skipFirst: true
+    onWatchersChanged: {
+        if (watchers > 0) {
+            if (!sysmonDaemon.running) sysmonRestart.restart()
+        } else {
+            sysmonRestart.stop()
+            startupCheck.stop()
+            sysmonStableTimer.stop()
+            sysmonDaemon.running = false
+        }
+    }
     function togglePowerProfile() {
         if (!profileProc.running) profileProc.running = true
     }
@@ -68,7 +80,7 @@ Item {
                 if (sysmonDaemon.running) {
                     root._restartForTemperature = true
                     sysmonDaemon.running = false
-                } else {
+                } else if (root.watchers > 0) {
                     sysmonRestart.restart()
                 }
             }
@@ -89,6 +101,9 @@ Item {
             onRead: line => {
                 const parts = line.split("\u001f")
                 if (parts.length >= 11) {
+                    // The first line only establishes CPU/network baselines.
+                    // Keep cached samples until a full measurement interval passes.
+                    if (root._skipFirst) { root._skipFirst = false; return }
                     root.ramPercent   = parts[0]
                     root.tooltipRam   = parts[1].replace(/\\n/g, "\n")
                     root.cpuPercent   = parts[2]
@@ -105,17 +120,22 @@ Item {
             }
         }
         onStarted: {
+            root._skipFirst = true
+            root.sampling = true
             startupCheck.stop()
             sysmonStableTimer.restart()
         }
-        onExited: root._scheduleRestart()
+        onExited: {
+            root.sampling = false
+            root._scheduleRestart()
+        }
     }
 
 
     function _scheduleRestart() {
         startupCheck.stop()
         sysmonStableTimer.stop()
-        if (sysmonRestart.running) return
+        if (root.watchers <= 0 || sysmonRestart.running) return
         if (!root._restartForTemperature)
             root._restartDelay = Math.min(root._restartDelay * 2, 30000)
         sysmonRestart.interval = root._restartDelay
@@ -137,6 +157,7 @@ Item {
         id: sysmonRestart
         interval: 250
         onTriggered: {
+            if (root.watchers <= 0) return
             root._restartForTemperature = false
             startupCheck.restart()
             sysmonDaemon.running = true

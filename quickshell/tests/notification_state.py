@@ -23,19 +23,13 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-state-') as directory:
     source = source.replace('NotificationUrgency.Critical', '2').replace('Quickshell.iconPath(icon, true)', '""')
     (p / 'NotificationDaemon.qml').write_text(source)
     for name in ('NotificationDrawer.qml', 'NotificationPopup.qml', 'NotificationBell.qml', 'NotificationActions.qml', 'NotificationButton.qml', 'Colors.qml', 'NotificationBody.js'):
-        component = (ROOT / 'components' / name).read_text()
-        if name in ('NotificationDrawer.qml', 'NotificationPopup.qml'):
-            component = re.sub(r'^import Quickshell.*\n', '', component, flags=re.M)
-            component = component.replace('PanelWindow {', 'Rectangle {', 1)
-            component = re.sub(r'^    exclusionMode:.*\n', '', component, flags=re.M)
-            component = re.sub(r'^    WlrLayershell\.\w+:.*\n', '', component, flags=re.M)
-            component = re.sub(r'^    (?:anchors|margins|mask: Region) \{.*?\n    \}', '', component, flags=re.S | re.M)
-            component = component.replace('NotificationUrgency.Critical', '2')
+        component = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
         component = component.replace('id: hoverBridge', 'id: hoverBridge; objectName: "auditBridge"')
         (p / name).write_text(component)
+    (p / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
     (p / 'Theme.qml').write_text((ROOT / 'profiles' / os.environ.get('QS_TEST_PROFILE', 'default') / 'Theme.qml').read_text()
         .replace('import Quickshell\n', '').replace('Quickshell.shellPath("../../native/sysmon")', '""'))
-    (p / 'qmldir').write_text('singleton NotificationDaemon 1.0 NotificationDaemon.qml\nsingleton Colors 1.0 Colors.qml\nsingleton Theme 1.0 Theme.qml\n')
+    (p / 'qmldir').write_text('singleton NotificationDaemon 1.0 NotificationDaemon.qml\nsingleton Colors 1.0 Colors.qml\nBaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\n')
     (p / 'tst_state.qml').write_text('''import QtQuick
 import QtTest
 import "." as Config
@@ -103,6 +97,17 @@ Item {
   wait(250)
   verify(Config.NotificationDaemon.isDrawerOpen)
   compare(Config.NotificationDaemon.surfaceScreen,second)
+ }
+ function test_clickOtherMonitorKeepsClosingDrawerOnOriginalScreen() {
+  const first = {name:"A"}, second = {name:"B"}
+  bell.screen = second
+  Config.NotificationDaemon.surfaceScreen = first
+  Config.NotificationDaemon.isDrawerOpen = true
+  Config.NotificationDaemon.drawerPinned = true
+  wait(250)
+  mouseClick(bell, bell.width / 2, bell.height / 2)
+  verify(!Config.NotificationDaemon.isDrawerOpen)
+  compare(Config.NotificationDaemon.surfaceScreen, first)
  }
  function test_dndPreservesCritical() {
   const critical = notification(701)

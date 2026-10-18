@@ -13,6 +13,7 @@ with tempfile.TemporaryDirectory(prefix='qs-input-edges-') as directory:
         source = (ROOT / 'components' / name).read_text()
         source = re.sub(r'^import Quickshell.*\n', '', source, flags=re.M)
         (p / name).write_text(source)
+    (p / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
     (p / 'Theme.qml').write_text((ROOT / 'profiles/default/Theme.qml').read_text()
         .replace('import Quickshell\n', '').replace('Quickshell.shellPath("../../native/sysmon")', '""'))
     (p / 'MusicService.qml').write_text('''pragma Singleton
