@@ -308,6 +308,7 @@ Item {
             const device = parts[4]
 
             if (seen[name]) {
+                seen[name].security = seen[name].security || (parts[2] !== "" && parts[2] !== "--")
                 seen[name].active = seen[name].active || active
                 seen[name].signal = Math.max(seen[name].signal, sig)
                 if (active && device && !seen[name].activeDevices.includes(device))

@@ -64,7 +64,9 @@ ShellRoot {
                     check(battery.visible, "present battery hidden")
                     battery.device = {ready: true, isPresent: true, percentage: 0.05, state: UPowerDeviceState.PendingCharge}
                     check(battery.icon === "󰚥", "pending charge should show external power")
-                    check(battery.isCritical, "pending charge concealed low battery")
+                    check(battery.isCharging && !battery.isCritical && !battery.isLow, "pending charge must not warn while on AC")
+                    battery.device = {ready: true, isPresent: true, percentage: 0.05, state: UPowerDeviceState.Discharging}
+                    check(battery.isCritical, "discharging low battery must warn")
                     battery.device = {ready: true, isPresent: false, percentage: 0, state: 0}
                     check(!battery.visible, "absent battery displayed as full")
                     const wifi = descendants(panel).find(item => item.toString().startsWith("WifiToggle_"))
@@ -85,6 +87,10 @@ ShellRoot {
                     Config.MusicService.sourcePlayers = [root.mockPlayer]
                     root.mockPlayer.trackTitle = "Next title"
                     check(network.parseNmcliFields("a\\:b:c\\\\d").join("|") === "a:b|c\\d", "nmcli escaping failed")
+                    for (const records of ["mesh:30::no:wlan0\nmesh:80:WPA2:no:wlan1", "mesh:80:WPA2:no:wlan1\nmesh:30:--:no:wlan0"]) {
+                        const merged = network.parseScan(records)
+                        check(merged.length === 1 && merged[0].security && merged[0].signal === 80, "SSID security lost during merge")
+                    }
                     check(network.wifiOn, "Wi-Fi radio state failed")
                     check(network.connectionType === "wifi", "connection state failed")
                     check(network.ssid === "active" && network.activeWifiDevice === "wlan0", "SSID and device came from different connections")

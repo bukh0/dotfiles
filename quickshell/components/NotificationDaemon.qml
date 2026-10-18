@@ -22,7 +22,6 @@ QtObject {
     onIsDrawerOpenChanged: if (!isDrawerOpen) drawerPinned = false
     onDoNotDisturbChanged: {
         if (_dndReady) _dndStore.setText(doNotDisturb ? "1\n" : "0\n")
-        if (doNotDisturb) root.dismissPopup()
     }
     property var surfaceScreen: null
     property int hoverCloseDelay: 510
@@ -276,6 +275,7 @@ QtObject {
             for (let i = 0; i < root.notificationModel.count; i++) {
                 if (root.notificationModel.get(i).notifId === id) {
                     root.notificationModel.set(i, row)
+                    if (i > 0) root.notificationModel.move(i, 0, 1)
                     replaced = true
                     break
                 }

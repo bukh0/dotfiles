@@ -118,6 +118,11 @@ Item {
 
             const prev = known[mac]
             if (prev) {
+                if (!prev.hasName && rec.hasName) {
+                    prev.name = rec.name
+                    prev.hasName = true
+                }
+                if (!prev.icon && rec.icon) prev.icon = rec.icon
                 prev.paired = prev.paired || rec.paired
                 prev.connected = prev.connected || rec.connected
                 prev.rssi = Math.max(prev.rssi, rec.rssi)

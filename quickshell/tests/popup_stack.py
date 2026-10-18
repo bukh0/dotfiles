@@ -5,7 +5,7 @@ from qt_tools import qmltestrunner
 ROOT=Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='qs-popup-stack-') as directory:
  p=Path(directory); profile=p/'profile';profile.mkdir()
- for name in ('NotificationPopup.qml','NotificationButton.qml','NotificationActions.qml','Colors.qml'):
+ for name in ('NotificationPopup.qml','NotificationButton.qml','NotificationActions.qml','Colors.qml', 'NotificationBody.js'):
   source=(ROOT/'components'/name).read_text()
   if name == 'NotificationPopup.qml':
    source=re.sub(r'^import Quickshell.*\n','',source,flags=re.M).replace('PanelWindow {','Rectangle {\n    property var screen: null',1)
@@ -47,6 +47,33 @@ Item {
    let result = []
    for (const child of item.children || []) result = result.concat([child], descendants(child))
    return result
+  }
+  function test_dndFiltersActiveAndQueue() {
+   popup.showNotification(entry(611,0,2))
+   popup.showNotification(entry(612,0))
+   popup.showNotification(entry(613,0))
+   popup.showNotification(entry(614,0))
+   // Criticals normally bypass the queue; verify filtering preserves one too.
+   popup._queue = popup._queue.concat([entry(615,0,2)])
+   Config.NotificationDaemon.doNotDisturb = true
+   compare(popup.queueCount,0)
+   compare(popup.activeCount,2)
+   verify(popup._activeIndex(611) >= 0)
+   verify(popup._activeIndex(615) >= 0)
+   wait(300)
+   compare(popup.activeCount,2)
+  }
+  function test_closingCountTracksRoles() {
+   popup.showNotification(entry(601,0))
+   popup.showNotification(entry(602,0))
+   popup._requestClose(601)
+   compare(popup.closingCount,1)
+   popup._requestClose(602)
+   compare(popup.closingCount,2)
+   popup.showNotification(entry(601,0))
+   compare(popup.closingCount,1)
+   wait(300)
+   compare(popup.closingCount,0)
   }
   function test_screenLatchedForBurst() {
    const left = {name: "left"}, right = {name: "right"}

@@ -5,10 +5,12 @@ import Quickshell
 import Quickshell.Services.Notifications
 import Quickshell.Wayland
 import "."
+import "NotificationBody.js" as NotificationBody
 
 PanelWindow {
     id: popup
     WlrLayershell.layer: WlrLayer.Overlay
+    property int barHeight: Theme.barTotalHeight
     property int maxVisible: 3
     property int maxQueueLength: 20
     property int defaultDuration: 4000
@@ -36,7 +38,7 @@ PanelWindow {
         right: true
     }
     margins {
-        top: Theme.barTotalHeight + 1
+        top: popup.barHeight + 1
         right: 10
     }
     implicitWidth: Theme.popupWidth
@@ -122,13 +124,22 @@ PanelWindow {
         }
     }
     function dismissAll() { _queue = []; active.clear(); store = ({}); rev++ }
+    function dismissNonCritical() {
+        _queue = _queue.filter(data => data.urgency === NotificationUrgency.Critical)
+        for (let i = active.count - 1; i >= 0; i--) {
+            const id = active.get(i).notifId
+            if (!store[id] || store[id].urgency !== NotificationUrgency.Critical)
+                _remove(id, false)
+        }
+        _fill()
+    }
     function _forget(id) {
         _queue = _queue.filter(d => d.notifId !== id)
         _requestClose(id)
     }
     Connections {
         target: NotificationDaemon
-        function onDoNotDisturbChanged() { if (NotificationDaemon.doNotDisturb) popup.dismissAll() }
+        function onDoNotDisturbChanged() { if (NotificationDaemon.doNotDisturb) popup.dismissNonCritical() }
         function onDismissPopup() { popup.dismiss() }
         function onDismissPopupById(id) { popup._forget(id) }
         function onNotificationRemoved(id) { popup._forget(id) }
@@ -272,7 +283,7 @@ PanelWindow {
 
                             Text {
                                 // Preserve formatting, without remote images or inert link styling.
-                                text: (slot.entry ? (slot.entry.body || "") : "").replace(/<img\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, "").replace(/<\/?a\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, "")
+                                text: NotificationBody.styled(slot.entry ? slot.entry.body : "")
                                 textFormat: Text.StyledText
                                 color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.7)
                                 font.pixelSize: 12

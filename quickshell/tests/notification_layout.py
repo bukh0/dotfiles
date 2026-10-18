@@ -11,7 +11,7 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-layout-') as directory:
     p = Path(directory)
     profile = p / 'profile'
     profile.mkdir()
-    for name in ('NotificationDrawer.qml', 'NotificationButton.qml', 'NotificationActions.qml', 'Colors.qml'):
+    for name in ('NotificationDrawer.qml', 'NotificationButton.qml', 'NotificationActions.qml', 'Colors.qml', 'NotificationBody.js'):
         source = (ROOT / 'components' / name).read_text()
         if name == 'NotificationDrawer.qml':
             source = re.sub(r'^import Quickshell.*\n', '', source, flags=re.M)

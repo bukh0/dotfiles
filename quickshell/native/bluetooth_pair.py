@@ -62,9 +62,21 @@ def main(address):
         loop.quit()
 
     def connected(connection, result):
+        if finished:
+            return
         try:
             connection.call_finish(result)
             finish()
+        except GLib.Error as error:
+            finish(error)
+
+    def trusted(connection, result):
+        if finished:
+            return
+        try:
+            connection.call_finish(result)
+            connection.call("org.bluez", device, "org.bluez.Device1", "Connect", None, None,
+                            Gio.DBusCallFlags.NONE, 30000, None, connected)
         except GLib.Error as error:
             finish(error)
 
@@ -78,11 +90,9 @@ def main(address):
                 finish(error)
                 return
         try:
-            connection.call_sync("org.bluez", device, "org.freedesktop.DBus.Properties", "Set",
-                                 GLib.Variant("(ssv)", ("org.bluez.Device1", "Trusted", GLib.Variant("b", True))),
-                                 None, Gio.DBusCallFlags.NONE, 5000, None)
-            connection.call("org.bluez", device, "org.bluez.Device1", "Connect", None, None,
-                            Gio.DBusCallFlags.NONE, 30000, None, connected)
+            connection.call("org.bluez", device, "org.freedesktop.DBus.Properties", "Set",
+                            GLib.Variant("(ssv)", ("org.bluez.Device1", "Trusted", GLib.Variant("b", True))),
+                            None, Gio.DBusCallFlags.NONE, 5000, None, trusted)
         except GLib.Error as error:
             finish(error)
 

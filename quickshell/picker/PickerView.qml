@@ -34,7 +34,14 @@ Rectangle {
     property var filtered: []
     property int selected: 0
     property var thumbnails: ({})
+    property var thumbnailVersions: ({})
     signal thumbnailReady(string path)
+    onThumbnailReady: path => {
+        // Remember completions even before the listing or delegates exist.
+        const versions = Object.assign({}, thumbnailVersions)
+        versions[path] = (versions[path] || 0) + 1
+        thumbnailVersions = versions
+    }
     property bool busy: false
     property string error: ""
     property string operation: ""
@@ -53,7 +60,12 @@ Rectangle {
     function focusSearch() { search.forceActiveFocus() }
     function baseName(path) { return path.substring(path.lastIndexOf("/") + 1) }
     function fileUrl(path) { return "file://" + path.split("/").map(encodeURIComponent).join("/") }
-    function thumbUrl(path) { return thumbnails[path] ? fileUrl(thumbnails[path]) : "" }
+    function thumbUrl(path) {
+        const thumbnail = thumbnails[path]
+        if (!thumbnail) return ""
+        const version = thumbnailVersions[thumbnail] || 0
+        return fileUrl(thumbnail) + (version ? "?retry=" + version : "")
+    }
     function dismiss() { if (!busy) dismissed() }
     function rebuild() {
         gridScroll.stop()
@@ -528,7 +540,6 @@ Rectangle {
                     required property int index
                     readonly property bool chosen: view.selected === index
                     readonly property bool hovered: tileMouse.containsMouse && !gridScroll.animating
-                    property int retry: 0
                     width: grid.cellWidth
                     height: grid.cellHeight
 
@@ -562,7 +573,7 @@ Rectangle {
                             fillMode: Image.PreserveAspectCrop
                             sourceSize: Qt.size(320, 180)
                             // Versioned URLs keep the cache while retrying new thumbnails safely.
-                            source: view.thumbUrl(tile.modelData) + (tile.retry > 0 ? "?retry=" + tile.retry : "")
+                            source: view.thumbUrl(tile.modelData)
                             opacity: status === Image.Ready ? 1 : 0
                             Behavior on opacity { NumberAnimation { duration: 140 } }
                         }
@@ -593,12 +604,6 @@ Rectangle {
                                 text: "✓"
                                 color: view.accentText
                                 font.pixelSize: 12
-                            }
-                        }
-                        Connections {
-                            target: view
-                            function onThumbnailReady(path) {
-                                if (path === view.thumbnails[tile.modelData]) tile.retry++
                             }
                         }
                         MouseArea {

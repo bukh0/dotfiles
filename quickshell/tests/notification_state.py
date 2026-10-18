@@ -22,7 +22,7 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-state-') as directory:
     source = re.sub(r'    property IpcHandler ipc: IpcHandler \{.*?\n    \}', '', source, flags=re.S)
     source = source.replace('NotificationUrgency.Critical', '2').replace('Quickshell.iconPath(icon, true)', '""')
     (p / 'NotificationDaemon.qml').write_text(source)
-    for name in ('NotificationDrawer.qml', 'NotificationPopup.qml', 'NotificationBell.qml', 'NotificationActions.qml', 'NotificationButton.qml', 'Colors.qml'):
+    for name in ('NotificationDrawer.qml', 'NotificationPopup.qml', 'NotificationBell.qml', 'NotificationActions.qml', 'NotificationButton.qml', 'Colors.qml', 'NotificationBody.js'):
         component = (ROOT / 'components' / name).read_text()
         if name in ('NotificationDrawer.qml', 'NotificationPopup.qml'):
             component = re.sub(r'^import Quickshell.*\n', '', component, flags=re.M)
@@ -86,6 +86,56 @@ Item {
   Config.NotificationDaemon.hoverCloseDelay = 20
   Config.NotificationDaemon.restoreTimestamps("{}")
   observedId = -1; removedActions = null; delivered = 0; removed = 0
+ }
+ function test_pinnedMonitorAndFadeReopen() {
+  const first = {name:"A"}, second = {name:"B"}
+  bell.screen = second
+  Config.NotificationDaemon.surfaceScreen = first
+  Config.NotificationDaemon.isDrawerOpen = true
+  Config.NotificationDaemon.drawerPinned = true
+  mouseMove(bell, bell.width / 2, bell.height / 2)
+  wait(50)
+  compare(Config.NotificationDaemon.surfaceScreen,first)
+  mouseMove(parent,5,700)
+  Config.NotificationDaemon.isDrawerOpen = false
+  wait(50)
+  mouseMove(bell,bell.width / 2,bell.height / 2)
+  wait(250)
+  verify(Config.NotificationDaemon.isDrawerOpen)
+  compare(Config.NotificationDaemon.surfaceScreen,second)
+ }
+ function test_dndPreservesCritical() {
+  const critical = notification(701)
+  critical.urgency = 2
+  Config.NotificationDaemon._receiveNotification(critical)
+  const normal = notification(702)
+  Config.NotificationDaemon._receiveNotification(normal)
+  Config.NotificationDaemon.setDnd(true)
+  compare(popup.activeCount,1)
+  compare(popup.newestId(),Config.NotificationDaemon._serverIds[701])
+  wait(300)
+  compare(popup.activeCount,1,"daemon must not dismiss the surviving critical")
+  compare(Config.NotificationDaemon.notificationModel.count,2)
+ }
+ function test_replacementMovesToTop() {
+  const first = notification(711), second = notification(712)
+  Config.NotificationDaemon._receiveNotification(first)
+  wait(5)
+  Config.NotificationDaemon._receiveNotification(second)
+  first.summary = "Updated"
+  first.summaryChanged.emit()
+  wait(20)
+  const model = Config.NotificationDaemon.notificationModel
+  compare(model.count,2)
+  compare(model.get(0).notifId,Config.NotificationDaemon._serverIds[711])
+  compare(model.get(0).summary,"Updated")
+  verify(model.get(0).timestamp >= model.get(1).timestamp)
+ }
+ function test_hiddenBarOffsets() {
+  drawer.barHeight = 0
+  compare(drawer.drawerY,4)
+  compare(findChild(drawer,"auditBridge").y,0)
+  drawer.barHeight = Config.Theme.barTotalHeight
  }
  function test_localImagePaths() {
   const path = ICON_PATH

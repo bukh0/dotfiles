@@ -13,7 +13,7 @@ if os.environ.get("QS_PAIR_TEST_BUS") != "1":
         env=dict(os.environ, QS_PAIR_TEST_BUS="1")).returncode)
 
 SERVER = r'''
-import os
+import os, time
 from pathlib import Path
 from gi.repository import Gio, GLib
 bus = Gio.bus_get_sync(Gio.BusType.SESSION)
@@ -53,6 +53,8 @@ def call(conn, sender, path, interface, method, args, invocation):
   record('connect'); invocation.return_value(None)
  elif method == 'CancelPairing': invocation.return_value(None)
 def set_prop(conn,sender,path,interface,name,value):
+ if Path(os.environ['TEST_PAIR_MODE']).read_text() == 'slow-trust':
+  record('trusting'); time.sleep(0.4)
  props[name]=value; record('trusted'); return True
 def register(path,xml):
  info=Gio.DBusNodeInfo.new_for_xml('<node>'+xml+'</node>').interfaces[0]
@@ -68,7 +70,8 @@ CLIENT = r'''
 import importlib.util, os, sys
 import gi
 gi.require_version('Gtk','3.0')
-from gi.repository import Gtk
+from gi.repository import Gtk, GLib
+from pathlib import Path
 import blueman.gui.Notification as notification
 # Only the dialog rendering is replaced; registration and callbacks are real.
 Gtk.init_check=lambda: (True, [])
@@ -102,6 +105,14 @@ if os.environ.get('TEST_CLEANUP_FAILURE') == '1':
  Gtk.Window.list_toplevels = lambda: [BrokenWindow()]
 spec=importlib.util.spec_from_file_location('pair_helper',sys.argv[1])
 helper=importlib.util.module_from_spec(spec); spec.loader.exec_module(helper)
+if Path(os.environ['TEST_PAIR_MODE']).read_text() == 'slow-trust':
+ def heartbeat():
+  events = Path(os.environ['TEST_EVENTS']).read_text().splitlines()
+  if 'trusting' in events and 'trusted' not in events:
+   with open(os.environ['TEST_EVENTS'], 'a') as log: log.write('heartbeat\n')
+   return GLib.SOURCE_REMOVE
+  return GLib.SOURCE_CONTINUE
+ GLib.timeout_add(20, heartbeat)
 raise SystemExit(helper.main('AA:BB:CC:DD:EE:FF'))
 '''
 
@@ -120,12 +131,14 @@ with tempfile.TemporaryDirectory(prefix="qs-bluetooth-pair-") as directory:
                     break
                 time.sleep(.02)
             assert (stage / "ready").exists(), (stage / "server.log").read_text()
-            for response, mode, cleanup in (("confirm", "normal", "0"), ("deny", "normal", "0"), ("confirm", "already", "0"), ("confirm", "normal", "1"), ("confirm", "register-failure", "0"), ("confirm", "local-register-failure", "0")):
+            for response, mode, cleanup in (("confirm", "slow-trust", "0"), ("confirm", "normal", "0"), ("deny", "normal", "0"), ("confirm", "already", "0"), ("confirm", "normal", "1"), ("confirm", "register-failure", "0"), ("confirm", "local-register-failure", "0")):
                 (stage / "mode").write_text(mode)
                 (stage / "events").write_text("")
                 result = subprocess.run([sys.executable, str(stage / "client.py"), str(ROOT / "native/bluetooth_pair.py")],
                                         env=dict(env, TEST_RESPONSE=response, TEST_CLEANUP_FAILURE=cleanup, TEST_LOCAL_REGISTER_FAILURE="1" if mode == "local-register-failure" else "0"), capture_output=True, text=True, timeout=12)
                 expected = ["register", "pair", "trusted", "connect", "unregister"] if response == "confirm" else ["register", "pair", "unregister"]
+                if mode == "slow-trust":
+                    expected[2:2] = ["trusting", "heartbeat"]
                 expected.append("local-unregister")
                 if mode == "register-failure":
                     expected = ["register", "unregister", "local-unregister"]

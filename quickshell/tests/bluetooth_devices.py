@@ -35,7 +35,18 @@ ShellRoot {
    && rows[0].connected && rows[1].connected && !rows[2].connected
    && BluetoothService.discovered.length === 1
    && BluetoothService.discovered[0].mac.endsWith("03")
-  console.log(ok ? "BLUETOOTH DEVICES PASS" : "FAIL device visibility")
+  const stub = {Address: {data: "AA:BB:CC:DD:EE:05"}, Alias: {data: "AA-BB-CC-DD-EE-05"}}
+  const named = {Address: stub.Address, Alias: {data: "Headphones"}, Icon: {data: "audio-headset"}}
+  let merged = true
+  for (const records of [[stub,named], [named,stub]]) {
+   const dual = {"/org/bluez/hci0": objects["/org/bluez/hci0"],
+    "/org/bluez/hci0/dev_05": {"org.bluez.Device1": records[0]},
+    "/org/bluez/hci1/dev_05": {"org.bluez.Device1": records[1]}}
+   BluetoothService._applyManagedObjects(JSON.stringify({data:[dual]}))
+   const found = BluetoothService.discovered
+   merged = merged && found.length === 1 && found[0].name === "Headphones" && found[0].icon === "audio-headset"
+  }
+  console.log(ok && merged ? "BLUETOOTH DEVICES PASS" : "FAIL device visibility")
   Qt.callLater(() => Qt.quit())
  }
 }

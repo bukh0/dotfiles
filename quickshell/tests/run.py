@@ -114,7 +114,7 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
     print("__proto__:90:WPA2:no:wlan0\\nconstructor:80:WPA2:no:wlan0\\n spaced :70::no:wlan0\\nactive:10:WPA2:yes:wlan0\\n<b>Backup</b>:5:WPA2:yes:wlan1\\n<b>Backup</b>:4:WPA2:no:wlan0\\n<b>Backup</b>:5:WPA2:yes:wlan1")
 ''')
     nmcli.chmod(0o755)
-    for name in ("NetworkService.qml", "NotificationDaemon.qml", "NotificationPopup.qml"):
+    for name in ("NetworkService.qml", "NotificationDaemon.qml", "NotificationPopup.qml", "NotificationBody.js"):
         text = (ROOT / "components" / name).read_text()
         if name == "NotificationPopup.qml":
             # Offscreen Qt has no layer-shell backend. Exercise the real popup

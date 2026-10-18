@@ -61,7 +61,7 @@ Rectangle {
             cursorShape: Qt.PointingHandCursor
             onHoveredChanged: {
                 NotificationDaemon.setTriggerHovered(root, hovered)
-                if (hovered) {
+                if (hovered && !NotificationDaemon.drawerPinned) {
                     NotificationDaemon.surfaceScreen = root.screen
                     NotificationDaemon.beginHoverOpen()
                 }

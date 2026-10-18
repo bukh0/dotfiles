@@ -6,20 +6,23 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
-with tempfile.TemporaryDirectory(prefix='dnd-state-') as directory:
-    p = Path(directory)
-    (p/'profile').mkdir()
-    shutil.copyfile(ROOT/'components/NotificationDaemon.qml', p/'profile/NotificationDaemon.qml')
-    (p/'profile/qmldir').write_text('singleton NotificationDaemon 1.0 NotificationDaemon.qml\n')
-    (p/'quickshell_dnd').write_text('1\n')
-    (p/'shell.qml').write_text('''import QtQuick
+for scenario in ('existing', 'missing-file', 'missing-directory'):
+    with tempfile.TemporaryDirectory(prefix='dnd-state-') as directory:
+        p = Path(directory)
+        (p/'profile').mkdir()
+        shutil.copyfile(ROOT/'components/NotificationDaemon.qml', p/'profile/NotificationDaemon.qml')
+        (p/'profile/qmldir').write_text('singleton NotificationDaemon 1.0 NotificationDaemon.qml\n')
+        cache = p/'missing'/'cache' if scenario == 'missing-directory' else p
+        if scenario == 'existing':
+            (cache/'quickshell_dnd').write_text('1\n')
+        (p/'shell.qml').write_text('''import QtQuick
 import Quickshell
 import "profile" as Config
 ShellRoot {
  PersistentProperties { id: state; property int phase: 0 }
  function check(ok, message) { if (!ok) { console.error("FAIL", message); Qt.quit() } }
  Component.onCompleted: Qt.callLater(() => {
-  check(Config.NotificationDaemon.doNotDisturb === (state.phase === 0), "restored DND")
+  check(Config.NotificationDaemon.doNotDisturb === (START_ENABLED && state.phase === 0), "restored DND")
   if (state.phase === 0) Config.NotificationDaemon.setDnd(false)
  })
  Timer { interval: 150; running: true; repeat: true
@@ -39,10 +42,10 @@ ShellRoot {
   }
  }
 }
-''')
-    env = dict(os.environ, QT_QPA_PLATFORM='offscreen', XDG_RUNTIME_DIR=directory, XDG_CACHE_HOME=directory)
-    result = subprocess.run(['quickshell', '-p', str(p/'shell.qml')], env=env, capture_output=True, text=True, timeout=10)
-    output = result.stdout + result.stderr
-    assert 'DND PASS' in output and 'FAIL' not in output, output
-    assert (p/'quickshell_dnd').read_text().strip() == '0'
-    print('PASS DND startup restoration, user writes, hot reload, and rapid toggles')
+'''.replace('START_ENABLED', 'true' if scenario == 'existing' else 'false'))
+        env = dict(os.environ, QT_QPA_PLATFORM='offscreen', XDG_RUNTIME_DIR=directory, XDG_CACHE_HOME=str(cache))
+        result = subprocess.run(['quickshell', '-p', str(p/'shell.qml')], env=env, capture_output=True, text=True, timeout=10)
+        output = result.stdout + result.stderr
+        assert 'DND PASS' in output and 'FAIL' not in output, output
+        assert (cache/'quickshell_dnd').read_text().strip() == '0'
+        print('PASS DND', scenario, 'startup, writes, hot reload, and rapid toggles')

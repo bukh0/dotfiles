@@ -44,7 +44,12 @@ with tempfile.TemporaryDirectory(prefix='qs-sysmon-network-') as directory:
             assert all(v.endswith(' K/s') for v in sample()[4:6]), 'Reset counters concealed another interface'
             write_interfaces([('usb0', 100000), ('wlan0', 100300000)])
             assert all(v.endswith(' K/s') for v in sample()[4:6]), 'Reset interface did not recover'
-        print('PASS: USB, tunnel exclusion, interface addition/removal, reset and recovery')
+            for iface in ('bnep0', 'ppp0'):
+                write_interfaces([(iface, 1000)])
+                assert sample()[4:6] == ['0 B/s', '0 B/s']
+                write_interfaces([(iface, 101000)])
+                assert all(v.endswith(' K/s') for v in sample()[4:6]), iface + ' traffic omitted'
+        print('PASS: Bluetooth, PPP, USB, tunnel exclusion, interface addition/removal, reset and recovery')
     finally:
         process.terminate()
         process.wait(timeout=5)

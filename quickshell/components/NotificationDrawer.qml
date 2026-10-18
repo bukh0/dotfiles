@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Services.Notifications
 import Quickshell.Wayland
 import "."
+import "NotificationBody.js" as NotificationBody
 
 PanelWindow {
     id: root
@@ -15,7 +16,8 @@ PanelWindow {
 
     property bool isOpen: NotificationDaemon.isDrawerOpen
     property int fadeOutDuration: 200
-    property int drawerY: Theme.barTotalHeight + 4
+    property int barHeight: Theme.barTotalHeight
+    property int drawerY: barHeight + 4
     property int drawerRightMargin: 12
     property int hoverEdgePadding: 18
     property string uiFont: Theme.fontUI
@@ -37,9 +39,9 @@ PanelWindow {
     mask: Region {
         readonly property bool full: NotificationDaemon.drawerPinned
         x: full ? 0 : hoverBridge.x
-        y: Theme.barTotalHeight
+        y: root.barHeight
         width: !root.isOpen ? 0 : full ? root.width : hoverBridge.width
-        height: !root.isOpen ? 0 : full ? Math.max(0, root.height - Theme.barTotalHeight) : hoverBridge.height
+        height: !root.isOpen ? 0 : full ? Math.max(0, root.height - root.barHeight) : hoverBridge.height
     }
 
     property double now: Date.now()
@@ -98,7 +100,7 @@ PanelWindow {
     Item {
         id: hoverBridge
         x: Math.max(0, root.width - drawerBg.width - root.drawerRightMargin - root.hoverEdgePadding)
-        y: Theme.barTotalHeight
+        y: root.barHeight
         width: Math.min(root.width - x, drawerBg.width + root.hoverEdgePadding * 2)
         // Only content/layout changes affect input height, never the visual slide.
         height: root.isOpen ? Math.max(0, root.drawerY - y + drawerBg.height) : 0
@@ -443,7 +445,7 @@ PanelWindow {
                                 Text {
                                     id: bodyText
                                     // Preserve formatting, without remote images or inert link styling.
-                                    text: delegateRoot.body.replace(/<img\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, "").replace(/<\/?a\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, "")
+                                    text: NotificationBody.styled(delegateRoot.body)
                                     textFormat: Text.StyledText
                                     color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.7)
                                     font.pixelSize: 12

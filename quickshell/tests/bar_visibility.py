@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parent.parent
 source=(ROOT/'components/shell.qml').read_text()
 controls=source[source.index('    PersistentProperties {'):source.index('    // Profiles import')]
 controls=re.sub(r'    PersistentProperties \{\n        id: notificationHistory.*?\n    \}\n', '', controls, flags=re.S)
-controls=controls.replace('PersistentProperties {','QtObject {').replace('IpcHandler {','QtObject {\n        id: controls\n        property string target: ""').replace('        target: "bar"\n','').replace('Hyprland.','fakeHyprland.')
+controls=controls.replace('PersistentProperties {','QtObject {').replace('IpcHandler {','QtObject {\n        id: controls\n        property string target: ""').replace('        target: "bar"\n','').replace('Hyprland.','fakeHyprland.').replace('NotificationDaemon.', 'notifications.')
 start=source.index('            Item {',source.index('    Variants {'))
 output=source[start:source.index('\n        }\n    }\n}',start)].strip()
 output=output.replace('Hyprland.','fakeHyprland.').replace('Bar {','Rectangle {\n                    property var screen\n                    objectName: "bar"')
@@ -16,6 +16,7 @@ with tempfile.TemporaryDirectory(prefix='qs-bar-visibility-') as directory:
 import QtTest
 Item {
  width: 800; height: 600
+ QtObject { id: notifications; property bool isDrawerOpen: false }
  QtObject { id: fakeHyprland; property int refreshes: 0
   function monitorFor(screen) { return screen }
   function refreshWorkspaces() { refreshes++ }
@@ -54,10 +55,12 @@ Item {
    compare(bar(a).visible,true)
   }
   function test_manualPreference() {
-   controls.hide();firstWorkspace.hasFullscreen=true;firstWorkspace.hasFullscreen=false
+   notifications.isDrawerOpen=true
+   controls.hide();compare(notifications.isDrawerOpen,false);firstWorkspace.hasFullscreen=true;firstWorkspace.hasFullscreen=false
    compare(bar(a).visible,false);compare(bar(b).visible,false)
    controls.show();compare(bar(a).visible,true);compare(bar(b).visible,true)
-   controls.toggle();compare(bar(a).visible,false)
+   notifications.isDrawerOpen=true
+   controls.toggle();compare(notifications.isDrawerOpen,false);compare(bar(a).visible,false)
    controls.toggle();compare(bar(a).visible,true)
   }
   function test_staleCompatibilityCall() {

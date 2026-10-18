@@ -10,6 +10,7 @@ ShellRoot {
     PersistentProperties {
         id: barState
         property bool shown: true
+        onShownChanged: if (!shown) NotificationDaemon.isDrawerOpen = false
     }
     PersistentProperties {
         id: notificationHistory
@@ -56,11 +57,12 @@ ShellRoot {
     NotificationDrawer {
         id: notificationDrawer
         screen: NotificationDaemon.surfaceScreen || getActiveScreen()
-        drawerY: Theme.barTotalHeight + 4
+        barHeight: barState.shown ? Theme.barTotalHeight : 0
     }
 
     NotificationPopup {
         id: notifPopup
+        barHeight: barState.shown ? Theme.barTotalHeight : 0
     }
 
     Connections {

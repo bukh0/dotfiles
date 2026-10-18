@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-test-') as directory:
     p = Path(directory)
     profile = p / 'profile'
     profile.mkdir()
-    for name in ('NotificationDaemon.qml', 'NotificationPopup.qml', 'NotificationDrawer.qml', 'NotificationActions.qml', 'NotificationButton.qml', 'Colors.qml'):
+    for name in ('NotificationDaemon.qml', 'NotificationPopup.qml', 'NotificationDrawer.qml', 'NotificationActions.qml', 'NotificationButton.qml', 'Colors.qml', 'NotificationBody.js'):
         text = (ROOT / 'components' / name).read_text()
         if name in ('NotificationPopup.qml', 'NotificationDrawer.qml'):
             text = text.replace('PanelWindow {', 'Rectangle {', 1)

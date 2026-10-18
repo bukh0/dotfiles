@@ -13,7 +13,7 @@ Item {
 
     readonly property var icons: ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
 
-    readonly property bool isCharging: status === "Charging" || status === "Full"
+    readonly property bool isCharging: status === "Charging" || status === "Full" || status === "Not charging"
     readonly property bool isCritical: !isCharging && capacity <= 10
     readonly property bool isLow: !isCharging && capacity <= 20
 
