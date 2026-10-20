@@ -4,13 +4,15 @@ import os,re,subprocess,tempfile
 from qt_tools import qmltestrunner
 ROOT=Path(__file__).resolve().parent.parent
 source=(ROOT/'components/shell.qml').read_text()
-controls=source[source.index('    PersistentProperties {'):source.index('    // Profiles import')]
+controls=source[source.index('    PersistentProperties {'):source.index('    // Singletons')]
 controls=re.sub(r'    PersistentProperties \{\n        id: notificationHistory.*?\n    \}\n', '', controls, flags=re.S)
 controls=controls.replace('PersistentProperties {','QtObject {').replace('IpcHandler {','QtObject {\n        id: controls\n        property string target: ""').replace('        target: "bar"\n','').replace('Hyprland.','fakeHyprland.').replace('NotificationDaemon.', 'notifications.')
 start=source.index('            Item {',source.index('    Variants {'))
 output=source[start:source.index('\n        }\n    }\n}',start)].strip()
 output=output.replace('Hyprland.','fakeHyprland.').replace('Bar {','Rectangle {\n                    property var screen\n                    objectName: "bar"')
 visibility = source[source.index('    function barVisibleOn('):source.index('    NotificationDrawer {')].replace('Hyprland.', 'fakeHyprland.')
+drawer = source[source.index('    NotificationDrawer {'):source.index('    NotificationPopup {')]
+drawer = drawer.replace('NotificationDrawer {', 'QtObject {\n        property var screen\n        property int barHeight').replace('NotificationDaemon.', 'notifications.').replace('Theme.barTotalHeight', '42')
 with tempfile.TemporaryDirectory(prefix='qs-bar-visibility-') as directory:
  p=Path(directory)
  (p/'tst_bar.qml').write_text('''import QtQuick
@@ -18,13 +20,21 @@ import QtTest
 Item {
  id: shell
  width: 800; height: 600
- QtObject { id: notifications; property bool isDrawerOpen: false }
+ QtObject {
+  id: notifications
+  property bool isDrawerOpen: false
+  property bool drawerPinned: false
+  property var surfaceScreen: first
+  onIsDrawerOpenChanged: if (!isDrawerOpen) drawerPinned=false
+ }
+ function getActiveScreen() { return first }
+
  QtObject { id: fakeHyprland; property int refreshes: 0
   function monitorFor(screen) { return screen }
   function refreshWorkspaces() { refreshes++ }
   function refreshToplevels() {}
  }
-'''+controls+visibility+'''
+'''+controls+visibility+drawer+'''
  component Output: '''+output+'''
  QtObject { id: client; property var lastIpcObject: ({fullscreen: 0, fullscreenClient: 0}) }
  QtObject { id: secondClient; property var lastIpcObject: ({fullscreen: 0}) }
@@ -44,6 +54,8 @@ Item {
    first.activeWorkspace=firstWorkspace;second.activeWorkspace=secondWorkspace
    firstWorkspace.hasFullscreen=false;secondWorkspace.hasFullscreen=false
    otherWorkspace.hasFullscreen=false;controls.show()
+   notifications.surfaceScreen=first
+   notifications.isDrawerOpen=false;notifications.drawerPinned=false
   }
   function test_maximizeVersusFullscreen() {
    compare(bar(a).visible,true);compare(bar(b).visible,true)
@@ -67,6 +79,24 @@ Item {
    compare(bar(a).visible,false)
    firstWorkspace.toplevels = {values: []}
    compare(bar(a).visible,true)
+  }
+  function test_drawerClosesOnlyOnItsFullscreenMonitor() {
+   for (const pinned of [false, true]) {
+    client.lastIpcObject={fullscreen:0}; secondClient.lastIpcObject={fullscreen:0}
+    notifications.isDrawerOpen=true;notifications.drawerPinned=pinned
+    client.lastIpcObject={fullscreen:1}
+    verify(notifications.isDrawerOpen,"Maximizing must leave drawer open")
+    compare(notificationDrawer.barHeight,42)
+    secondClient.lastIpcObject={fullscreen:2}
+    verify(notifications.isDrawerOpen,"Other monitor must not close drawer")
+    client.lastIpcObject={fullscreen:2}
+    verify(!notifications.isDrawerOpen,"Fullscreen closes hovered and pinned drawers")
+    verify(!notifications.drawerPinned)
+    compare(notificationDrawer.barHeight,0)
+    client.lastIpcObject={fullscreen:0}
+    verify(!notifications.isDrawerOpen,"Leaving fullscreen must not reopen drawer")
+    compare(notificationDrawer.barHeight,42)
+   }
   }
   function test_notificationOffsets() {
    client.lastIpcObject = {fullscreen: 2}

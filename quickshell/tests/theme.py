@@ -38,9 +38,10 @@ pathlib.Path(p).write_bytes(b'jpeg fixture')
  print('PASS 1600-thumbnail queue exceeds old single-argument limit',flush=True)
  # Installation uses one route table, preserves target symlinks/mode, serializes generation.
  generated=config/'hypr/themes/matugen/generated';generated.mkdir(parents=True)
- for n in ['rofi.rasi','kitty.conf','waybar.css','gtk-3.css','swaync.css','hyprlock.conf','wlogout.css','quickshell-colors.qml']:(generated/n).write_text('new '+n)
+ for n in ['rofi.rasi','kitty.conf','waybar.css','gtk-3.css','swaync.css','hyprlock.conf','wlogout.css','quickshell-colors.json']:(generated/n).write_text('{"primary":"#123456"}' if n.endswith('.json') else 'new '+n)
  target=root/'real-colors';target.write_text('old');target.chmod(0o640)
  (config/'rofi').mkdir();(config/'rofi/colors.rasi').symlink_to(target)
+ reader=config/'quickshell/components/Colors.qml';reader.parent.mkdir(parents=True);reader.write_text('reader sentinel')
  scripts=root/'.scripts';scripts.mkdir();(scripts/'quickshell-common.sh').write_text('quickshell_running() { return 1; }\n')
  for n in ['pkill','notify-send','swaync-client','swww']:mock(bins/n,'raise SystemExit(0)\n')
  mock(bins/'pgrep','raise SystemExit(1)\n')
@@ -56,6 +57,8 @@ p.rmdir()
   _,err=p.communicate(timeout=10);assert p.returncode==0,err
  assert (config/'rofi/colors.rasi').is_symlink() and target.read_text()=='new rofi.rasi'
  assert target.stat().st_mode & 0o777 == 0o640
+ assert json.loads((reader.parent/'colors.json').read_text())['primary']=='#123456'
+ assert reader.read_text()=='reader sentinel', 'theme install overwrote the QML reader'
  target.write_text('sentinel');(generated/'wlogout.css').unlink()
  assert call(['--install-matugen'],env,False).returncode!=0 and target.read_text()=='sentinel'
  (generated/'wlogout.css').write_text('restored output')
@@ -76,7 +79,7 @@ source=sys.argv[sys.argv.index('-i')+1]
 assert pathlib.Path(source).is_file() and '/wall-thumbs/v2/' in source
 with (root/'wal-inputs').open('a') as f: f.write(source+'\\n')
 out=root/'wal';out.mkdir(exist_ok=True)
-for name in ['rofi.rasi','kitty.conf','waybar.css','gtk.css','swaync.css','hyprlock.conf','wlogout.css','quickshell-colors.qml']:
+for name in ['rofi.rasi','kitty.conf','waybar.css','gtk.css','swaync.css','hyprlock.conf','wlogout.css','quickshell-colors.json']:
  (out/name).write_text('pywal fixture')
 ''')
  wall=walls/'a.png'
@@ -106,7 +109,7 @@ for name in ['rofi.rasi','kitty.conf','waybar.css','gtk.css','swaync.css','hyprl
  assert 'Theme colours were applied, but the wallpaper could not be set' in failed.stderr
  assert not (root/'success-notice').exists()
  print('PASS wallpaper failure returns an actionable error without a success notification',flush=True)
- # Theme application relies on the watched Colors.qml; never restart the bar.
+ # Theme application installs JSON data; never restart the bar.
  (scripts/'quickshell-common.sh').write_text('quickshell_running() { return 0; }\n')
  mock(scripts/'switch_quickshell.sh', "import pathlib,os\n(pathlib.Path(os.environ['HOME'])/'bar-restarted').touch()\nraise SystemExit(7)\n")
  mock(bins/'swww', 'raise SystemExit(0)\n')

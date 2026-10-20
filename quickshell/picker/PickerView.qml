@@ -140,8 +140,8 @@ Rectangle {
         wallpaperProc._started = false
         wallpaperProc.command = ["swww", "img", current, "--transition-type", "center", "--transition-fps", "60", "--transition-duration", "0.8"]
         launchCheck.process = wallpaperProc
-        wallpaperProc.running = true
         launchCheck.restart()
+        wallpaperProc.running = true
     }
     function apply(theme, wall) {
         if (busy) return
@@ -154,8 +154,8 @@ Rectangle {
         applyProc.errorText = ""
         applyProc.command = wall ? [bin, "--apply", theme, wall] : [bin, "--apply", theme]
         launchCheck.process = applyProc
-        applyProc.running = true
         launchCheck.restart()
+        applyProc.running = true
     }
     function handleKey(event) {
         const ctrl = (event.modifiers & Qt.ControlModifier) !== 0
@@ -273,7 +273,8 @@ Rectangle {
         id: wallpaperProc
         property bool _started: false
         command: ["swww", "img", ""]
-        onStarted: _started = true
+        onStarted: { _started = true; launchCheck.stop() }
+        onRunningChanged: if (!running && !_started) Qt.callLater(launchCheck.check)
         onExited: (code, status) => {
             launchCheck.stop()
             view.busy = false
@@ -305,7 +306,8 @@ Rectangle {
         property bool _started: false
         property int exitCode: -1
         property string errorText: ""
-        onStarted: _started = true
+        onStarted: { _started = true; launchCheck.stop() }
+        onRunningChanged: if (!running && !_started) Qt.callLater(launchCheck.check)
         stdout: StdioCollector {}
         stderr: StdioCollector {
             onStreamFinished: {
@@ -325,8 +327,10 @@ Rectangle {
         id: launchCheck
         property var process: applyProc
         interval: 500
-        onTriggered: {
+        onTriggered: check()
+        function check() {
             if (view.busy && !process._started && !process.running) {
+                stop()
                 view.busy = false
                 view.error = "Could not start " + process.command[0]
                 view.focusSearch()

@@ -10,7 +10,7 @@ PanelWindow {
 
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Top
-    WlrLayershell.keyboardFocus: controlPanel.isOpen && controlPanel.heldByUser ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: controlPanel.isOpen && controlPanel.heldByUser ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     property int barHeight: 42
     property bool isOpen: false
@@ -246,8 +246,8 @@ PanelWindow {
 
             MusicWidget { preferVerticalScroll: panelScroll.contentHeight > panelScroll.availableHeight }
             Divider {}
-            VolumeSlider {}
-            BrightnessSlider {}
+            VolumeSlider { preferVerticalScroll: panelScroll.contentHeight > panelScroll.availableHeight }
+            BrightnessSlider { preferVerticalScroll: panelScroll.contentHeight > panelScroll.availableHeight }
             Divider {}
             SystemResourceRow {}
             Divider {}

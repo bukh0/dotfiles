@@ -1,0 +1,16 @@
+{
+  "primary": "#268bd2",
+  "primaryFg": "#002b36",
+  "secondary": "#6c71c4",
+  "secondaryFg": "#002b36",
+  "tertiary": "#2aa198",
+  "tertiaryFg": "#002b36",
+  "surface": "#002b36",
+  "surfaceFg": "#839496",
+  "surfaceContainer": "#002b36",
+  "surfaceContainerHigh": "#073642",
+  "background": "#002b36",
+  "outline": "#586e75",
+  "error": "#dc322f",
+  "errorOn": "#002b36"
+}

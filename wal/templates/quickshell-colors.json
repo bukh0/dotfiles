@@ -1,0 +1,16 @@
+{{
+  "primary": "{color6}",
+  "primaryFg": "{background}",
+  "secondary": "{color5}",
+  "secondaryFg": "{background}",
+  "tertiary": "{color4}",
+  "tertiaryFg": "{background}",
+  "surface": "{background}",
+  "surfaceFg": "{foreground}",
+  "background": "{background}",
+  "outline": "{color8}",
+  "error": "#F2B8B5",
+  "errorOn": "#601410",
+  "surfaceContainer": "",
+  "surfaceContainerHigh": ""
+}}

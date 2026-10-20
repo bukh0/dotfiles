@@ -5,6 +5,7 @@ import "."
 // UI only. Discovery, syncing and writing live in BrightnessService.
 ColumnLayout {
     id: root
+    property bool preferVerticalScroll: false
     spacing: 6
 
     // Known at startup, so the row is there from the first frame of the
@@ -27,6 +28,7 @@ ColumnLayout {
     }
 
     SliderRow {
+        preferVerticalScroll: root.preferVerticalScroll
         id: slider
         icon: root.brightIcon
         iconColor: Colors.tertiary

@@ -11,7 +11,7 @@ QtObject {
     readonly property int selectedIndex: _selectedIndex
     property bool _synchronizing: false
     property ListModel model: ListModel {}
-    readonly property var snapshot: sourcePlayers.map(p => ({
+    readonly property var snapshot: sourcePlayers.filter(p => !/^org\.mpris\.MediaPlayer2\.playerctld(?:\.|$)/i.test(p.dbusName)).map(p => ({
         player: p.dbusName,
         playerName: p.identity || p.dbusName,
         title: p.trackTitle || (p.playbackState === MprisPlaybackState.Stopped ? "Nothing playing" : "Unknown track"),
@@ -22,8 +22,7 @@ QtObject {
             : p.playbackState === MprisPlaybackState.Paused ? "Paused" : "Stopped"
     })).sort((a, b) => {
         const spotify = Number(b.playerName.toLowerCase().includes("spotify")) - Number(a.playerName.toLowerCase().includes("spotify"))
-        const weights = {Playing: 2, Paused: 1, Stopped: 0}
-        return spotify || weights[b.status] - weights[a.status] || a.player.localeCompare(b.player)
+        return spotify || a.playerName.localeCompare(b.playerName) || a.player.localeCompare(b.player)
     })
     onSnapshotChanged: synchronize()
     onSelectedPlayerChanged: if (!_synchronizing) updateSelectedIndex()

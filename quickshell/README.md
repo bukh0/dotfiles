@@ -27,12 +27,22 @@ remain available with Do Not Disturb enabled.
 
 `~/.scripts/picker-menu.sh` builds the theme helper on demand. All theme application goes through `theme.switcher --apply THEME [WALLPAPER]`; `wallpick.sh` remains a compatibility wrapper. The helper uses OpenSSL for cache hashes and `vipsthumbnail` for previews. Generated binaries and dependency files are ignored by Git.
 
-Run `python3 tests/run.py`, `python3 tests/launcher.py`, `python3 tests/picker.py`, and `python3 tests/theme.py` for the main regressions. Clipboard tests are in `clipboard/tests/`. The theme suite includes a 1,600-image queue stress test with a mock thumbnailer; it uses temporary directories and mock desktop commands.
+Run `python3 tests/run.py` for core regressions, `python3 tests/run.py --all`
+for all discovered isolated suites, or `python3 tests/run.py --list` to list
+individual suites. Pass suite names to run a subset. Tests require Quickshell,
+Qt 6 test tools and the relevant native helper dependencies. The local
+`.pre-commit-config.yaml` runs the core suite when installed in a Git checkout.
+
+Colors update live from `components/colors.json`; changing a theme no longer
+reloads the shell. The theme writer, Matugen and Pywal templates, and preset
+palettes all use JSON. Notification restoration is still needed for code reloads.
 
 Notification windows are thin `PanelWindow` wrappers around
 `NotificationPopupContent.qml` and `NotificationDrawerContent.qml`. Tests load
 these content items directly. Explicit web and mail links are clickable, and a
-popup body click invokes its default action when available. History survives
+popup body click invokes its default action when available. Opening the notification
+panel clears active and queued popups without deleting history; popups resume
+for new arrivals after the panel closes. History survives
 hot reloads but is not saved across process restarts.
 
 After Quickshell upgrades, run `python3 tests/notifications.py` and
@@ -41,20 +51,15 @@ restoration. The installed 0.3.2 build exposes `expireTimeout` in milliseconds.
 Run `python3 tests/input_edges.py` for workspace dispatch branches; it mocks
 `Hyprland.usingLua`, so also check workspace switching in the running session.
 
-For the notification and lifecycle changes, run `notification_state.py`,
-`notification_layout.py`, `popup_stack.py`, `notification_body.py`,
-`palette_reload.py`, and `sysmon_launch.py` from `tests/`. Set
-`QS_TEST_PROFILE=alt` for alternate-profile state/layout checks.
-`python3 tests/profile_load.py` loads both actual window wrappers invisibly on
-Wayland using a private D-Bus session; it does not replace the running shell.
+Set `QS_TEST_PROFILE=alt` for alternate-profile notification state/layout checks.
+`python3 tests/run.py --live profile_load wayland_surfaces` tests the actual
+window wrappers and Wayland surfaces on a private D-Bus session. The latter
+briefly shows a tooltip and pins a test panel to check keyboard-focus delivery.
 
-To inspect the floating bar's real Wayland input region, run
-`QS_TEST_BAR_MASK=1 python3 tests/profile_load.py`. This briefly shows the test
-bar without reserving screen space or moving the pointer, and checks that bell
-and clock hit extensions are included while unrelated margins remain excluded.
+To inspect the floating bar's real input region, run
+`QS_TEST_BAR_MASK=1 python3 tests/run.py --live profile_load`. This briefly shows
+a test bar without reserving screen space or moving the pointer.
 
 Super+F maximizes while keeping the bar visible. Super+Shift+F enters fullscreen
-and hides only that monitor's bar. Manual bar visibility remains independent.
-`python3 tests/bar_visibility.py` checks these modes and notification offsets.
-Additional audit regressions: `tests/network_command.py`, `tests/bluetooth_scan.py`
-and `tests/sysmon_sampling.py`.
+and hides only that monitor's bar and notification drawer. Manual bar visibility
+remains independent.

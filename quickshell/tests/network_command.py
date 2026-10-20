@@ -7,15 +7,19 @@ ROOT = Path(__file__).resolve().parent.parent
 source = (ROOT / 'components/NetworkService.qml').read_text()
 process = source[source.index('    Process {\n        id: cmdProc'):source.index('    function clearStatus()')]
 run = source[source.index('    function runCommand('):source.index('    Process {\n        id: statusPoll')]
+busy = source[source.index("    function _busy()"):source.index("    function _drainMonitor()") ]
+debounce = source[source.index("    Timer {\n        id: monitorDebounce"):source.index("    Timer {\n        id: nmStableTimer")]
 for delayed in [False, True]:
     fixture = process
     if delayed:
-        fixture = fixture.replace('cmdProc._stderrDone = true\n                commandSettled.restart()', 'delayedStream.restart()', 1)
+        fixture = fixture.replace('cmdProc._stderrDone = true\n                commandSettled.restart()', 'delayedStream.restart(); monitorDebounce.restart()', 1)
         fixture += '''
  Timer {
-  id: delayedStream; interval: 150
+  id: delayedStream; interval: 350
   onTriggered: {
    if (!root.busy) { console.log("FAIL settled before collector"); Qt.quit(); return }
+   if (!root._busy()) { console.log("FAIL background poll admitted before settlement"); Qt.quit(); return }
+   if (!root._monitorPending || root.refreshCalls !== root.settled) { console.log("FAIL debounce polled before settlement"); Qt.quit(); return }
    cmdProc._stderrDone = true
    commandSettled.restart()
   }
@@ -38,9 +42,14 @@ ShellRoot {
   signal connectionSettled()
   onCommandError: message => { errors = errors.concat([message]) }
   function reportStderr(text) { if (text.length) commandError(text) }
-  function refresh() {}
+  QtObject { id: connectProc; property bool running: false }
+  QtObject { id: statusPoll; property bool running: false }
+  QtObject { id: scanPoll; property bool running: false }
+  property bool _monitorPending: false
+  property int refreshCalls: 0
+  function refresh() { refreshCalls++ }
   function _drainMonitor() {}
-''' + fixture + run + '''
+''' + busy + debounce + fixture + run + '''
   Component.onCompleted: runCommand(["sh", "-c", "printf 'first stderr' >&2; sleep 0.1; exit 1"], "first")
   onConnectionSettled: {
    settled++

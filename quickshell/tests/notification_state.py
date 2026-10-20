@@ -6,6 +6,7 @@ import re
 import subprocess
 import tempfile
 from qt_tools import qmltestrunner
+from harness import stub_colors
 
 ROOT = Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='qs-notification-state-') as directory:
@@ -16,8 +17,11 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-state-') as directory:
     source = re.sub(r'^import Quickshell.*\n', '', source, flags=re.M)
     source = re.sub(r'    property FileView _dndStore: FileView \{.*?\n    \}', '''    property QtObject _dndStore: QtObject {
         function text() { return "0" }
-        function setText(value) {}
+        property string written: ""
+        function setText(value) { written=value }
     }''', source, flags=re.S)
+    if os.environ.get('QS_TEST_DND_THROW') == '1':
+        source = source.replace('function text() { return "0" }', 'function text() { throw new Error("missing file") }')
     source = re.sub(r'    property NotificationServer server: NotificationServer \{.*?\n    \}', '', source, flags=re.S)
     source = re.sub(r'    property IpcHandler ipc: IpcHandler \{.*?\n    \}', '', source, flags=re.S)
     source = source.replace('NotificationUrgency.Critical', '2').replace('Quickshell.iconPath(icon, true)', '""')
@@ -26,6 +30,7 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-state-') as directory:
         component = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
         component = component.replace('id: hoverBridge', 'id: hoverBridge; objectName: "auditBridge"')
         (p / name).write_text(component)
+    stub_colors(p / "Colors.qml")
     (p / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
     (p / 'Theme.qml').write_text((ROOT / 'profiles' / os.environ.get('QS_TEST_PROFILE', 'default') / 'Theme.qml').read_text()
         .replace('import Quickshell\n', '').replace('Quickshell.shellPath("../../native/sysmon")', '""'))
@@ -42,6 +47,11 @@ Item {
  TestCase {
  id: testCase
  name: "NotificationState"; when: windowShown
+ function test_dndInitializationPersists() {
+  verify(Config.NotificationDaemon._dndReady)
+  Config.NotificationDaemon.doNotDisturb = !Config.NotificationDaemon.doNotDisturb
+  compare(Config.NotificationDaemon._dndStore.written, Config.NotificationDaemon.doNotDisturb ? "1\\n" : "0\\n")
+ }
  property int observedId: -1
  property var observedActions: Config.NotificationDaemon.actionsFor(observedId)
  property var removedActions: null

@@ -7,8 +7,7 @@ import "."
 
 ShellRoot {
     id: root
-    // Applying a theme replaces Colors.qml. Keep this process alive only
-    // until the operation completes, then release it on dismissal.
+    // Keep an in-flight theme operation alive across unrelated code edits.
     Component.onCompleted: Quickshell.watchFiles = false
     function dismiss() {
         if (view.busy) return
@@ -23,7 +22,7 @@ ShellRoot {
 
     PanelWindow {
         id: window
-        screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) || Quickshell.screens[0]
+        Component.onCompleted: screen = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) || Quickshell.screens[0]
         // No anchors: the compositor centres a window-sized surface, so
         // only the panel area is rendered each frame instead of the whole monitor.
         implicitWidth: Math.max(320, Math.min(view.page === "Wallpapers" ? 820 : view.page === "Home" ? 460 : 560, (screen ? screen.width : 1920) - 80))

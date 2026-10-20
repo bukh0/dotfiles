@@ -12,6 +12,7 @@ RowLayout {
     property color trackColor: Colors.primary
     property real value: 0.5
     property real minValue: 0.0
+    property bool preferVerticalScroll: false
 
     // Own the interaction lifetime: MouseArea.pressed becomes false before
     // released is delivered, which otherwise briefly restores the old value.
@@ -67,6 +68,7 @@ RowLayout {
 
         WheelHandler {
             target: null
+            enabled: !root.preferVerticalScroll
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
             onWheel: event => {
                 const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y / 1000 : event.angleDelta.y / 120 * 0.05

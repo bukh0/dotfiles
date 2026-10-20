@@ -26,6 +26,14 @@ Item {
     compare(styled.implicitHeight,plain.implicitHeight,input)
    }
   }
+  function test_apostropheAndNumericEntities() {
+   for (const pair of [["it&apos;s", "it's"], ["it&#39;s", "it's"], ["it&#x27;s", "it's"], ["&#x1f600;", "😀"]]) {
+    plain.text = pair[1]
+    styled.text = Body.styled(pair[0])
+    compare(styled.implicitWidth,plain.implicitWidth,pair[0])
+    compare(styled.implicitHeight,plain.implicitHeight,pair[0])
+   }
+  }
   function test_formattingAndEntities() {
    compare(Body.styled('<b>bold</b> <i>italic</i><br/>A &amp; B'), '<b>bold</b> <i>italic</i><br/>A &amp; B')
    plain.text = '<int> & "quoted"'

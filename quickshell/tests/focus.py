@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise real panel focus hierarchy with isolated text, mouse and music controls."""
 from qt_tools import qmltestrunner
+from harness import stub_colors
 import os, pathlib, re, subprocess, tempfile
 src=pathlib.Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='qs-focus-audit-') as d:
@@ -45,7 +46,7 @@ with tempfile.TemporaryDirectory(prefix='qs-focus-audit-') as d:
 }
 '''
  (p/'ControlPanel.qml').write_text(s)
- (p/'Colors.qml').write_bytes((src/'components/Colors.qml').read_bytes())
+ stub_colors(p / "Colors.qml")
  theme=(src/'profiles/default/Theme.qml').read_text()
  theme='\n'.join(x for x in theme.splitlines() if x!='import Quickshell' and 'sysmonPath:' not in x)
  (p / "BaseTheme.qml").write_text((src / "components/BaseTheme.qml").read_text())

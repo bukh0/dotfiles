@@ -17,11 +17,15 @@ Item {
         return "󰤭"
     }
 
-    ToolTip.visible: mouseArea.containsMouse
-    ToolTip.delay: 500
-    ToolTip.text: NetworkService.connectionType === "wifi"
-        ? NetworkService.ssid + " · " + NetworkService.signalStrength + "%"
-        : NetworkService.connectionType === "ethernet" ? "Ethernet connected" : "Disconnected"
+    ToolTip {
+        objectName: "networkTooltip"
+        popupType: Popup.Window
+        visible: mouseArea.containsMouse
+        delay: 500
+        text: NetworkService.connectionType === "wifi"
+            ? NetworkService.ssid + " · " + NetworkService.signalStrength + "%"
+            : NetworkService.connectionType === "ethernet" ? "Ethernet connected" : "Disconnected"
+    }
 
     // Matches waybar's network module: clicking just launches
     // nm-connection-editor as its own top-level window. No SNI tray item,

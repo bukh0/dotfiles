@@ -15,8 +15,13 @@ QtObject {
     property bool doNotDisturb: false
     property bool _dndReady: false
     Component.onCompleted: {
-        doNotDisturb = _dndStore.text().trim() === "1"
-        _dndReady = true
+        try {
+            doNotDisturb = _dndStore.text().trim() === "1"
+        } catch (error) {
+            doNotDisturb = false
+        } finally {
+            _dndReady = true
+        }
     }
     property int actionRevision: 0
     onIsDrawerOpenChanged: if (!isDrawerOpen) drawerPinned = false
@@ -265,7 +270,6 @@ QtObject {
             appName: data.appName,
             summary: data.summary,
             body: data.body.replace(/<img\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, ""),
-            timeText: Qt.formatTime(data.time, "hh:mm"),
             timestamp: data.time.getTime(),
             urgency: data.urgency,
             iconSource: root.getIconSource(data)

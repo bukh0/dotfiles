@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: quickshell-regressions
+        name: Quickshell core regressions
+        entry: python3 tests/run.py
+        language: system
+        pass_filenames: false
+        files: '^(components/|profiles/|native/|tests/)'

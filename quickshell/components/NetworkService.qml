@@ -211,7 +211,7 @@ Item {
     }
 
     function _busy() {
-        return cmdProc.running || connectProc.running || statusPoll.running || scanPoll.running
+        return root.busy || cmdProc.running || connectProc.running || statusPoll.running || scanPoll.running
     }
 
     function _drainMonitor() {
@@ -224,7 +224,10 @@ Item {
     Timer {
         id: monitorDebounce
         interval: 150
-        onTriggered: root.refresh()
+        onTriggered: {
+            if (root._busy()) root._monitorPending = true
+            else root.refresh()
+        }
     }
 
     Timer {

@@ -20,17 +20,27 @@ ShellRoot {
  }
  Timer { interval: 500; running: true; repeat: true; property int step: 0
   onTriggered: {
-   if (step++ === 0) view.apply("Matugen", "/tmp/wall.png")
-   else {
-    if (view.busy || view.error !== "specific apply failure") console.error("PICKER FAIL", view.error)
+   if (step === 0) view.apply("Matugen", "/tmp/wall.png")
+   else if (step === 1) {
+    if (view.busy || view.error !== "specific apply failure") { console.error("PICKER FAIL", view.error); Qt.quit(); return }
+    view.bin = "/nonexistent/qs-picker-engine"
+    view.apply("Matugen", "")
+   } else if (step === 2) {
+    if (view.busy || view.error !== "Could not start /nonexistent/qs-picker-engine") { console.error("PICKER FAIL missing engine", view.error); Qt.quit(); return }
+    view.filtered = ["/tmp/wall.png"]
+    view.selected = 0
+    view.setWallpaperOnly()
+   } else {
+    if (view.busy || view.error !== "Could not start swww") console.error("PICKER FAIL missing swww", view.error)
     else console.log("PICKER PASS")
     Qt.quit()
    }
+   step++
   }
  }
 }
 ''')
- env=dict(os.environ,QT_QPA_PLATFORM='offscreen',XDG_RUNTIME_DIR=d)
- r=subprocess.run(['quickshell','-p',str(p/'shell.qml')],env=env,capture_output=True,text=True,timeout=10)
+ env=dict(os.environ,QT_QPA_PLATFORM='offscreen',XDG_RUNTIME_DIR=d,PATH=d)
+ r=subprocess.run([shutil.which('quickshell'),'-p',str(p/'shell.qml')],env=env,capture_output=True,text=True,timeout=10)
  print(r.stdout+r.stderr)
  assert 'PICKER PASS' in r.stdout+r.stderr

@@ -5,6 +5,7 @@ import "."
 
 ColumnLayout {
     id: root
+    property bool preferVerticalScroll: false
     spacing: 6
     enabled: audio !== null
 
@@ -38,6 +39,7 @@ ColumnLayout {
     }
 
     SliderRow {
+        preferVerticalScroll: root.preferVerticalScroll
         id: slider
         icon: volIcon
         iconColor: muted ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4) : Colors.primary

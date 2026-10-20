@@ -344,7 +344,6 @@ Rectangle {
                     required property string appName
                     required property string summary
                     required property string body
-                    required property string timeText
                     required property double timestamp
                     required property int urgency
                     required property string iconSource

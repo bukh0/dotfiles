@@ -34,5 +34,5 @@ input_path  = '/home/bukh0/.config/hypr/themes/matugen/templates/midnight-discor
 output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/midnight-discord.css'
 
 [templates.quickshell]
-input_path  = '/home/bukh0/.config/hypr/themes/matugen/templates/quickshell-colors.qml'
-output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/quickshell-colors.qml'
+input_path  = '/home/bukh0/.config/hypr/themes/matugen/templates/quickshell-colors.json'
+output_path = '/home/bukh0/.config/hypr/themes/matugen/generated/quickshell-colors.json'

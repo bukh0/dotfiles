@@ -1,59 +1,64 @@
 #!/usr/bin/env python3
-"""Verify atomic palette replacements hot-reload a symlinked profile."""
+"""Atomic JSON palettes update the real singleton without rebuilding the shell."""
+import json
 import os
 from pathlib import Path
-import re
+import shutil
 import subprocess
 import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parent.parent
-watcher = re.search(r"    FileView \{.*?\n    \}",
-                    (ROOT / "components/shell.qml").read_text(), re.S).group()
-with tempfile.TemporaryDirectory(prefix="qs-palette-reload-") as directory:
+with tempfile.TemporaryDirectory(prefix="qs-palette-live-") as directory:
     root = Path(directory)
     components = root / "components"
     profile = root / "profiles/alt"
     components.mkdir()
     profile.mkdir(parents=True)
-    palette = components / "Colors.qml"
+    shutil.copyfile(os.environ.get('QS_TEST_COLORS', ROOT / 'components/Colors.qml'), components / 'Colors.qml')
+    palette = components / 'colors.json'
 
-    def update(colour):
-        temporary = components / "Colors.tmp"
-        temporary.write_text('pragma Singleton\nimport QtQuick\nQtObject { '
-                             'readonly property color primary: "' + colour + '" }\n')
+    def update(value):
+        temporary = components / 'colors.tmp'
+        temporary.write_text(value if isinstance(value, str) else json.dumps(value))
         temporary.replace(palette)
 
-    update("#112233")
-    (profile / "Colors.qml").symlink_to(palette)
-    (profile / "qmldir").write_text("singleton Colors 1.0 Colors.qml\n")
-    (profile / "shell.qml").write_text(
-        'import QtQuick\nimport Quickshell\nimport Quickshell.Io\nimport "."\n'
-        'ShellRoot {\n' + watcher + '\n'
-        'Component.onCompleted: console.log("PALETTE", Colors.primary)\n}\n')
-    log_path = root / "log"
-    env = dict(os.environ, QT_QPA_PLATFORM="offscreen", XDG_RUNTIME_DIR=directory)
-    env.pop("WAYLAND_DISPLAY", None)
-    with log_path.open("w") as log:
-        process = subprocess.Popen(["quickshell", "-p", str(profile)], env=env,
-                                   stdout=log, stderr=log)
+    update({'primary': '#112233'})
+    for name in ['Colors.qml', 'colors.json']:
+        (profile / name).symlink_to(components / name)
+    (profile / 'qmldir').write_text('singleton Colors 1.0 Colors.qml\n')
+    (profile / 'shell.qml').write_text('''import QtQuick
+import Quickshell
+import "."
+ShellRoot {
+    property color colour: Colors.primary
+    onColourChanged: console.log("PALETTE", colour)
+    property color container: Colors.surfaceContainer
+    onContainerChanged: console.log("CONTAINER", container)
+    Component.onCompleted: console.log("ROOT_CREATED")
+}
+''')
+    log_path = root / 'log'
+    env = dict(os.environ, QT_QPA_PLATFORM='offscreen', XDG_RUNTIME_DIR=directory)
+    env.pop('WAYLAND_DISPLAY', None)
+    with log_path.open('w') as log:
+        process = subprocess.Popen(['quickshell', '-p', str(profile)], env=env, stdout=log, stderr=log)
+        def await_colour(colour):
+            deadline = time.monotonic() + 5
+            while 'PALETTE ' + colour not in log_path.read_text():
+                assert process.poll() is None and time.monotonic() < deadline, log_path.read_text()
+                time.sleep(.05)
         try:
-            for index, colour in enumerate(("#112233", "#445566", "#778899")):
-                if index:
-                    # Multiple atomic writes must produce only the final reload.
-                    update("#abcdef")
-                    time.sleep(0.06)
-                    update("#fedcba")
-                    time.sleep(0.06)
-                    update(colour)
-                deadline = time.monotonic() + 5
-                while "PALETTE " + colour not in log_path.read_text():
-                    assert process.poll() is None and time.monotonic() < deadline, log_path.read_text()
-                    time.sleep(0.05)
-            assert process.poll() is None, log_path.read_text()
-            assert "PALETTE #abcdef" not in log_path.read_text(), log_path.read_text()
-            assert "PALETTE #fedcba" not in log_path.read_text(), log_path.read_text()
-            print("PASS successive atomic palette replacements reload colours in the same process")
+            await_colour('#112233')
+            update({'primary': '#445566'})
+            await_colour('#445566')
+            update('{invalid json')
+            time.sleep(.2)
+            update({'primary': '#778899', 'surface': '#000000', 'surfaceFg': '#ffffff', 'surfaceContainer': '', 'surfaceContainerHigh': ''})
+            await_colour('#778899')
+            assert 'CONTAINER #0f0f0f' in log_path.read_text(), log_path.read_text()
+            assert log_path.read_text().count('ROOT_CREATED') == 1, log_path.read_text()
+            print('PASS atomic JSON palette updates and recovery without shell reload')
         finally:
             process.terminate()
             process.wait(timeout=5)

@@ -17,6 +17,7 @@ Item {
     TestCase {
         name: "Slider"
         when: windowShown
+        function init() { commits.clear(); slider.preferVerticalScroll=false }
         function test_externalAmplification() {
             slider.value = 1.2
             compare(slider.visualValue, 1)
@@ -34,6 +35,16 @@ Item {
             slider.value = slider.minValue
             mouseWheel(track, track.width / 2, track.height / 2, 0, -120)
             compare(slider.value, slider.minValue)
+        }
+        function test_overflowDefersWheel() {
+            const track = slider.children[1]
+            slider.value=0.5
+            slider.preferVerticalScroll=true
+            mouseWheel(track,track.width/2,track.height/2,0,120)
+            compare(slider.value,0.5)
+            slider.preferVerticalScroll=false
+            mouseWheel(track,track.width/2,track.height/2,0,120)
+            fuzzyCompare(slider.value,0.55,0.001)
         }
         function test_pointerMapping() {
             const track = slider.children[1]

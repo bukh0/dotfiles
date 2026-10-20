@@ -2,17 +2,23 @@
 from pathlib import Path
 import os, re, shutil, subprocess, tempfile
 from qt_tools import qmltestrunner
+from harness import stub_colors
 ROOT=Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='qs-popup-stack-') as directory:
  p=Path(directory); profile=p/'profile';profile.mkdir()
  for name in ('NotificationPopup.qml','NotificationButton.qml','NotificationActions.qml','Colors.qml', 'NotificationBody.js'):
   source=(ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
   (profile/name).write_text(source)
+ stub_colors(profile / "Colors.qml")
  (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
  (profile/'Theme.qml').write_text((ROOT/'profiles/default/Theme.qml').read_text().replace('import Quickshell\n','').replace('Quickshell.shellPath("../../native/sysmon")','""'))
  (profile/'NotificationDaemon.qml').write_text('''pragma Singleton
 import QtQuick
 QtObject {
+ property bool isDrawerOpen: false
+ property ListModel notificationModel: ListModel {}
+ property int closed: 0
+ function closeNotificationById(id) { closed++; notificationModel.clear() }
  property bool doNotDisturb: false
  property int invoked: 0
  signal dismissPopup()
@@ -39,11 +45,36 @@ Item {
    popup.dismissAll(); popup.maxVisible=3; popup.maxQueueLength=20
    popup.persistentDisplayDuration=2000
    Config.NotificationDaemon.doNotDisturb=false
+   Config.NotificationDaemon.isDrawerOpen=false
+   Config.NotificationDaemon.notificationModel.clear()
+   Config.NotificationDaemon.closed=0
   }
   function descendants(item) {
    let result = []
    for (const child of item.children || []) result = result.concat([child], descendants(child))
    return result
+  }
+  function test_openDrawerHidesPopupsButKeepsHistory() {
+   const daemon = Config.NotificationDaemon
+   for (let id=901; id<=905; id++) {
+    const data = entry(id,0,id === 901 ? 2 : 1)
+    daemon.notificationModel.append(data)
+    popup.showNotification(data)
+   }
+   compare(popup.activeCount,3); compare(popup.queueCount,2)
+   popup.dismiss() // Also clear a card already fading out.
+   daemon.isDrawerOpen=true
+   compare(popup.activeCount,0); compare(popup.queueCount,0)
+   verify(!popup.visible)
+   compare(daemon.notificationModel.count,5); compare(daemon.closed,0)
+   popup.showNotification(entry(906,0,2))
+   compare(popup.activeCount,0,"Panel already displays incoming notifications")
+   daemon.isDrawerOpen=false
+   wait(300)
+   compare(popup.activeCount,0); compare(popup.queueCount,0)
+   compare(daemon.notificationModel.count,5); compare(daemon.closed,0)
+   popup.showNotification(entry(907,0))
+   compare(popup.activeCount,1,"New notifications pop up after panel closes")
   }
   function test_dndFiltersActiveAndQueue() {
    popup.showNotification(entry(611,0,2))
@@ -112,6 +143,19 @@ Item {
    compare(Config.NotificationDaemon.invoked, before)
    wait(300)
    compare(popup.activeCount, 1)
+  }
+  function test_hideButtonDoesNotInvokeDefault() {
+   const data = entry(95,0)
+   data.actions = [{identifier: "default", text: "Open"}]
+   popup.showNotification(data)
+   wait(300)
+   const button = descendants(popup).find(item => item.hint === "Hide popup (stays in panel)")
+   verify(!!button)
+   const before = Config.NotificationDaemon.invoked
+   mouseClick(button,button.width/2,button.height/2)
+   compare(Config.NotificationDaemon.invoked,before)
+   wait(300)
+   compare(popup.activeCount,0)
   }
   function test_bodyInvokesDefaultAction() {
    const data = entry(96,0)
@@ -201,11 +245,13 @@ Item {
    for (let id=811; id<=813; id++) popup.showNotification(entry(id,0))
    wait(300)
    const oldest = descendants(popup).find(item => item.text === "Alert 811")
+   popup.persistentDisplayDuration=500
+   popup.showNotification(entry(814,0))
+   compare(JSON.stringify(popup.yieldingIds), JSON.stringify([811]))
    mouseMove(oldest, 5, 5)
    wait(30)
-   popup.showNotification(entry(814,0))
    compare(JSON.stringify(popup.yieldingIds), JSON.stringify([812]))
-   wait(400)
+   wait(800)
    verify(popup._activeIndex(811) >= 0)
    compare(popup._activeIndex(812), -1)
   }

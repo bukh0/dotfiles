@@ -2,7 +2,6 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import Quickshell.Wayland
 import Quickshell.Hyprland
 import "."
 
@@ -26,19 +25,6 @@ ShellRoot {
         function show(): void { barState.shown = true }
         // Compatibility with older helpers: refresh real state, never latch their snapshot.
         function setFullscreen(hidden: bool): void { Hyprland.refreshWorkspaces(); Hyprland.refreshToplevels() }
-    }
-
-    // Profiles import Colors.qml through a symlink. Watch the actual target:
-    // atomic replacement does not trigger Quickshell's symlink-file watcher.
-    FileView {
-        path: Quickshell.shellPath("../../components/Colors.qml")
-        watchChanges: true
-        onFileChanged: paletteReload.restart()
-        property Timer debounce: Timer {
-            id: paletteReload
-            interval: 250
-            onTriggered: Quickshell.reload(false)
-        }
     }
 
     // Singletons are created lazily. Touch the ones that must run while
@@ -82,7 +68,9 @@ ShellRoot {
     NotificationDrawer {
         id: notificationDrawer
         screen: NotificationDaemon.surfaceScreen || getActiveScreen()
-        barHeight: shell.barVisibleOn(screen) ? Theme.barTotalHeight : 0
+        readonly property bool barShownOnScreen: shell.barVisibleOn(screen)
+        barHeight: barShownOnScreen ? Theme.barTotalHeight : 0
+        onBarShownOnScreenChanged: if (!barShownOnScreen) NotificationDaemon.isDrawerOpen = false
     }
 
     NotificationPopup {

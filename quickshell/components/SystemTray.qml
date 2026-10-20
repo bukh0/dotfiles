@@ -46,9 +46,12 @@ RowLayout {
                 smooth: true
             }
 
-            ToolTip.visible: trayMouse.containsMouse && trayItem.modelData.tooltipTitle !== ""
-            ToolTip.text: trayItem.modelData.tooltipTitle
-            ToolTip.delay: 500
+            ToolTip {
+                popupType: Popup.Window
+                visible: trayMouse.containsMouse && trayItem.modelData.tooltipTitle !== ""
+                text: trayItem.modelData.tooltipTitle
+                delay: 500
+            }
             MouseArea {
                 id: trayMouse
                 anchors.fill: parent

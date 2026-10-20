@@ -4,14 +4,13 @@ from pathlib import Path
 import subprocess
 import tempfile
 from qt_tools import qmltestrunner
+from harness import stub_mpris
 
 ROOT = Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix="music-sync-") as directory:
     root = Path(directory)
+    stub_mpris(root)
     source = (ROOT / "components/MusicService.qml").read_text()
-    source = source.replace("import Quickshell.Services.Mpris\n", "")
-    source = source.replace("Mpris.players.values", "[]")
-    source = source.replace("MprisPlaybackState.Playing", "1").replace("MprisPlaybackState.Paused", "2").replace("MprisPlaybackState.Stopped", "0")
     (root / "MusicService.qml").write_text(source)
     (root / "qmldir").write_text("singleton MusicService 1.0 MusicService.qml\n")
     (root / "tst_music.qml").write_text("""
@@ -56,12 +55,17 @@ TestCase {
             else compare(change.index, 0)
         }
     }
-    function test_reorderRetainsSelection() {
+    function test_playbackChangesKeepPageOrder() {
         Config.MusicService.sourcePlayers = [player("a"), player("b"), player("c", 1)]
         compare(Config.MusicService.selectedPlayer, "b")
-        compare(Config.MusicService.selectedIndex, 2)
-        compare(changes.length, 1)
+        compare(Config.MusicService.selectedIndex, 1)
+        compare(modelNames(), ["a", "b", "c"])
+        compare(changes.length, 0)
         verifyPublications()
+    }
+    function test_filterPlayerctldProxy() {
+        Config.MusicService.sourcePlayers = [player("org.mpris.MediaPlayer2.playerctld"), player("a")]
+        compare(modelNames(), ["a"])
     }
     function test_removeSelected() {
         Config.MusicService.sourcePlayers = [player("a"), player("c")]
@@ -102,7 +106,7 @@ TestCase {
     }
 }
 """)
-    env = dict(os.environ, QT_QPA_PLATFORM="offscreen", XDG_RUNTIME_DIR=directory)
+    env = dict(os.environ, QML_IMPORT_PATH=str(root), QT_QPA_PLATFORM="offscreen", XDG_RUNTIME_DIR=directory)
     result = subprocess.run([qmltestrunner(), "-input", str(root / "tst_music.qml")],
                             env=env, capture_output=True, text=True, timeout=15)
     print(result.stdout + result.stderr)

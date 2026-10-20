@@ -8,12 +8,11 @@ RowLayout {
     spacing: 8
 
     // ── Date / time ────────────────────────────────────────────
-    property string dateTimeText: Qt.formatDateTime(clock.date, "hh:mm · ddd - dd/MM/yyyy")
+    readonly property string dateTimeText: Qt.formatDateTime(clock.date, "hh:mm · ddd - dd/MM/yyyy")
 
     SystemClock {
         id: clock
         precision: SystemClock.Minutes
-        onDateChanged: dateTimeText = Qt.formatDateTime(date, "hh:mm · ddd - dd/MM/yyyy")
     }
 
     // ── Time display ───────────────────────────────────────────

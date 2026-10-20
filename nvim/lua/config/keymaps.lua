@@ -41,3 +41,4 @@ map("n", "]]", function() Snacks.words.jump(vim.v.count1) end, { desc = "Next re
 map("n", "[[", function() Snacks.words.jump(-vim.v.count1) end, { desc = "Prev reference" })
 
 map("t", "<C-Esc>", "<C-\\><C-n>", { desc = "Terminal normal mode" })
+Snacks.toggle.option("mouse", { name = "Mouse", on = "a", off = "" }):map("<leader>um")

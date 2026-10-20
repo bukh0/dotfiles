@@ -5,6 +5,7 @@ import re
 import subprocess
 import tempfile
 from qt_tools import qmltestrunner
+from harness import stub_colors
 
 ROOT = Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='qs-notification-layout-') as directory:
@@ -14,6 +15,7 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-layout-') as directory:
     for name in ('NotificationDrawer.qml', 'NotificationButton.qml', 'NotificationActions.qml', 'Colors.qml', 'NotificationBody.js'):
         source = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
         (profile / name).write_text(source)
+    stub_colors(profile / "Colors.qml")
     (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
     (profile / 'Theme.qml').write_text((ROOT / 'profiles' / os.environ.get('QS_TEST_PROFILE', 'default') / 'Theme.qml').read_text()
         .replace('import Quickshell\n', '').replace('Quickshell.shellPath("../../native/sysmon")', '""'))
