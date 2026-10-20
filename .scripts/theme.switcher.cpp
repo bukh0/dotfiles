@@ -181,7 +181,7 @@ Routes routes(const fs::path& src, const fs::path& config, const std::string& th
         {"rofi.rasi", "rofi/colors.rasi"}, {"kitty.conf", "kitty/theme.conf"},
         {"waybar.css", "waybar/theme.css"}, {"gtk.css", "gtk-3.0/gtk.css"},
         {"swaync.css", "swaync/colors.css"}, {"hyprlock.conf", "hypr/hyprlock-colors.conf"},
-        {"wlogout.css", "wlogout/colors.css"}, {"quickshell-colors.qml", "quickshell/components/Colors.qml"}}) {
+        {"wlogout.css", "wlogout/colors.css"}, {"quickshell-colors.json", "quickshell/components/colors.json"}}) {
         auto source = src / route.first;
         if (theme == "Matugen" && route.first == "gtk.css" && !fs::exists(source)) source = src / "gtk-3.css";
         result.emplace_back(source, config / route.second);
@@ -223,8 +223,7 @@ void reload() {
     run("pkill -USR1 -u " + std::to_string(getuid()) + " -x kitty 2>/dev/null || true");
     run("pkill -USR2 -u " + std::to_string(getuid()) + " -x waybar 2>/dev/null || true");
     run("pgrep -x swaync >/dev/null && swaync-client -rs >/dev/null 2>&1 &");
-    // Colors.qml is watched by the bar. Its hot reload preserves the process
-    // and avoids a second full restart racing notification-state restoration.
+    // Colors.qml watches the atomically installed JSON palette; no shell reload.
 }
 int main(int argc, char** argv) {
     try {
