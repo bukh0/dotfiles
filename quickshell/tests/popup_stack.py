@@ -6,7 +6,7 @@ from harness import stub_colors
 ROOT=Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='qs-popup-stack-') as directory:
  p=Path(directory); profile=p/'profile';profile.mkdir()
- for name in ('NotificationPopup.qml','NotificationButton.qml','NotificationActions.qml','Colors.qml', 'NotificationBody.js'):
+ for name in ("PlainToolTip.qml", 'NotificationPopup.qml','NotificationButton.qml','NotificationActions.qml','Colors.qml', 'NotificationBody.js'):
   source=(ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
   (profile/name).write_text(source)
  # Exercise the actual wrapper's screen routing with only the native window
@@ -38,7 +38,7 @@ QtObject {
  function invokeAction(id,index) { invoked++ }
 }
 ''')
- (profile/'qmldir').write_text('BaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton NotificationDaemon 1.0 NotificationDaemon.qml\n')
+ (profile/'qmldir').write_text('PlainToolTip 1.0 PlainToolTip.qml\nBaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton NotificationDaemon 1.0 NotificationDaemon.qml\n')
  (p/'tst_popup.qml').write_text('''import QtQuick
 import QtTest
 import "profile" as Config

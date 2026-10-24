@@ -46,10 +46,8 @@ RowLayout {
                 smooth: true
             }
 
-            ToolTip {
-                id: trayTip
-                popupType: Popup.Window
-                contentItem: Text { text: trayTip.text; font: trayTip.font; color: trayTip.palette.toolTipText; textFormat: Text.PlainText }
+            PlainToolTip {
+                textWrapMode: Text.NoWrap
                 visible: trayMouse.containsMouse && trayItem.modelData.tooltipTitle !== ""
                 text: trayItem.modelData.tooltipTitle
                 delay: 500

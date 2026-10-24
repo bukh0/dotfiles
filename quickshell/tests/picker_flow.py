@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix="picker-flow-") as directory:
     (p / "profiles").mkdir()
     shutil.copytree(ROOT / "profiles/default", p / "profiles/default")
     shutil.copytree(ROOT / "profiles/alt", p / "profiles/alt")
-    for name in ("PickerView.qml", "qmldir", "Colors.qml"):
+    for name in ("PlainToolTip.qml", "PickerView.qml", "qmldir", "Colors.qml"):
         shutil.copyfile(ROOT / "picker" / name, p / "picker" / name)
     engine = p / "engine"
     engine.write_text('''#!/bin/sh

@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-state-') as directory:
     source = re.sub(r'    property IpcHandler ipc: IpcHandler \{.*?\n    \}', '', source, flags=re.S)
     source = source.replace('NotificationUrgency.Critical', '2').replace('Quickshell.iconPath(icon, true)', '""')
     (p / 'NotificationDaemon.qml').write_text(source)
-    for name in ('NotificationDrawer.qml', 'NotificationPopup.qml', 'NotificationBell.qml', 'NotificationActions.qml', 'NotificationButton.qml', 'Colors.qml', 'NotificationBody.js'):
+    for name in ("PlainToolTip.qml", 'NotificationDrawer.qml', 'NotificationPopup.qml', 'NotificationBell.qml', 'NotificationActions.qml', 'NotificationButton.qml', 'Colors.qml', 'NotificationBody.js'):
         component = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
         component = component.replace('id: hoverBridge', 'id: hoverBridge; objectName: "auditBridge"')
         (p / name).write_text(component)
@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-state-') as directory:
     (p / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text().replace("import Quickshell\n", ""))
     (p / 'Theme.qml').write_text((ROOT / 'profiles' / os.environ.get('QS_TEST_PROFILE', 'default') / 'Theme.qml').read_text()
         .replace('import Quickshell\n', '').replace('Quickshell.shellPath("../../native/sysmon")', '""'))
-    (p / 'qmldir').write_text('singleton NotificationDaemon 1.0 NotificationDaemon.qml\nsingleton Colors 1.0 Colors.qml\nBaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\n')
+    (p / 'qmldir').write_text('PlainToolTip 1.0 PlainToolTip.qml\nsingleton NotificationDaemon 1.0 NotificationDaemon.qml\nsingleton Colors 1.0 Colors.qml\nBaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\n')
     (p / 'tst_state.qml').write_text('''import QtQuick
 import QtTest
 import "." as Config

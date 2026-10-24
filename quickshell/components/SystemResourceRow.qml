@@ -57,16 +57,7 @@ RowLayout {
 
         HoverHandler { id: hoverHandler; blocking: false }
 
-        ToolTip {
-            id: plainTooltip1
-            popupType: Popup.Window
-            contentItem: Text {
-                text: plainTooltip1.text
-                font: plainTooltip1.font
-                color: plainTooltip1.palette.toolTipText
-                textFormat: Text.PlainText
-                wrapMode: Text.Wrap
-            }
+        PlainToolTip {
             visible: hoverHandler.hovered && statRoot.tooltipText !== ""
             text: statRoot.tooltipText
             delay: 300
@@ -131,16 +122,7 @@ RowLayout {
 
             HoverHandler { id: profileHover; blocking: false }
 
-            ToolTip {
-                id: plainTooltip2
-                popupType: Popup.Window
-                contentItem: Text {
-                    text: plainTooltip2.text
-                    font: plainTooltip2.font
-                    color: plainTooltip2.palette.toolTipText
-                    textFormat: Text.PlainText
-                    wrapMode: Text.Wrap
-                }
+            PlainToolTip {
                 visible: profileHover.hovered && root.tooltipProfile !== ""
                 text: root.tooltipProfile
                 delay: 300

@@ -469,16 +469,7 @@ Rectangle {
                                     text: NotificationBody.styled(delegateRoot.body)
                                     textFormat: Text.StyledText
                                     linkColor: Colors.primary
-                                    ToolTip {
-                                        id: plainTooltip1
-                                        popupType: Popup.Window
-                                        contentItem: Text {
-                                            text: plainTooltip1.text
-                                            font: plainTooltip1.font
-                                            color: plainTooltip1.palette.toolTipText
-                                            textFormat: Text.PlainText
-                                            wrapMode: Text.Wrap
-                                        }
+                                    PlainToolTip {
                                         visible: parent.hoveredLink !== ""
                                         text: parent.hoveredLink
                                         delay: 500

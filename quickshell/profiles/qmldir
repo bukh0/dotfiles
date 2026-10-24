@@ -34,3 +34,4 @@ NotificationButton 1.0 NotificationButton.qml
 BaseTheme 1.0 BaseTheme.qml
 NotificationPopupContent 1.0 NotificationPopupContent.qml
 NotificationDrawerContent 1.0 NotificationDrawerContent.qml
+PlainToolTip 1.0 PlainToolTip.qml

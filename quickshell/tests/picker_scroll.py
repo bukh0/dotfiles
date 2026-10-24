@@ -10,7 +10,7 @@ with tempfile.TemporaryDirectory(prefix="picker-scroll-") as directory:
     root = Path(directory)
     picker = root / "picker"
     picker.mkdir()
-    for name in ("PickerView.qml", "qmldir", "Colors.qml"):
+    for name in ("PlainToolTip.qml", "PickerView.qml", "qmldir", "Colors.qml"):
         shutil.copyfile(ROOT / "picker" / name, picker / name)
     (root / "shell.qml").write_text('''import QtQuick
 import Quickshell

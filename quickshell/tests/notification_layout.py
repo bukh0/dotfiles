@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-layout-') as directory:
     p = Path(directory)
     profile = p / 'profile'
     profile.mkdir()
-    for name in ('NotificationDrawer.qml', 'NotificationButton.qml', 'NotificationActions.qml', 'Colors.qml', 'NotificationBody.js'):
+    for name in ("PlainToolTip.qml", 'NotificationDrawer.qml', 'NotificationButton.qml', 'NotificationActions.qml', 'Colors.qml', 'NotificationBody.js'):
         source = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
         (profile / name).write_text(source)
     stub_colors(profile / "Colors.qml")
@@ -38,7 +38,7 @@ QtObject {
  function closeNotificationById(id) {}
 }
 ''')
-    (profile / 'qmldir').write_text('BaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton NotificationDaemon 1.0 NotificationDaemon.qml\n')
+    (profile / 'qmldir').write_text('PlainToolTip 1.0 PlainToolTip.qml\nBaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton NotificationDaemon 1.0 NotificationDaemon.qml\n')
     (p / 'tst_layout.qml').write_text('''import QtQuick
 import QtTest
 import "profile" as Config

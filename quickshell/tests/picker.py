@@ -2,7 +2,7 @@ import os, tempfile, pathlib,subprocess,shutil
 ROOT=pathlib.Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='picker-test-') as d:
  p=pathlib.Path(d);(p/'picker').mkdir();(p/'profiles').mkdir();shutil.copytree(ROOT/'profiles/default',p/'profiles/default');shutil.copytree(ROOT/'profiles/alt',p/'profiles/alt')
- for n in ('PickerView.qml','qmldir','Colors.qml'):shutil.copyfile(ROOT/'picker'/n,p/'picker'/n)
+ for n in ("PlainToolTip.qml", 'PickerView.qml','qmldir','Colors.qml'):shutil.copyfile(ROOT/'picker'/n,p/'picker'/n)
  mock=p/'engine';mock.write_text('''#!/bin/sh
 case "$1" in
 --list-walls) printf '/tmp/wall.png\\t/tmp/thumb.jpg\\n';;

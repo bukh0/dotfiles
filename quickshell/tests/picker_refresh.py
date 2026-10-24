@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix="picker-refresh-") as directory:
     root = Path(directory)
     picker = root / "picker"
     picker.mkdir()
-    for name in ("PickerView.qml", "qmldir", "Colors.qml"):
+    for name in ("PlainToolTip.qml", "PickerView.qml", "qmldir", "Colors.qml"):
         shutil.copyfile(ROOT / "picker" / name, picker / name)
     engine = root / "engine"
     engine.write_text(r"""#!/usr/bin/env python3

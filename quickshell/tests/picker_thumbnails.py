@@ -11,7 +11,7 @@ with tempfile.TemporaryDirectory(prefix='picker-thumbnails-') as directory:
     root = Path(directory)
     picker = root / 'picker'
     picker.mkdir()
-    for name in ('PickerView.qml', 'qmldir', 'Colors.qml'):
+    for name in ("PlainToolTip.qml", 'PickerView.qml', 'qmldir', 'Colors.qml'):
         shutil.copyfile(ROOT / 'picker' / name, picker / name)
     thumb = root / 'thumb #?&.svg'
     engine = root / 'engine'

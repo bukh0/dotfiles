@@ -614,16 +614,7 @@ Rectangle {
                         border.width: 1
                         border.color: tile.chosen ? view.accent : tile.hovered ? Qt.alpha(view.accent, 0.35) : "transparent"
                         Behavior on border.color { ColorAnimation { duration: 100 } }
-                        ToolTip {
-                            id: plainTooltip1
-                            popupType: Popup.Window
-                            contentItem: Text {
-                                text: plainTooltip1.text
-                                font: plainTooltip1.font
-                                color: plainTooltip1.palette.toolTipText
-                                textFormat: Text.PlainText
-                                wrapMode: Text.Wrap
-                            }
+                        PlainToolTip {
                             visible: tile.hovered
                             text: view.baseName(tile.modelData)
                             delay: 700

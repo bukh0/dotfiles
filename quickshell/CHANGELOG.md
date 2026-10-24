@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-24 — shared plain-text tooltips
+
+Extracted PlainToolTip.qml and migrated all eight tooltip sites: resource stats,
+power profile, network, tray, notification buttons/links and picker tiles.
+The component owns plain-text rendering and Popup.Window; call sites retain
+hover conditions, delays, timeouts and wrapping. Both profiles and the picker
+link to the same implementation. A regression covers HTML-like external text,
+text updates and wrapping; fixtures include the shared dependency explicitly.
+This supersedes the earlier tooltip-refactor deferral. Removed feature add-ons
+and fullscreen behavior remain unchanged.
+
 ## 2026-10-24 — feature add-ons removed
 
 At the user's request, removed native network/Bluetooth status, disk notification
