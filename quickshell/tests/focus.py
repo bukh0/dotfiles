@@ -69,12 +69,6 @@ QtObject {
  property string selectedPlayer: "test"
  property var calls: []
  property QtObject backend: QtObject {
-  property bool canSeek: true
-  property bool positionSupported: true
-  property bool lengthSupported: true
-  property real position: 10
-  property real length: 200
-  property string uniqueId: "track1"
   property bool canGoPrevious: true
   property bool canTogglePlaying: true
   property bool canGoNext: true
@@ -109,24 +103,6 @@ Item {
    NetworkService.awaitingPasswordFor = ""
    mouseMove(panel, 2, 2)
    wait(panel.slideDuration + 30)
-  }
-  function test_musicSeek() {
-   panel.isOpen = true
-   wait(panel.slideDuration + 30)
-   const seek = findChild(panel, "musicSeek")
-   verify(seek && seek.visible && seek.width > 0)
-   MusicService.backend.position = 10
-   MusicService.backend.uniqueId = "track1"
-   mousePress(seek, seek.width * .2, seek.height / 2)
-   mouseMove(seek, seek.width * .6, seek.height / 2)
-   mouseRelease(seek, seek.width * .6, seek.height / 2)
-   verify(MusicService.backend.position > 100 && MusicService.backend.position < 140)
-   mousePress(seek, seek.width * .5, seek.height / 2)
-   mouseMove(seek, seek.width * .8, seek.height / 2)
-   MusicService.backend.uniqueId = "track2"
-   MusicService.backend.position = 0
-   mouseRelease(seek, seek.width * .8, seek.height / 2)
-   compare(MusicService.backend.position, 0, "old gesture must not seek new track")
   }
   function test_musicArtworkPath() {
    panel.beginHoverOpen()

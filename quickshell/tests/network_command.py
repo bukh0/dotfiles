@@ -4,7 +4,7 @@ import os
 import subprocess
 import tempfile
 ROOT = Path(__file__).resolve().parent.parent
-source = (ROOT / 'components/NetworkService.qml').read_text().replace("property bool nativeStatusEnabled: true", "property bool nativeStatusEnabled: false")
+source = (ROOT / 'components/NetworkService.qml').read_text()
 process = source[source.index('    Process {\n        id: cmdProc'):source.index('    function clearStatus()')]
 run = source[source.index('    function runCommand('):source.index('    Process {\n        id: statusPoll')]
 busy = source[source.index("    function _busy()"):source.index("    function _drainMonitor()") ]

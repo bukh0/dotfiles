@@ -8,10 +8,10 @@ import tempfile
 ROOT = Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix="qs-network-cancel-") as directory:
     stage = Path(directory)
-    source = (ROOT / "components/NetworkService.qml").read_text().replace("property bool nativeStatusEnabled: true", "property bool nativeStatusEnabled: false")
+    source = (ROOT / "components/NetworkService.qml").read_text()
     # Disable background discovery; keep the actual connection process and
     # settlement callbacks, with nmcli replaced by a delayed fake command.
-    source = source.replace("running: true", "running: false").replace("running: !root.nativeStatusEnabled", "running: false")
+    source = source.replace("running: true", "running: false")
     source = source.replace("Component.onCompleted: statusPoll.running = true", "Component.onCompleted: {}")
     source = re.sub(r"    function refresh\(\) \{.*?\n    \}", "    function refresh() {}", source, flags=re.S)
     (stage / "NetworkService.qml").write_text(source)

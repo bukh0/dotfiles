@@ -64,7 +64,7 @@ elif "set" in sys.argv:
         text = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
         if name == "BrightnessService.qml":
             text = text.replace('"/sys/class/backlight/"', f'"{backlight.parent}/"')
-        (profile / name).write_text(text.replace("property bool nativeStatusEnabled: true", "property bool nativeStatusEnabled: false"))
+        (profile / name).write_text(text)
     stub_colors(profile / "Colors.qml")
     theme = (ROOT / "profiles" / "default" / "Theme.qml").read_text()
     theme = "\n".join(line for line in theme.splitlines()
@@ -119,7 +119,7 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
     nmcli.chmod(0o755)
     for name in ("NetworkService.qml", "NotificationDaemon.qml", "NotificationPopup.qml", "NotificationBody.js"):
         text = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
-        (profile / name).write_text(text.replace("property bool nativeStatusEnabled: true", "property bool nativeStatusEnabled: false"))
+        (profile / name).write_text(text)
     with (profile / "qmldir").open("a") as module:
         module.write("singleton NetworkService 1.0 NetworkService.qml\n"
                      "singleton NotificationDaemon 1.0 NotificationDaemon.qml\n"
@@ -135,7 +135,7 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
             text = re.sub(r"    WlrLayershell.keyboardFocus:.*", "", text)
             text = re.sub(r"    anchors \{.*?\n    \}", "", text, count=1, flags=re.S)
             text = re.sub(r"    mask: Region \{.*?\n    \}", "", text, count=1, flags=re.S)
-        (profile / name).write_text(text.replace("property bool nativeStatusEnabled: true", "property bool nativeStatusEnabled: false"))
+        (profile / name).write_text(text)
         prefix = "singleton " if name in ("BluetoothService.qml", "MusicService.qml", "SysmonService.qml") else ""
         with (profile / "qmldir").open("a") as module:
             module.write(f"{prefix}{Path(name).stem} 1.0 {name}\n")

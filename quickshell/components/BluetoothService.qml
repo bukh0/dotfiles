@@ -2,38 +2,18 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import Quickshell.Bluetooth as Native
 
 // ── BluetoothService ──────────────────────────────────────────────────────
 // Owns ALL Bluetooth state and processes. It is a singleton (like
 // NetworkService) so it keeps running while the control panel is closed:
-// connect/disconnect notifications keep working through native D-Bus updates.
-// The legacy monitor is retained only for diagnostics.
+// connect/disconnect notifications keep working and one D-Bus monitor persists
+// across panel openings.
 //
 // NOTE: QML singletons are created lazily. shell.qml must touch this once at
 // startup (BluetoothService.refresh()) or nothing runs until the panel is
 // first opened.
 Item {
     id: root
-    property bool nativeStatusEnabled: true
-    property bool _nativeReady: false
-    readonly property var nativeSnapshot: {
-        const objects = {}
-        for (const adapter of Native.Bluetooth.adapters.values)
-            objects[adapter.dbusPath] = {"org.bluez.Adapter1": {Powered: {data: adapter.enabled}}}
-        for (const device of Native.Bluetooth.devices.values) {
-            objects[device.dbusPath] = {"org.bluez.Device1": {
-                Address: {data: device.address}, Alias: {data: device.name},
-                Name: {data: device.deviceName}, Icon: {data: device.icon},
-                Paired: {data: device.paired}, Connected: {data: device.connected}
-            }}
-        }
-        return JSON.stringify({data: [objects]})
-    }
-    onNativeSnapshotChanged: if (_nativeReady && nativeStatusEnabled) nativeSync.restart()
-    Timer { id: nativeSync; interval: 0; onTriggered: root.refresh() }
-
-
     // ── Public state (read by BluetoothToggle) ─────────────────────────
     property bool hasAdapter: false
     property bool powered: false
@@ -71,7 +51,6 @@ Item {
 
     // ── State polling (BlueZ ObjectManager over busctl) ────────────────
     function refresh() {
-        if (nativeStatusEnabled) { _nativeReady = true; root._applyManagedObjects(nativeSnapshot); return }
         // Never drop a request: if a poll is in flight its data may already
         // be stale, so remember to run one more when it finishes.
         if (root._pollInFlight) {
@@ -283,7 +262,7 @@ Item {
 
     Timer {
         interval: 20000
-        running: !root.nativeStatusEnabled
+        running: true
         repeat: true
         onTriggered: root.refresh()
     }
@@ -304,7 +283,7 @@ Item {
     Timer {
         id: btMonitorRestart
         interval: 250
-        onTriggered: if (!root.nativeStatusEnabled) btMonitor.running = true
+        onTriggered: btMonitor.running = true
     }
 
     Process {
@@ -313,7 +292,7 @@ Item {
             "type='signal',sender='org.bluez',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'",
             "type='signal',sender='org.bluez',interface='org.freedesktop.DBus.ObjectManager'"
         ]
-        running: !root.nativeStatusEnabled
+        running: true
         stdout: SplitParser {
             onRead: line => {
                 // InterfacesAdded/Removed = device discovered / forgotten,
@@ -335,7 +314,6 @@ Item {
                 return
             }
             btStableTimer.stop()
-            if (root.nativeStatusEnabled) return
             btMonitorRestart.interval = root._monitorDelay
             btMonitorRestart.restart()
             root._monitorDelay = Math.min(root._monitorDelay * 2, 30000)

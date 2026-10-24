@@ -31,8 +31,6 @@ ShellRoot {
   visible: Config.Theme.floatingBar && Quickshell.env("QS_TEST_BAR_MASK") === "1"
   exclusionMode: ExclusionMode.Ignore
  }
- Config.NotificationHistory {}
- Config.BatteryAlerts {}
  Config.NotificationDrawer { id: drawer; visible: false }
  Config.NotificationPopup { id: popup; visible: false }
  Timer { interval: 500; running: true; onTriggered: {

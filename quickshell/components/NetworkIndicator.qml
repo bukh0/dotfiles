@@ -18,8 +18,10 @@ Item {
     }
 
     ToolTip {
+        id: networkTip
         objectName: "networkTooltip"
         popupType: Popup.Window
+        contentItem: Text { text: networkTip.text; font: networkTip.font; color: networkTip.palette.toolTipText; textFormat: Text.PlainText }
         visible: mouseArea.containsMouse
         delay: 500
         text: NetworkService.connectionType === "wifi"

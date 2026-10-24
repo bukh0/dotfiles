@@ -8,8 +8,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='qs-bt-poll-') as directory:
     stage = Path(directory)
-    source = (ROOT / 'components/BluetoothService.qml').read_text().replace("property bool nativeStatusEnabled: true", "property bool nativeStatusEnabled: false")
-    source = source.replace('running: true', 'running: false').replace('running: !root.nativeStatusEnabled', 'running: false').replace('Component.onCompleted: root.refresh()', 'Component.onCompleted: {}')
+    source = (ROOT / 'components/BluetoothService.qml').read_text()
+    source = source.replace('running: true', 'running: false').replace('Component.onCompleted: root.refresh()', 'Component.onCompleted: {}')
     source = source.replace('    id: root', '    id: root\n    property var testCommand: []', 1)
     source = re.sub(r'command: \["busctl", "--system", "-j", "call", "org.bluez", "/",\s*"org.freedesktop.DBus.ObjectManager", "GetManagedObjects"\]', 'command: root.testCommand', source)
     (stage / 'BluetoothService.qml').write_text(source)

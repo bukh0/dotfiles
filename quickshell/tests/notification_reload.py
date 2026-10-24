@@ -6,8 +6,7 @@ if os.environ.get('QS_AUDIT_BUS')!='1':
 with tempfile.TemporaryDirectory(prefix='qs-notification-reload-') as directory:
  p=Path(directory);profile=p/'profile';profile.mkdir()
  shutil.copyfile(Path(__file__).resolve().parent.parent/'components/NotificationDaemon.qml',profile/'NotificationDaemon.qml')
- shutil.copyfile(Path(__file__).resolve().parent.parent/'components/NotificationHistory.qml',profile/'NotificationHistory.qml')
- (profile/'qmldir').write_text('singleton NotificationDaemon 1.0 NotificationDaemon.qml\nNotificationHistory 1.0 NotificationHistory.qml\n')
+ (profile/'qmldir').write_text('singleton NotificationDaemon 1.0 NotificationDaemon.qml\n')
  shell=p/'shell.qml'
  shell.write_text('''import QtQuick
 import Quickshell
@@ -15,7 +14,6 @@ import Quickshell.Io
 import "profile" as Config
 ShellRoot {
  id: shell
- Config.NotificationHistory {}
  property bool notificationHistoryReady: false
  PersistentProperties {
   id: notificationHistory

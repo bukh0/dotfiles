@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import "."
@@ -14,7 +13,7 @@ ColumnLayout {
     readonly property int artSize: Theme.mediaArtSize
     readonly property int controlsHeight: 42
     readonly property int rowGap: 10
-    readonly property int pageHeight: artSize + rowGap + controlsHeight + 38
+    readonly property int pageHeight: artSize + rowGap + controlsHeight
 
     property int scrollThreshold: 30           // accumulated scroll units for page change
     property bool preferVerticalScroll: false
@@ -162,24 +161,6 @@ ColumnLayout {
                 model: playersListModel
 
                 delegate: Item {
-                    id: mediaPage
-                    required property int index
-                    property int positionTick: 0
-                    readonly property real positionSeconds: {
-                        positionTick
-                        return backend && backend.positionSupported && Number.isFinite(backend.position) ? backend.position : 0
-                    }
-                    readonly property real lengthSeconds: backend && backend.lengthSupported && Number.isFinite(backend.length) ? backend.length : 0
-                    function clockText(seconds) {
-                        const value = Math.max(0, Math.floor(seconds))
-                        return Math.floor(value / 60) + ":" + String(value % 60).padStart(2, "0")
-                    }
-                    Timer {
-                        interval: 1000
-                        running: root.visible && mediaPage.index === pager.currentIndex && mediaPage.status === root.statusPlaying && mediaPage.lengthSeconds > 0
-                        repeat: true
-                        onTriggered: mediaPage.positionTick++
-                    }
                     required property string player
                     required property string playerName
                     readonly property var backend: MusicService.findPlayer(player)
@@ -273,37 +254,6 @@ ColumnLayout {
                                     elide: Text.ElideRight
                                 }
                             }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            visible: mediaPage.lengthSeconds > 0 && !!mediaPage.backend && !!mediaPage.backend.positionSupported
-                            spacing: 8
-                            Text { text: mediaPage.clockText(seek.pressed ? seek.value : mediaPage.positionSeconds); color: Colors.surfaceFg; font.pixelSize: 10 }
-                            Slider {
-                                id: seek
-                                objectName: "musicSeek"
-                                Layout.fillWidth: true
-                                from: 0
-                                to: Math.max(1, mediaPage.lengthSeconds)
-                                enabled: !!mediaPage.backend && !!mediaPage.backend.canSeek
-                                property var gesturePlayer: null
-                                property string gestureTrack: ""
-                                property real gestureValue: 0
-                                Binding { target: seek; property: "value"; value: mediaPage.positionSeconds; when: !seek.pressed }
-                                onPressedChanged: {
-                                    if (pressed) { gesturePlayer = mediaPage.backend; gestureTrack = mediaPage.backend.uniqueId || ""; gestureValue = value }
-                                    else if (gesturePlayer && gesturePlayer === mediaPage.backend && gestureTrack === (mediaPage.backend.uniqueId || "")) {
-                                        mediaPage.backend.position = gestureValue
-                                        gesturePlayer = null
-                                    }
-                                }
-                                onMoved: {
-                                    if (pressed) gestureValue = value
-                                    else if (mediaPage.backend && enabled) mediaPage.backend.position = value
-                                }
-                            }
-                            Text { text: mediaPage.clockText(mediaPage.lengthSeconds); color: Colors.surfaceFg; font.pixelSize: 10 }
                         }
 
                         RowLayout {

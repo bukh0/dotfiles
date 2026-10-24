@@ -351,26 +351,6 @@ Item {
   compare(Config.NotificationDaemon.notificationModel.count,1)
   compare(Config.NotificationDaemon.notificationModel.get(0).summary,"Updated")
  }
- function test_diskHistoryRoundtrip() {
-  const daemon = Config.NotificationDaemon
-  daemon._receiveNotification(notification(401))
-  const saved = daemon.historyJson()
-  const stamp = daemon.notificationModel.get(0).timestamp
-  daemon.clearAll()
-  const before = delivered
-  daemon.restoreHistory(saved)
-  compare(daemon.notificationModel.count, 1)
-  verify(daemon.notificationModel.get(0).notifId < 0)
-  compare(daemon.notificationModel.get(0).timestamp, stamp)
-  compare(daemon.actionsFor(daemon.notificationModel.get(0).notifId).length, 0)
-  compare(delivered, before)
-  daemon.restoreHistory(saved)
-  compare(daemon.notificationModel.count, 1)
-  daemon.restoreHistory('{"version":1,"rows":[null,{}, {"historyKey":"bad","timestamp":0}]}')
-  compare(daemon.notificationModel.count, 1)
-  daemon.clearAll()
-  compare(JSON.parse(daemon.historyJson()).rows.length, 0)
- }
  function test_historyOverflow() {
   Config.NotificationDaemon.maxNotifications = 2
   for (let i = 0; i < 5; i++) Config.NotificationDaemon._receiveNotification(notification(10+i))

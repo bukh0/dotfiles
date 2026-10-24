@@ -34,5 +34,3 @@ NotificationButton 1.0 NotificationButton.qml
 BaseTheme 1.0 BaseTheme.qml
 NotificationPopupContent 1.0 NotificationPopupContent.qml
 NotificationDrawerContent 1.0 NotificationDrawerContent.qml
-NotificationHistory 1.0 NotificationHistory.qml
-BatteryAlerts 1.0 BatteryAlerts.qml

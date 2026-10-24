@@ -18,8 +18,6 @@ tests/               Isolated regression fixtures
 
 Use `./run.sh` for the default profile and `./run.sh alt` for the alternate profile. `native/Makefile` builds `native/sysmon`; both profiles resolve the helper from there.
 
-Wi-Fi and Bluetooth status use native Quickshell modules and D-Bus updates. Command-line tools remain for connection, scanning and pairing actions. Legacy status transports are disabled by default.
-
 Music state lives in `MusicService.qml` and updates through native MPRIS signals. Closing the control panel releases its widgets while retaining the music model. `SysmonService.qml` samples only while resource rows are loaded, retaining its last values between panel openings. The custom power toggle is retained because it controls both auto-cpufreq and AMD GPU settings.
 
 Bluetooth pairing uses the installed Blueman dialogs through `native/bluetooth_pair.py`
@@ -62,10 +60,7 @@ Notification windows are thin `PanelWindow` wrappers around
 these content items directly. Explicit web and mail links are clickable, and a
 popup body click invokes its default action when available. Opening the notification
 panel clears active and queued popups without deleting history; popups resume
-for new arrivals after the panel closes. History survives hot reloads and process restarts. It is atomically saved after
-a 600 ms debounce to `$XDG_STATE_HOME/quickshell/notifications.json` (default
-`~/.local/state`). Restored rows have no stale actions and do not replay popups.
-An abrupt crash can lose changes within the debounce window.
+for new arrivals after the panel closes. History survives hot reloads but is not saved across process restarts.
 
 After Quickshell upgrades, run `python3 tests/notifications.py` and
 `python3 tests/notification_reload.py` to check timeout units and notification
@@ -92,14 +87,6 @@ executable), `QS_PERFORMANCE_SCRIPT` (power-profile shell script), and
 remain under `~/.scripts`; set overrides in the environment that launches the
 shell or wrapper.
 
-Keyboard bindings can call `qs ipc -p ~/.config/quickshell/profiles/default call controlpanel toggle`, `drawer toggle`, or `notifications clearAll` (use `alt` for
-that profile). Panel/drawer toggles target the focused output and retain existing
-fullscreen visibility rules.
-
 The picker requires GNU coreutils `timeout`. Theme/wallpaper application times out
 after 45 seconds; Escape cancels the process group. Cancellation reports that
 partial changes may already have been applied.
-
-Battery warnings fire once at 15% and 5% per discharge cycle; the icon tooltip
-shows time remaining and power draw when UPower provides them. Music shows track
-position/duration and enables seeking when the player supports it.

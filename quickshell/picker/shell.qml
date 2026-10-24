@@ -22,7 +22,16 @@ ShellRoot {
 
     PanelWindow {
         id: window
-        Component.onCompleted: screen = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) || Quickshell.screens[0]
+        property bool screenChosen: false
+        function chooseInitialScreen() {
+            if (screenChosen) return
+            const focused = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
+            if (focused) { screen = focused; screenChosen = true }
+            else screen = Quickshell.screens[0]
+        }
+        Component.onCompleted: { chooseInitialScreen(); if (!screenChosen) Hyprland.refreshMonitors() }
+        Connections { target: Hyprland; function onFocusedMonitorChanged() { window.chooseInitialScreen() } }
+        Connections { target: Quickshell; function onScreensChanged() { window.chooseInitialScreen() } }
         // No anchors: the compositor centres a window-sized surface, so
         // only the panel area is rendered each frame instead of the whole monitor.
         implicitWidth: Math.max(320, Math.min(view.page === "Wallpapers" ? 820 : view.page === "Home" ? 460 : 560, (screen ? screen.width : 1920) - 80))

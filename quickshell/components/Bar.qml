@@ -8,11 +8,6 @@ import "."
 
 PanelWindow {
     id: root
-    function togglePanel() {
-        if (!visible) return
-        controlPanel.pinned = !(controlPanel.isOpen && controlPanel.pinned)
-        controlPanel.isOpen = controlPanel.pinned
-    }
     onVisibleChanged: if (!visible && controlPanel) {
         controlPanel.triggerHovered = false
         controlPanel.isOpen = false

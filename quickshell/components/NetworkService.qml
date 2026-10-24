@@ -2,45 +2,9 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import Quickshell.Networking as Native
 
 Item {
     id: root
-    // Legacy transports remain available for isolated fixtures and diagnostics.
-    // Normal operation reads status through native D-Bus property updates.
-    property bool nativeStatusEnabled: true
-    property bool _nativeReady: false
-    readonly property var nativeSnapshot: {
-        const devices = Native.Networking.devices.values
-        const wifi = devices.filter(d => d.type === Native.DeviceType.Wifi && d.connected)
-        let active = null, activeDevice = null
-        for (const device of wifi) {
-            const found = device.networks.values.find(n => n.connected)
-            if (found) { active = found; activeDevice = device; break }
-        }
-        return {
-            wifiOn: Native.Networking.wifiEnabled && Native.Networking.wifiHardwareEnabled,
-            type: devices.some(d => d.type === Native.DeviceType.Wired && d.connected) ? "ethernet" : wifi.length ? "wifi" : "none",
-            ssid: active ? active.name : "",
-            strength: active ? Math.round(active.signalStrength * 100) : 0,
-            device: activeDevice ? activeDevice.name : wifi.length ? wifi[0].name : ""
-        }
-    }
-    onNativeSnapshotChanged: if (_nativeReady && nativeStatusEnabled) nativeSync.restart()
-    Component.onCompleted: { _nativeReady = true; if (nativeStatusEnabled) refresh() }
-    Timer { id: nativeSync; interval: 0; onTriggered: root.refresh() }
-    function applyNativeStatus() {
-        const state = nativeSnapshot
-        wifiOn = state.wifiOn
-        _radioOff = !state.wifiOn
-        if (_radioOff) { networks = []; cancelPasswordPrompt() }
-        connectionType = state.type
-        ssid = state.ssid
-        signalStrength = state.strength
-        activeWifiDevice = state.device
-    }
-
-
     property bool wifiOn: false
     property bool _radioOff: false
     property string ssid: ""
@@ -270,7 +234,6 @@ Item {
     property bool _monitorPending: false
 
     function refresh() {
-        if (nativeStatusEnabled) { applyNativeStatus(); return }
         if (statusPoll.running) root._monitorPending = true
         else {
             statusPoll.started = false
@@ -308,7 +271,7 @@ Item {
     Process {
         id: nmMonitor
         command: ["nmcli", "monitor"]
-        running: !root.nativeStatusEnabled
+        running: true
         property int restartDelay: 250
         stdout: SplitParser {
             onRead: (line) => {
@@ -325,7 +288,6 @@ Item {
                 return
             }
             nmStableTimer.stop()
-            if (root.nativeStatusEnabled) return
             nmMonitorRestart.interval = restartDelay
             nmMonitorRestart.restart()
             restartDelay = Math.min(restartDelay * 2, 30000)
@@ -335,14 +297,14 @@ Item {
     Timer {
         id: nmMonitorRestart
         interval: 250
-        onTriggered: if (!root.nativeStatusEnabled) nmMonitor.running = true
+        onTriggered: nmMonitor.running = true
     }
 
     Timer {
         // nmcli monitor reports connection changes, not every signal change.
         // Read cached strength regularly without initiating Wi-Fi scans.
         interval: root.connectionType === "wifi" ? 10000 : 60000
-        running: !root.nativeStatusEnabled
+        running: true
         repeat: true
         onTriggered: {
             if (!root._busy()) root.refresh()

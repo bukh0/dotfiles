@@ -1,6 +1,31 @@
 # Changelog
 
-## 2026-10-24
+## 2026-10-24 — feature add-ons removed
+
+At the user's request, removed native network/Bluetooth status, disk notification
+history, the added panel/drawer/clearAll IPC commands, battery alerts/tooltips and
+animation, and music position/seeking. Restored the command-backed status paths
+and the existing battery indicator behavior, retaining its PendingCharge fix.
+Existing history files are left untouched but are no longer read or written.
+Bug fixes, picker timeout/cancellation, shared theme/module definitions and the
+regression hook remain. Fullscreen behavior is unchanged.
+
+Follow-up review: network and tray tooltips now explicitly render plain text;
+DND writes are atomic. DND retains its existing cache location for compatibility.
+The picker accepts a late initial focused-monitor update without following later
+focus changes, covered by picker_screen.py. Passive tray items are hidden.
+Removed the redundant completed-work checkpoint. Native RSSI/startup notification,
+disk-history privacy and alert-threshold reports no longer apply after removal.
+No new mic/calendar/power-menu or authorization-policy features were added.
+The volume track intentionally expands above 150% to permit reducing an externally
+set value without an abrupt clamp; no scale change was made. Link confirmation
+and OnDemand panel focus would change interaction behavior and were not added
+without a reproduced failure. The existing five-minute brightness retry remains:
+a finite retry budget without a working hotplug subscription would prevent later
+backlight discovery. Tooltip sharing and a state-directory migration for DND are
+separate refactors, not part of this feature rollback.
+
+## 2026-10-24 — original changes (feature removals above supersede these)
 
 - Abort volume gestures when the default sink changes, including subsequent
   pointer movement and release. Disabled volume now reads 0% without a sink.

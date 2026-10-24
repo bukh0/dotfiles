@@ -22,7 +22,7 @@ RowLayout {
             id: trayItem
             required property SystemTrayItem modelData
 
-            readonly property bool shouldShow: !isHidden(modelData)
+            readonly property bool shouldShow: modelData.status !== Status.Passive && !isHidden(modelData)
 
             width: shouldShow ? 18 : 0
             height: shouldShow ? 18 : 0
@@ -47,7 +47,9 @@ RowLayout {
             }
 
             ToolTip {
+                id: trayTip
                 popupType: Popup.Window
+                contentItem: Text { text: trayTip.text; font: trayTip.font; color: trayTip.palette.toolTipText; textFormat: Text.PlainText }
                 visible: trayMouse.containsMouse && trayItem.modelData.tooltipTitle !== ""
                 text: trayItem.modelData.tooltipTitle
                 delay: 500
