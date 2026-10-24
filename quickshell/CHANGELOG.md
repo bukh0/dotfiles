@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-25 — backlight discovery failure handling
+
+Reproduced discovery marking a backlight available when brightnessctl printed a
+valid record but exited nonzero. Discovery now waits for both stdout and process
+completion, requires a successful normal exit, rejects malformed numeric fields,
+and resets collected output before each attempt. A launch watchdog releases the
+in-flight guard when a missing executable produces no runningChanged signal.
+Existing discovery backoff and immediate panel-open recovery remain unchanged.
+
+Validation: new real-Process success → nonzero output → missing executable →
+malformed output → recovery regression, with and without the failed-start signal;
+existing discovery/backoff, brightness readback, and core checks for both themes.
+No live brightness or power settings were changed. Fullscreen is unchanged.
+
 ## 2026-10-24 — shared plain-text tooltips
 
 Extracted PlainToolTip.qml and migrated all eight tooltip sites: resource stats,

@@ -36,6 +36,7 @@ Item {
     property bool _writeStarted: false
     property int _readFailures: 0
     onDeviceChanged: { _readFailures = 0; readRetry.stop() }
+    property bool _discoveryInFlight: false
     property int _discoveryAttempts: 0
     readonly property int discoveryRetryMs: Math.min(300000, 10000 * Math.pow(2, Math.max(0, _discoveryAttempts - 1)))
     onAvailableChanged: if (available) _discoveryAttempts = 0
@@ -46,29 +47,70 @@ Item {
 
     // ── Discovery: ask brightnessctl which device it will actually drive ──
     function discover() {
-        if (root.available || discoverProc.running) return
+        if (root.available || root._discoveryInFlight) return
+        root._discoveryInFlight = true
+        discoverProc.started = false
+        discoverProc.exited = false
+        discoverProc.streamDone = false
+        discoverProc.ok = false
+        discoverProc.output = ""
+        discoveryLaunchCheck.restart()
         _discoveryAttempts = Math.min(6, _discoveryAttempts + 1)
         discoverProc.running = true
     }
 
+    function _finishDiscovery() {
+        if (!root._discoveryInFlight) return
+        if (!discoverProc.started) {
+            if (discoverProc.running) return
+        } else if (!discoverProc.exited || !discoverProc.streamDone) return
+        discoveryLaunchCheck.stop()
+        root._discoveryInFlight = false
+        if (!discoverProc.started || !discoverProc.ok) return
+        const f = discoverProc.output.trim().split("\n")[0].split(",")
+        const max = Number(f[4])
+        const cur = Number(f[2])
+        if (f.length < 5 || f[0] === "" || !Number.isInteger(max) || max <= 0
+                || f[2] === "" || !Number.isInteger(cur) || cur < 0) return
+        root.device = f[0]
+        root.maxRaw = max
+        root.brightness = Math.min(1, cur / max)
+        root.available = true
+    }
+
+    Timer { id: discoverySettled; interval: 0; onTriggered: root._finishDiscovery() }
+    Timer {
+        id: discoveryLaunchCheck
+        interval: 500
+        onTriggered: root._finishDiscovery()
+    }
     Process {
         id: discoverProc
+        property bool started: false
+        property bool exited: false
+        property bool streamDone: false
+        property bool ok: false
+        property string output: ""
         // Machine-readable: name,class,current,percent,max
         command: ["brightnessctl", "-m", "-c", "backlight", "info"]
+        onStarted: { started = true; discoveryLaunchCheck.stop() }
+        onExited: (code, status) => {
+            exited = true
+            ok = code === 0 && status === 0
+            discoverySettled.restart()
+        }
+        onRunningChanged: if (!running && !started) discoverySettled.restart()
         stdout: StdioCollector {
             onStreamFinished: {
-                const f = text.trim().split("\n")[0].split(",")
-                const max = parseInt(f[4])
-                const cur = parseInt(f[2])
-                if (f.length < 5 || f[0] === "" || !(max > 0)) return
-                root.device = f[0]
-                root.maxRaw = max
-                if (!isNaN(cur)) root.brightness = Math.min(1, Math.max(0, cur / max))
-                root.available = true
+                if (!discoverProc.started) return
+                discoverProc.output = text
+                discoverProc.streamDone = true
+                discoverySettled.restart()
             }
         }
         stderr: StdioCollector {
             onStreamFinished: {
+                if (!discoverProc.started) return
                 const m = text.trim()
                 if (m !== "") console.warn("brightness: discover:", m)
             }

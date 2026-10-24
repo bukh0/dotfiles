@@ -7,7 +7,7 @@ from harness import run_suite
 HERE = Path(__file__).resolve().parent
 HELPERS = {'run', 'harness', 'qt_tools'}
 LIVE = {'profile_load', 'wayland_surfaces'}
-DEFAULT = ['core', 'focus', 'music_sync', 'network_cancel', 'volume_sink', 'prompt_owner', 'picker_cancel', 'picker_screen', 'plain_tooltip']
+DEFAULT = ['core', 'focus', 'music_sync', 'network_cancel', 'volume_sink', 'prompt_owner', 'picker_cancel', 'picker_screen', 'plain_tooltip', 'brightness_discovery_failures']
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('suites', nargs='*', help='suite names without .py')
 parser.add_argument('--all', action='store_true', help='discover all isolated suites')
