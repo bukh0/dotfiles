@@ -10,7 +10,7 @@ Rectangle {
     signal dismissed()
 
     readonly property string home: Quickshell.env("HOME")
-    property string bin: home + "/.scripts/theme.switcher"
+    property string bin: Quickshell.env("QS_THEME_SWITCHER") || home + "/.scripts/theme.switcher"
     // Shared palette installed by theme.switcher for presets, Matugen and pywal.
     readonly property color panelColor: Colors.surface
     readonly property color fieldColor: Colors.surfaceContainer
@@ -43,6 +43,22 @@ Rectangle {
         thumbnailVersions = versions
     }
     property bool busy: false
+    property int operationTimeoutSeconds: 45
+    property bool operationCancelled: false
+    function boundedCommand(args) {
+        return ["/usr/bin/timeout", "--signal=TERM", "--kill-after=2s", String(operationTimeoutSeconds) + "s"].concat(args)
+    }
+    function cancelOperation() {
+        if (!busy || operationCancelled) return
+        operationCancelled = true
+        operation = "Cancelling…"
+        if (launchCheck.process.running) launchCheck.process.signal(15)
+    }
+    function operationError(code, fallback) {
+        if (operationCancelled) return "Operation cancelled. Some changes may already have been applied."
+        if (code === 124 || code === 137) return "Operation timed out. Some changes may already have been applied."
+        return fallback
+    }
     property string error: ""
     property string operation: ""
     readonly property bool loading: page === "Wallpapers" ? wallProc.pending : page === "Themes" && themeProc.pending
@@ -66,7 +82,7 @@ Rectangle {
         const version = thumbnailVersions[thumbnail] || 0
         return fileUrl(thumbnail) + (version ? "?retry=" + version : "")
     }
-    function dismiss() { if (!busy) dismissed() }
+    function dismiss() { if (busy) cancelOperation(); else dismissed() }
     function rebuild() {
         gridScroll.stop()
         listScroll.stop()
@@ -89,7 +105,22 @@ Rectangle {
     }
     function move(delta) {
         if (busy || !filtered.length) return
-        selected = (selected + delta % filtered.length + filtered.length) % filtered.length
+        if (page === "Wallpapers" && delta !== 0 && delta % columns === 0) {
+            const column = selected % columns
+            const rows = Math.floor((filtered.length - 1 - column) / columns) + 1
+            const row = Math.floor(selected / columns)
+            selected = ((row + delta / columns % rows + rows) % rows) * columns + column
+        } else selected = (selected + delta % filtered.length + filtered.length) % filtered.length
+        reveal(true)
+    }
+    function movePage(deltaPages) {
+        if (busy || !filtered.length || deltaPages === 0) return
+        if (page === "Wallpapers") {
+            const column = selected % columns
+            const lastRow = Math.floor((filtered.length - 1 - column) / columns)
+            const row = Math.floor(selected / columns)
+            selected = Math.max(0, Math.min(lastRow, row + deltaPages * pageSize / columns)) * columns + column
+        } else selected = Math.max(0, Math.min(filtered.length - 1, selected + deltaPages * pageSize))
         reveal(true)
     }
     function switchPage(next) {
@@ -103,7 +134,7 @@ Rectangle {
         focusSearch()
     }
     function back() {
-        if (busy) return
+        if (busy) { cancelOperation(); return }
         if (page === "Home") { dismiss(); return }
         const next = page === "Wallpapers" && generator ? "Themes" : "Home"
         generator = ""
@@ -136,9 +167,10 @@ Rectangle {
         if (!current || busy) return
         error = ""
         operation = "Setting wallpaper · " + baseName(current) + "…"
+        operationCancelled = false
         busy = true
         wallpaperProc._started = false
-        wallpaperProc.command = ["swww", "img", current, "--transition-type", "center", "--transition-fps", "60", "--transition-duration", "0.8"]
+        wallpaperProc.command = boundedCommand(["swww", "img", current, "--transition-type", "center", "--transition-fps", "60", "--transition-duration", "0.8"])
         launchCheck.process = wallpaperProc
         launchCheck.restart()
         wallpaperProc.running = true
@@ -147,12 +179,13 @@ Rectangle {
         if (busy) return
         error = ""
         operation = "Applying " + theme + (wall ? " · " + baseName(wall) : "") + "…"
+        operationCancelled = false
         busy = true
         applyProc._exited = false
         applyProc.stderrDone = false
         applyProc._started = false
         applyProc.errorText = ""
-        applyProc.command = wall ? [bin, "--apply", theme, wall] : [bin, "--apply", theme]
+        applyProc.command = boundedCommand(wall ? [bin, "--apply", theme, wall] : [bin, "--apply", theme])
         launchCheck.process = applyProc
         launchCheck.restart()
         applyProc.running = true
@@ -168,8 +201,8 @@ Rectangle {
         else if (event.key === Qt.Key_Up || (nav && event.key === Qt.Key_K)) move(-step)
         else if ((nav && event.key === Qt.Key_H) || (event.key === Qt.Key_Left && !search.text)) move(-1)
         else if ((nav && event.key === Qt.Key_L) || (event.key === Qt.Key_Right && !search.text)) move(1)
-        else if (event.key === Qt.Key_PageDown || (ctrl && event.key === Qt.Key_D)) move(pageSize)
-        else if (event.key === Qt.Key_PageUp || (ctrl && event.key === Qt.Key_U)) move(-pageSize)
+        else if (event.key === Qt.Key_PageDown || (ctrl && event.key === Qt.Key_D)) movePage(1)
+        else if (event.key === Qt.Key_PageUp || (ctrl && event.key === Qt.Key_U)) movePage(-1)
         else if (ctrl && event.key === Qt.Key_Home) { selected = 0; reveal(true) }
         else if (ctrl && event.key === Qt.Key_End) { selected = Math.max(0, filtered.length - 1); reveal(true) }
         else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) choose()
@@ -190,11 +223,15 @@ Rectangle {
         property bool exitReceived: false
         property bool collectsOutput: false
         property bool outputDone: true
+        property bool succeeded: false
+        property string output: ""
+        signal collected(string text)
         function finish() {
-            if (!pending || !exitReceived || !outputDone) return
+            if (!pending || running || !exitReceived || !outputDone) return
             pending = false
             const rerun = rerunQueued
             rerunQueued = false
+            if (succeeded && collectsOutput) collected(output)
             if (rerun && view.page === page && !view.busy) start()
         }
         function reportFailure(message) {
@@ -206,13 +243,30 @@ Rectangle {
             exitReceived = false
             outputDone = !collectsOutput
             startedSuccessfully = false
-            running = true
+            succeeded = false
+            output = ""
             startupCheck.restart()
+            running = true
         }
-        onStarted: startedSuccessfully = true
+        onStarted: { startedSuccessfully = true; startupCheck.stop() }
+        onRunningChanged: if (!running) {
+            Qt.callLater(job.checkStartup)
+            Qt.callLater(job.finish)
+        }
+        function checkStartup() {
+            if (pending && !startedSuccessfully && !running) {
+                startupCheck.stop()
+                reportFailure("Could not start " + command[0])
+                exitReceived = true
+                outputDone = true
+                succeeded = false
+                finish()
+            }
+        }
         onExited: (code, status) => {
             startupCheck.stop()
-            if (code !== 0 || status !== 0) reportFailure(failureMessage)
+            succeeded = code === 0 && status === 0
+            if (!succeeded) reportFailure(failureMessage)
             exitReceived = true
             // Let exit and collector callbacks unwind before reusing the process.
             Qt.callLater(job.finish)
@@ -220,13 +274,7 @@ Rectangle {
         // Quickshell does not emit exited when an executable is missing.
         property Timer startupCheck: Timer {
             interval: 500
-            onTriggered: {
-                if (!job.startedSuccessfully && !job.running) {
-                    job.reportFailure("Could not start " + job.command[0])
-                    job.pending = false
-                    job.rerunQueued = false
-                }
-            }
+            onTriggered: job.checkStartup()
         }
     }
 
@@ -236,50 +284,58 @@ Rectangle {
         page: "Themes"
         failureMessage: "Could not load themes. Press F5 to retry."
         command: [view.bin, "--list-themes"]
+        onCollected: text => {
+            view.presets = text.split("\n").filter(Boolean)
+            if (view.page === "Themes") view.rebuild()
+        }
         stdout: StdioCollector {
             onStreamFinished: {
-                view.presets = text.split("\n").filter(Boolean)
-                if (view.page === "Themes") view.rebuild()
+                themeProc.output = text
                 themeProc.outputDone = true
                 Qt.callLater(themeProc.finish)
             }
         }
     }
+
     PageProcess {
         id: wallProc
         collectsOutput: true
         page: "Wallpapers"
         failureMessage: "Could not load wallpapers. Press F5 to retry."
         command: [view.bin, "--list-walls"]
+        onCollected: text => {
+            const paths = [], thumbs = Object.create(null)
+            for (const line of text.split("\n")) {
+                const tab = line.indexOf("\t")
+                if (tab < 0) continue
+                const path = line.slice(0, tab)
+                paths.push(path)
+                thumbs[path] = line.slice(tab + 1)
+            }
+            view.thumbnails = thumbs
+            view.walls = paths
+            if (view.page === "Wallpapers") view.rebuild()
+        }
         stdout: StdioCollector {
             onStreamFinished: {
-                const paths = [], thumbs = Object.create(null)
-                for (const line of text.split("\n")) {
-                    const tab = line.indexOf("\t")
-                    if (tab < 0) continue
-                    const path = line.slice(0, tab)
-                    paths.push(path)
-                    thumbs[path] = line.slice(tab + 1)
-                }
-                view.thumbnails = thumbs
-                view.walls = paths
-                if (view.page === "Wallpapers") view.rebuild()
+                wallProc.output = text
                 wallProc.outputDone = true
                 Qt.callLater(wallProc.finish)
             }
         }
     }
+
     Process {
         id: wallpaperProc
         property bool _started: false
         command: ["swww", "img", ""]
-        onStarted: { _started = true; launchCheck.stop() }
+        onStarted: { _started = true; launchCheck.stop(); if (view.operationCancelled) signal(15) }
         onRunningChanged: if (!running && !_started) Qt.callLater(launchCheck.check)
         onExited: (code, status) => {
             launchCheck.stop()
             view.busy = false
-            if (code === 0 && status === 0) view.dismissed()
-            else { view.error = "Could not set the wallpaper. Check that swww is running."; view.focusSearch() }
+            if (code === 0 && status === 0 && !view.operationCancelled) view.dismissed()
+            else { view.error = view.operationError(code, code === 127 ? "Could not start swww" : "Could not set the wallpaper. Check that swww is running."); view.focusSearch() }
         }
     }
     PageProcess {
@@ -293,9 +349,9 @@ Rectangle {
         if (!busy || !applyProc._exited || !applyProc.stderrDone) return
         launchCheck.stop()
         busy = false
-        if (applyProc.exitCode === 0) dismissed()
+        if (applyProc.exitCode === 0 && !operationCancelled) dismissed()
         else {
-            error = applyProc.errorText.trim().slice(-1200) || "Could not apply the theme. Check the theme engine and try again."
+            error = operationError(applyProc.exitCode, applyProc.exitCode === 127 ? "Could not start " + bin : applyProc.errorText.trim().slice(-1200) || "Could not apply the theme. Check the theme engine and try again.")
             focusSearch()
         }
     }
@@ -306,7 +362,7 @@ Rectangle {
         property bool _started: false
         property int exitCode: -1
         property string errorText: ""
-        onStarted: { _started = true; launchCheck.stop() }
+        onStarted: { _started = true; launchCheck.stop(); if (view.operationCancelled) signal(15) }
         onRunningChanged: if (!running && !_started) Qt.callLater(launchCheck.check)
         stdout: StdioCollector {}
         stderr: StdioCollector {
@@ -338,8 +394,7 @@ Rectangle {
         }
     }
 
-    // Animate discrete wallpaper wheel steps; native pixel deltas retain
-    // their own touchpad momentum without a second layer of easing.
+    // Use the same scroll-unit sensitivity and easing for wheel and touchpad input.
     component Scroller: Item {
         id: sc
         required property Flickable flick
@@ -347,6 +402,7 @@ Rectangle {
         property real rate: 32
         property bool smoothWheel: false
         property real wheelStep: flick.height * 0.45
+        property real touchpadStep: 135
         readonly property bool animating: anim.running || inputIdle.running || flick.moving
 
         function limit(y) {
@@ -360,23 +416,26 @@ Rectangle {
             target = flick.contentY
         }
         function wheel(event) {
-            if (event.pixelDelta.y !== 0) {
-                jump(flick.contentY - event.pixelDelta.y)
-            } else if (event.angleDelta.y !== 0) {
-                const delta = -event.angleDelta.y / 120 * wheelStep
-                if (smoothWheel) {
-                    flick.cancelFlick()
-                    // Accumulate quick wheel ticks, but discard queued travel
-                    // on reversal and keep the target near the visible viewport.
-                    const base = anim.running && (target - flick.contentY) * delta > 0
-                        ? target : flick.contentY
-                    const maxLead = flick.height * 1.5
-                    target = limit(Math.max(flick.contentY - maxLead,
-                        Math.min(flick.contentY + maxLead, base + delta)))
-                    rate = 28
-                    anim.running = target !== flick.contentY
-                } else jump(flick.contentY + delta)
-            } else return false
+            const ticks = event.angleDelta.y !== 0 ? -event.angleDelta.y / 120 : -event.pixelDelta.y / 15
+            if (ticks === 0) return false
+            // Phase/device data keeps rounded-zero pixel frames on the
+            // continuous-input scale too. Pixel deltas are a fallback hint.
+            const continuous = event.pixelDelta.y !== 0
+                || (event.phase !== undefined && event.phase !== Qt.NoScrollPhase)
+                || (event.device && event.device.type === PointerDevice.TouchPad)
+            const delta = ticks * (continuous ? touchpadStep : wheelStep)
+            if (smoothWheel) {
+                flick.cancelFlick()
+                // Accumulate input, discard queued travel on reversal, and
+                // keep the target near the visible viewport.
+                const base = anim.running && (target - flick.contentY) * delta > 0
+                    ? target : flick.contentY
+                const maxLead = flick.height * 1.5
+                target = limit(Math.max(flick.contentY - maxLead,
+                    Math.min(flick.contentY + maxLead, base + delta)))
+                rate = 28
+                anim.running = target !== flick.contentY
+            } else jump(flick.contentY + delta)
             inputIdle.restart()
             return true
         }
@@ -509,7 +568,7 @@ Rectangle {
                 smoothWheel: true
                 wheelStep: grid.height * 0.65
             }
-            Scroller { id: listScroll; flick: themeList }
+            Scroller { id: listScroll; smoothWheel: true; flick: themeList }
 
             GridView {
                 id: grid
@@ -530,7 +589,7 @@ Rectangle {
                 WheelHandler {
                     target: null
                     acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                    onWheel: event => { event.accepted = gridScroll.wheel(event) }
+                    onWheel: event => { gridScroll.wheel(event); event.accepted = true }
                 }
                 ScrollBar.vertical: ScrollBar {
                     width: hovered || pressed ? 8 : 4
@@ -555,9 +614,20 @@ Rectangle {
                         border.width: 1
                         border.color: tile.chosen ? view.accent : tile.hovered ? Qt.alpha(view.accent, 0.35) : "transparent"
                         Behavior on border.color { ColorAnimation { duration: 100 } }
-                        ToolTip.visible: tile.hovered
-                        ToolTip.text: view.baseName(tile.modelData)
-                        ToolTip.delay: 700
+                        ToolTip {
+                            id: plainTooltip1
+                            popupType: Popup.Window
+                            contentItem: Text {
+                                text: plainTooltip1.text
+                                font: plainTooltip1.font
+                                color: plainTooltip1.palette.toolTipText
+                                textFormat: Text.PlainText
+                                wrapMode: Text.Wrap
+                            }
+                            visible: tile.hovered
+                            text: view.baseName(tile.modelData)
+                            delay: 700
+                        }
 
                         Text {
                             anchors.centerIn: parent
@@ -615,7 +685,8 @@ Rectangle {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             id: tileMouse
-                            onClicked: { view.selected = tile.index; view.choose() }
+                            onClicked: { view.selected = tile.index; view.focusSearch() }
+                            onDoubleClicked: { view.selected = tile.index; view.choose() }
                         }
                     }
                 }
@@ -639,7 +710,7 @@ Rectangle {
                 WheelHandler {
                     target: null
                     acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                    onWheel: event => { event.accepted = listScroll.wheel(event) }
+                    onWheel: event => { listScroll.wheel(event); event.accepted = true }
                 }
                 ScrollBar.vertical: ScrollBar {
                     width: 4
@@ -683,8 +754,8 @@ Rectangle {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onPositionChanged: { if (!listScroll.animating) view.selected = row.index }
-                        onClicked: { view.selected = row.index; view.choose() }
+                        onClicked: { view.selected = row.index; view.focusSearch() }
+                        onDoubleClicked: { view.selected = row.index; view.choose() }
                     }
                 }
             }

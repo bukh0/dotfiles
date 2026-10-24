@@ -301,6 +301,20 @@ Rectangle {
                                 text: NotificationBody.styled(slot.entry ? slot.entry.body : "")
                                 textFormat: Text.StyledText
                                 linkColor: Colors.primary
+                                ToolTip {
+                                    id: plainTooltip1
+                                    popupType: Popup.Window
+                                    contentItem: Text {
+                                        text: plainTooltip1.text
+                                        font: plainTooltip1.font
+                                        color: plainTooltip1.palette.toolTipText
+                                        textFormat: Text.PlainText
+                                        wrapMode: Text.Wrap
+                                    }
+                                    visible: parent.hoveredLink !== ""
+                                    text: parent.hoveredLink
+                                    delay: 500
+                                }
                                 onLinkActivated: link => { if (NotificationBody.safeLink(link)) popup.linkActivated(link) }
                                 color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.7)
                                 font.pixelSize: 12

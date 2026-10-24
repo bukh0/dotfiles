@@ -11,7 +11,7 @@ with tempfile.TemporaryDirectory(prefix="qs-sysmon-profile-") as directory:
     cases = [(None, "auto"), ("", "auto"), (" \t\n", "auto"),
              ("powersave\n", "powersave"), ("performance", "performance"),
              ("auto\n", "auto"), ("invalid\n", "auto"),
-             ("performance garbage\n", "auto"), (" performance\n", "auto")]
+             ("performance garbage\n", "auto"), (" performance\n", "performance"), ("performance\r\n", "performance"), ("powersave \t\r\n", "powersave")]
     for contents, expected in cases:
         if contents is not None:
             state.write_text(contents)

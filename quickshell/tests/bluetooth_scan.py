@@ -6,7 +6,7 @@ import tempfile
 from qt_tools import qmltestrunner
 
 ROOT = Path(__file__).resolve().parent.parent
-source = (ROOT / 'components/BluetoothService.qml').read_text()
+source = (ROOT / 'components/BluetoothService.qml').read_text().replace("property bool nativeStatusEnabled: true", "property bool nativeStatusEnabled: false")
 power = source[source.index('    function setPower('):source.index('    function toggleDevice(')]
 scan = source[source.index('    function stopScan('):source.index('    Component.onCompleted:')]
 with tempfile.TemporaryDirectory(prefix='qs-bluetooth-scan-') as directory:

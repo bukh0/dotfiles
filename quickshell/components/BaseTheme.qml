@@ -1,9 +1,11 @@
 import QtQuick
+import Quickshell
 
 // ── Theme ─────────────────────────────────────────────────────────────────
 // Single source of truth for all visual design tokens.
 // Edit values here; every component picks them up automatically.
 QtObject {
+    property string sysmonPath: typeof Quickshell !== "undefined" ? Quickshell.shellPath("../../native/sysmon") : ""
 
     // ── Fonts ──────────────────────────────────────────────────────────
     readonly property var installedFonts: Qt.fontFamilies()

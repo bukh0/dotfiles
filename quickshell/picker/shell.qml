@@ -10,7 +10,7 @@ ShellRoot {
     // Keep an in-flight theme operation alive across unrelated code edits.
     Component.onCompleted: Quickshell.watchFiles = false
     function dismiss() {
-        if (view.busy) return
+        if (view.busy) { view.cancelOperation(); return }
         window.visible = false
         Qt.quit()
     }
@@ -63,10 +63,12 @@ ShellRoot {
                 height: dismissSurface.height
                 Region {
                     intersection: Intersection.Subtract
-                    x: Math.floor((dismissSurface.width - window.width) / 2)
-                    y: Math.floor((dismissSurface.height - window.height) / 2)
-                    width: dismissSurface.screen === window.screen ? window.width : 0
-                    height: dismissSurface.screen === window.screen ? window.height : 0
+                    readonly property real holeWidth: Math.max(window.width, window.implicitWidth)
+                    readonly property real holeHeight: Math.max(window.height, window.implicitHeight)
+                    x: Math.floor((dismissSurface.width - holeWidth) / 2)
+                    y: Math.floor((dismissSurface.height - holeHeight) / 2)
+                    width: dismissSurface.screen === window.screen ? holeWidth : 0
+                    height: dismissSurface.screen === window.screen ? holeHeight : 0
                 }
             }
             MouseArea {

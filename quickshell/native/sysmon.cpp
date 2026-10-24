@@ -21,7 +21,12 @@ std::string getCpuModel() {
     while (std::getline(file, line)) {
         if (line.find("model name") == 0) {
             size_t colon = line.find(':');
-            if (colon != std::string::npos) return trim(line.substr(colon + 1));
+            if (colon != std::string::npos) {
+                std::string model = trim(line.substr(colon + 1));
+                for (char& ch : model)
+                    if (ch == '\x1f' || ch == '\r' || ch == '\n') ch = ' ';
+                return model;
+            }
         }
     }
     return "Unknown CPU";
@@ -54,8 +59,6 @@ int main(int argc, char* argv[]) {
     std::ifstream statFile("/proc/stat");
     std::ifstream memFile("/proc/meminfo");
     std::ifstream netFile("/proc/net/dev");
-    std::ifstream tempFile;
-    if (tempPath != "none" && !tempPath.empty()) tempFile.open(tempPath.c_str());
 
     std::string line;
 
@@ -83,7 +86,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    while (true) {
+    while (std::cout.good()) {
         // 1. CPU
         statFile.clear(); statFile.seekg(0);
         unsigned long long idle = 0, total = 0;
@@ -188,8 +191,9 @@ int main(int argc, char* argv[]) {
         std::string tempStr = "N/A";
         std::string tooltipTemp = "Temperature: N/A";
         int isHot = 0;
-        if (tempFile.is_open()) {
-            tempFile.clear(); tempFile.seekg(0);
+        // Reopen each sample so replaced/rebound sysfs nodes can recover.
+        if (tempPath != "none" && !tempPath.empty()) {
+            std::ifstream tempFile(tempPath);
             long tempRaw = 0;
             if (tempFile >> tempRaw) {
                 long tempC = tempRaw / 1000;
@@ -207,6 +211,7 @@ int main(int argc, char* argv[]) {
             // without a trailing newline. Never publish arbitrary cache text.
             std::string state;
             std::getline(pFile, state);
+            state = trim(state);
             if (state == "auto" || state == "powersave" || state == "performance")
                 profile = state;
         }

@@ -54,26 +54,22 @@ RowLayout {
         if (!root._sameIds(next, root.allIds)) root.allIds = next
     }
 
-    function getWorkspaceById(id) {
-        const workspaces = root.workspaceList || []
-        for (let i = 0; i < workspaces.length; ++i) {
-            if (workspaces[i].id === id) return workspaces[i]
-        }
-        return null
-    }
-
     function switchWorkspace(id) {
         Hyprland.dispatch(Hyprland.usingLua
             ? "hl.dsp.focus({ workspace = " + JSON.stringify(String(id)) + " })"
             : "workspace " + id)
     }
 
-    function scrollWorkspace(backward) {
+    function focusMonitor() {
         if (root.monitor) {
             Hyprland.dispatch(Hyprland.usingLua
                 ? "hl.dsp.focus({ monitor = " + JSON.stringify(root.monitor.name) + " })"
                 : "focusmonitor " + root.monitor.name)
         }
+    }
+
+    function scrollWorkspace(backward) {
+        focusMonitor()
         switchWorkspace(backward ? "e-1" : "e+1")
     }
 
@@ -83,7 +79,7 @@ RowLayout {
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         property real accumulated: 0
         onWheel: event => {
-            const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y * 3 : event.angleDelta.y
+            const delta = event.angleDelta.y !== 0 ? event.angleDelta.y : event.pixelDelta.y * 8
             if (!delta) { event.accepted = false; return }
             // A notch per workspace; small touchpad deltas must accumulate.
             if (accumulated * delta < 0) accumulated = 0
@@ -145,12 +141,8 @@ RowLayout {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    const ws = root.getWorkspaceById(wsId)
-                    if (ws) {
-                        ws.activate()
-                    } else {
-                        root.switchWorkspace(wsId)
-                    }
+                    root.focusMonitor()
+                    root.switchWorkspace(wsId)
                 }
             }
         }

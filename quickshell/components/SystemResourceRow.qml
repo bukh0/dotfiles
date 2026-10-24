@@ -57,10 +57,21 @@ RowLayout {
 
         HoverHandler { id: hoverHandler; blocking: false }
 
-        ToolTip.visible: hoverHandler.hovered && statRoot.tooltipText !== ""
-        ToolTip.text: statRoot.tooltipText
-        ToolTip.delay: 300
-        ToolTip.timeout: 2000
+        ToolTip {
+            id: plainTooltip1
+            popupType: Popup.Window
+            contentItem: Text {
+                text: plainTooltip1.text
+                font: plainTooltip1.font
+                color: plainTooltip1.palette.toolTipText
+                textFormat: Text.PlainText
+                wrapMode: Text.Wrap
+            }
+            visible: hoverHandler.hovered && statRoot.tooltipText !== ""
+            text: statRoot.tooltipText
+            delay: 300
+            timeout: 2000
+        }
     }
 
     Stat {
@@ -120,10 +131,21 @@ RowLayout {
 
             HoverHandler { id: profileHover; blocking: false }
 
-            ToolTip.visible: profileHover.hovered && root.tooltipProfile !== ""
-            ToolTip.text: root.tooltipProfile
-            ToolTip.delay: 300
-            ToolTip.timeout: 2000
+            ToolTip {
+                id: plainTooltip2
+                popupType: Popup.Window
+                contentItem: Text {
+                    text: plainTooltip2.text
+                    font: plainTooltip2.font
+                    color: plainTooltip2.palette.toolTipText
+                    textFormat: Text.PlainText
+                    wrapMode: Text.Wrap
+                }
+                visible: profileHover.hovered && root.tooltipProfile !== ""
+                text: root.tooltipProfile
+                delay: 300
+                timeout: 2000
+            }
 
             MouseArea {
                 anchors.fill: parent

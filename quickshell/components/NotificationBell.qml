@@ -6,6 +6,8 @@ Rectangle {
     id: root
 
     property alias hitArea: hitItem
+    property bool barVisible: true
+    onBarVisibleChanged: if (!barVisible) NotificationDaemon.setTriggerHovered(root, false)
     property real hoverBottomMargin: 0
     property var screen
     property int count: NotificationDaemon.notificationModel.count
@@ -13,6 +15,7 @@ Rectangle {
 
     property string uiFont: Theme.fontUI
     property string iconFont: Theme.fontMono
+    onVisibleChanged: if (!visible) NotificationDaemon.setTriggerHovered(root, false)
     Component.onDestruction: NotificationDaemon.setTriggerHovered(root, false)
 
     implicitWidth: row.implicitWidth + Theme.spacingMD
@@ -56,14 +59,15 @@ Rectangle {
     // immediately below the bar, so no surface overlap or proxy click is needed.
     Item {
         id: hitItem
+        enabled: root.visible && root.barVisible
         anchors.fill: parent
         anchors.bottomMargin: -root.hoverBottomMargin
         HoverHandler {
             id: hover
             cursorShape: Qt.PointingHandCursor
             onHoveredChanged: {
-                NotificationDaemon.setTriggerHovered(root, hovered)
-                if (hovered && !NotificationDaemon.drawerPinned) {
+                NotificationDaemon.setTriggerHovered(root, hovered && root.visible && root.barVisible)
+                if (root.visible && root.barVisible && hovered && !NotificationDaemon.drawerPinned) {
                     NotificationDaemon.surfaceScreen = root.screen
                     NotificationDaemon.beginHoverOpen()
                 }

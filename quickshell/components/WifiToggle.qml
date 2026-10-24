@@ -17,9 +17,17 @@ ColumnLayout {
     readonly property bool scanning: NetworkService.scanning
 
     property bool expanded: false
+    onWifiOnChanged: {
+        if (!wifiOn) expanded = false
+        else if (expanded) scan()
+    }
     property string outputName: ""
     readonly property bool ownsPasswordPrompt: NetworkService.awaitingPasswordFor !== ""
                                               && NetworkService.awaitingPasswordScreen === outputName
+    // Keep the draft outside delegates, which are recreated by scan results.
+    readonly property string passwordSsid: ownsPasswordPrompt ? NetworkService.awaitingPasswordFor : ""
+    property string passwordDraft: ""
+    onPasswordSsidChanged: passwordDraft = ""
     readonly property bool actionInFlight: NetworkService.busy
     readonly property string targetSsid: NetworkService.targetSsid
 
@@ -32,7 +40,7 @@ ColumnLayout {
         function onConnectionSettled() {
             // Refresh the list so the active flags reflect the finished
             // connect/disconnect/rescan. Skipped while a password prompt is
-            // open: scan() clears the model, which would destroy the field.
+            // open to avoid unnecessary discovery work during authentication.
             if (wifiRoot.expanded && wifiRoot.wifiOn && NetworkService.awaitingPasswordFor === "")
                 NetworkService.scan()
         }
@@ -221,6 +229,10 @@ ColumnLayout {
                             cursorShape: delegateRoot.isProcessing ? Qt.WaitCursor : Qt.PointingHandCursor
                             onClicked: {
                                 if (wifiRoot.actionInFlight) return
+                                if (delegateRoot.needsPassword) {
+                                    NetworkService.cancelPasswordPrompt(wifiRoot.outputName)
+                                    return
+                                }
 
                                 modelData.active
                                     ? NetworkService.disconnectActive(modelData.ssid)
@@ -236,6 +248,9 @@ ColumnLayout {
 
                         TextField {
                             id: pwField
+                            objectName: "wifiPassword"
+                            text: delegateRoot.needsPassword ? wifiRoot.passwordDraft : ""
+                            onTextEdited: if (delegateRoot.needsPassword) wifiRoot.passwordDraft = text
                             onVisibleChanged: if (visible) Qt.callLater(() => { if (visible) forceActiveFocus() })
                             Component.onCompleted: if (visible) Qt.callLater(() => { if (visible) forceActiveFocus() })
                             Layout.fillWidth: true
@@ -252,7 +267,7 @@ ColumnLayout {
                             font.pixelSize: 11
                             font.family: wifiRoot.fontFamily
                             TapHandler {
-                                onTapped: { pwField.clear(); NetworkService.cancelPasswordPrompt(wifiRoot.outputName) }
+                                onTapped: { wifiRoot.passwordDraft = ""; NetworkService.cancelPasswordPrompt(wifiRoot.outputName) }
                             }
                         }
                         Text {
@@ -266,7 +281,7 @@ ColumnLayout {
                             function doConnect() {
                                 if (pwField.text.length === 0) return
                                 if (NetworkService.connectToNetwork(modelData.ssid, pwField.text, wifiRoot.outputName)) {
-                                    pwField.clear()
+                                    wifiRoot.passwordDraft = ""
                                 }
                             }
 

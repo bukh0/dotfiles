@@ -8,8 +8,9 @@ ROOT = Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='qs-sysmon-sampling-') as directory:
     p = Path(directory)
     source = (ROOT / 'native/sysmon.cpp').read_text()
-    for name in ['stat', 'meminfo', 'net/dev']:
+    for name in ['stat', 'meminfo', 'net/dev', 'cpuinfo']:
         source = source.replace('"/proc/' + name + '"', '"' + str(p / name.replace('/', '-')) + '"')
+    (p / 'cpuinfo').write_text('model name: Fixture\x1fCPU\n')
     (p / 'sysmon.cpp').write_text(source)
     subprocess.run(['g++', '-std=c++17', '-O2', '-Wall', '-Wextra', '-Wpedantic', '-o', str(p / 'sysmon'), str(p / 'sysmon.cpp')], check=True)
     (p / 'net-dev').write_text('header\nheader\nlo: 0 0 0 0 0 0 0 0 0\n')
@@ -28,6 +29,7 @@ with tempfile.TemporaryDirectory(prefix='qs-sysmon-sampling-') as directory:
                 assert selector.select(4), 'missing sample'
                 return proc.stdout.readline().rstrip('\n').split('\x1f')
             first = sample()
+            assert len(first) == 11 and first[3].endswith('Fixture CPU'), first
             assert first[0] == '20%' and first[7] == '45°C', first
             update(1499, 1501, 501, 81000)
             second = sample()

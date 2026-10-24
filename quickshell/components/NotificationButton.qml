@@ -64,8 +64,19 @@ Button {
         }
     }
     HoverHandler { blocking: false; cursorShape: Qt.PointingHandCursor }
-    ToolTip.visible: hovered && hint !== ""
-    ToolTip.text: hint
-    ToolTip.delay: 600
+    ToolTip {
+        id: plainTooltip1
+        popupType: Popup.Window
+        contentItem: Text {
+            text: plainTooltip1.text
+            font: plainTooltip1.font
+            color: plainTooltip1.palette.toolTipText
+            textFormat: Text.PlainText
+            wrapMode: Text.Wrap
+        }
+        visible: control.hovered && control.hint !== ""
+        text: control.hint
+        delay: 600
+    }
     Accessible.name: text || hint
 }

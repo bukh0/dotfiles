@@ -3,7 +3,6 @@ import QtQuick
 import Quickshell
 
 BaseTheme {
-    readonly property string sysmonPath: Quickshell.shellPath("../../native/sysmon")
     fontMono: ["JetBrainsMono Nerd Font", "CaskaydiaCove Nerd Font", "Symbols Nerd Font Mono", "Symbols Nerd Font"].find(name => installedFonts.includes(name)) || "monospace"
     barHeight: 35
     floatingBar: true

@@ -97,8 +97,14 @@ def main(address):
             finish(error)
 
     def cancel():
-        bus.call("org.bluez", device, "org.bluez.Device1", "CancelPairing", None, None,
-                 Gio.DBusCallFlags.NONE, 5000, None, None)
+        if finished:
+            return GLib.SOURCE_REMOVE
+        try:
+            # Do not exit with cancellation still queued on the connection.
+            bus.call_sync("org.bluez", device, "org.bluez.Device1", "CancelPairing", None, None,
+                          Gio.DBusCallFlags.NONE, 2000, None)
+        except GLib.Error:
+            pass
         finish("Canceled or timed out")
         return GLib.SOURCE_REMOVE
 
@@ -115,7 +121,8 @@ def main(address):
         for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             sources.append(GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, sig, cancel))
         bus.call("org.bluez", device, "org.bluez.Device1", "Pair", None, None,
-                 Gio.DBusCallFlags.NONE, 120000, None, paired)
+                 # Give the cancellation timer time to send CancelPairing first.
+                 Gio.DBusCallFlags.NONE, 160000, None, paired)
         loop.run()
     finally:
         for source in sources:

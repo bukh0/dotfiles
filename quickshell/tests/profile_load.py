@@ -31,6 +31,8 @@ ShellRoot {
   visible: Config.Theme.floatingBar && Quickshell.env("QS_TEST_BAR_MASK") === "1"
   exclusionMode: ExclusionMode.Ignore
  }
+ Config.NotificationHistory {}
+ Config.BatteryAlerts {}
  Config.NotificationDrawer { id: drawer; visible: false }
  Config.NotificationPopup { id: popup; visible: false }
  Timer { interval: 500; running: true; onTriggered: {
@@ -56,7 +58,7 @@ ShellRoot {
  } }
 }
 ''')
-        env = dict(os.environ, QT_QPA_PLATFORM="wayland", XDG_RUNTIME_DIR=directory, XDG_CACHE_HOME=directory)
+        env = dict(os.environ, QT_QPA_PLATFORM="wayland", XDG_RUNTIME_DIR=directory, XDG_CACHE_HOME=directory, XDG_STATE_HOME=directory)
         env["WAYLAND_DISPLAY"] = str(Path(os.environ["XDG_RUNTIME_DIR"]) / os.environ["WAYLAND_DISPLAY"])
         env.pop("HYPRLAND_INSTANCE_SIGNATURE", None)
         probe = profile == "alt" and os.environ.get("QS_TEST_BAR_MASK") == "1"

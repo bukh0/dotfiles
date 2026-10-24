@@ -17,8 +17,16 @@ function styled(body) {
     return text.split(/(<\/?(?:b|i|u|s)\s*>|<br\s*\/?>|<\/?a\b(?:[^"'<>]|"[^"]*"|'[^']*')*>)/gi).map(part => {
         if (formatting.test(part)) return part
         if (/^<a\b/i.test(part)) {
-            const match = part.match(/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')/i)
-            const url = match ? (match[1] || match[2] || "") : ""
+            // Consume whole attributes so href inside data-href or a quoted
+            // title cannot be mistaken for the destination.
+            const attributes = /([^\s=<>"'`/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g
+            let match
+            let url = ""
+            while ((match = attributes.exec(part.slice(2, -1))) !== null) {
+                if (match[1].toLowerCase() !== "href") continue
+                url = match[2] || match[3] || match[4] || ""
+                break
+            }
             const close = linked ? "</a>" : ""
             linked = safeLink(url)
             return close + (linked ? '<a href="' + escapeText(url) + '">' : "")

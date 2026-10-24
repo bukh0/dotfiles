@@ -34,6 +34,12 @@ Item {
     compare(styled.implicitHeight,plain.implicitHeight,pair[0])
    }
   }
+  function test_unquotedLinks() {
+   compare(Body.styled('<a href=https://example.invalid>web</a>'), '<a href="https://example.invalid">web</a>')
+   compare(Body.styled('<a href=mailto:test@example.invalid>mail</a>'), '<a href="mailto:test@example.invalid">mail</a>')
+   compare(Body.styled('<a href=javascript:alert(1)>bad</a>'), 'bad')
+   compare(Body.styled('<a data-href=https://example.invalid>plain</a>'), 'plain')
+  }
   function test_formattingAndEntities() {
    compare(Body.styled('<b>bold</b> <i>italic</i><br/>A &amp; B'), '<b>bold</b> <i>italic</i><br/>A &amp; B')
    plain.text = '<int> & "quoted"'

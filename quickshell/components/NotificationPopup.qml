@@ -15,6 +15,10 @@ PanelWindow {
     property alias barHeight: content.barHeight
 
     function showNotification(data, targetScreen) {
+        // Reapply even when the next burst targets the same screen: the
+        // compositor may have moved the window since the preceding burst.
+        if (data && !NotificationDaemon.isDrawerOpen && content.activeCount === 0 && content._queue.length === 0 && targetScreen)
+            window.screen = targetScreen
         content.showNotification(data, targetScreen)
     }
     NotificationPopupContent {

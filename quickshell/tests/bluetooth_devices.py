@@ -7,8 +7,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix="qs-bluetooth-devices-") as directory:
     stage = Path(directory)
-    source = (ROOT / "components/BluetoothService.qml").read_text()
-    source = source.replace("running: true", "running: false")
+    source = (ROOT / "components/BluetoothService.qml").read_text().replace("property bool nativeStatusEnabled: true", "property bool nativeStatusEnabled: false")
+    source = source.replace("running: true", "running: false").replace("running: !root.nativeStatusEnabled", "running: false")
     source = source.replace("Component.onCompleted: root.refresh()", "Component.onCompleted: {}")
     (stage / "BluetoothService.qml").write_text(source)
     (stage / "qmldir").write_text("singleton BluetoothService 1.0 BluetoothService.qml\n")

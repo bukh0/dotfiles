@@ -34,6 +34,8 @@ Item {
     property bool _errorMuted: false
     property bool _writeFinished: false
     property bool _writeStarted: false
+    property int _readFailures: 0
+    onDeviceChanged: { _readFailures = 0; readRetry.stop() }
     property int _discoveryAttempts: 0
     readonly property int discoveryRetryMs: Math.min(300000, 10000 * Math.pow(2, Math.max(0, _discoveryAttempts - 1)))
     onAvailableChanged: if (available) _discoveryAttempts = 0
@@ -82,6 +84,8 @@ Item {
         watchChanges: root.device !== ""
         onFileChanged: reload()
         onLoaded: {
+            root._readFailures = 0
+            readRetry.stop()
             // Ignore readbacks while we are writing or the user is dragging;
             // settleTimer triggers one authoritative re-read afterwards.
             if (root._busy()) return
@@ -90,12 +94,26 @@ Item {
             root.brightness = Math.min(1, Math.max(0, v / root.maxRaw))
         }
         onLoadFailed: {
+            if (root.device === "") return
+            // Keep the known device through short sysfs read interruptions.
+            // A successful read resets the budget, even during a write/drag.
+            if (++root._readFailures <= 2) {
+                readRetry.restart()
+                return
+            }
+            readRetry.stop()
             root.available = false
             root.device = ""
             root.maxRaw = 0
             root._wantedRaw = -1
             root._lastSentRaw = -1
         }
+    }
+
+    Timer {
+        id: readRetry
+        interval: 200
+        onTriggered: if (root.device !== "") brightFile.reload()
     }
 
     Timer {

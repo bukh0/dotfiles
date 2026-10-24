@@ -31,7 +31,7 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-state-') as directory:
         component = component.replace('id: hoverBridge', 'id: hoverBridge; objectName: "auditBridge"')
         (p / name).write_text(component)
     stub_colors(p / "Colors.qml")
-    (p / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
+    (p / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text().replace("import Quickshell\n", ""))
     (p / 'Theme.qml').write_text((ROOT / 'profiles' / os.environ.get('QS_TEST_PROFILE', 'default') / 'Theme.qml').read_text()
         .replace('import Quickshell\n', '').replace('Quickshell.shellPath("../../native/sysmon")', '""'))
     (p / 'qmldir').write_text('singleton NotificationDaemon 1.0 NotificationDaemon.qml\nsingleton Colors 1.0 Colors.qml\nBaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\n')
@@ -169,6 +169,28 @@ Item {
   n.body = 'Before<img alt="a > b" src="https://example.invalid/image">after'
   Config.NotificationDaemon._receiveNotification(n)
   compare(Config.NotificationDaemon.notificationModel.get(0).body, "Beforeafter")
+ }
+ function test_timestampsLoadedAfterDelivery() {
+  const older = notification(801), newer = notification(802), fresh = notification(803)
+  older.lastGeneration = true; newer.lastGeneration = true
+  Config.NotificationDaemon._receiveNotification(older)
+  Config.NotificationDaemon._receiveNotification(newer)
+  Config.NotificationDaemon._receiveNotification(fresh)
+  const freshTime = Config.NotificationDaemon.timestamps[803]
+  Config.NotificationDaemon.restoreTimestamps('{"801":200,"802":100,"803":50}')
+  const model = Config.NotificationDaemon.notificationModel
+  compare(model.get(0).notifId, Config.NotificationDaemon._serverIds[803])
+  compare(model.get(0).timestamp, freshTime)
+  compare(model.get(1).timestamp, 200)
+  compare(model.get(2).timestamp, 100)
+  Config.NotificationDaemon.restoreTimestamps('invalid')
+  compare(Config.NotificationDaemon.timestamps[803], freshTime)
+  older.summary = "Replacement"
+  Config.NotificationDaemon._receiveNotification(older)
+  const replacementTime = Config.NotificationDaemon.timestamps[801]
+  Config.NotificationDaemon.restoreTimestamps('{"801":1}')
+  compare(Config.NotificationDaemon.timestamps[801], replacementTime)
+  compare(model.get(0).timestamp, replacementTime)
  }
  function test_invalidSavedTimestamps() {
   for (const saved of ["null", "[]", "42", '{"601": 1e999}', '{"601": 9e15}', '"invalid"', '{"601": "yesterday"}']) {
@@ -328,6 +350,26 @@ Item {
   compare(delivered,2)
   compare(Config.NotificationDaemon.notificationModel.count,1)
   compare(Config.NotificationDaemon.notificationModel.get(0).summary,"Updated")
+ }
+ function test_diskHistoryRoundtrip() {
+  const daemon = Config.NotificationDaemon
+  daemon._receiveNotification(notification(401))
+  const saved = daemon.historyJson()
+  const stamp = daemon.notificationModel.get(0).timestamp
+  daemon.clearAll()
+  const before = delivered
+  daemon.restoreHistory(saved)
+  compare(daemon.notificationModel.count, 1)
+  verify(daemon.notificationModel.get(0).notifId < 0)
+  compare(daemon.notificationModel.get(0).timestamp, stamp)
+  compare(daemon.actionsFor(daemon.notificationModel.get(0).notifId).length, 0)
+  compare(delivered, before)
+  daemon.restoreHistory(saved)
+  compare(daemon.notificationModel.count, 1)
+  daemon.restoreHistory('{"version":1,"rows":[null,{}, {"historyKey":"bad","timestamp":0}]}')
+  compare(daemon.notificationModel.count, 1)
+  daemon.clearAll()
+  compare(JSON.parse(daemon.historyJson()).rows.length, 0)
  }
  function test_historyOverflow() {
   Config.NotificationDaemon.maxNotifications = 2

@@ -21,7 +21,7 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-test-') as directory:
     for name in ('NotificationDaemon.qml', 'NotificationPopup.qml', 'NotificationDrawer.qml', 'NotificationActions.qml', 'NotificationButton.qml', 'Colors.qml', 'NotificationBody.js'):
         text = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
         (profile / name).write_text(text)
-    (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
+    (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text().replace("import Quickshell\n", ""))
     shutil.copyfile(ROOT / 'profiles/default/Theme.qml', profile / 'Theme.qml')
     (profile / 'qmldir').write_text('BaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton NotificationDaemon 1.0 NotificationDaemon.qml\nNotificationActions 1.0 NotificationActions.qml\nNotificationButton 1.0 NotificationButton.qml\n')
     (p / 'shell.qml').write_text('''import QtQuick

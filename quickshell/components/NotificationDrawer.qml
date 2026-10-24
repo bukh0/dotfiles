@@ -7,7 +7,7 @@ PanelWindow {
     id: window
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Top
-    WlrLayershell.keyboardFocus: content.isOpen && NotificationDaemon.drawerPinned ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: content.isOpen && NotificationDaemon.drawerPinned ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
     visible: content.surfaceVisible

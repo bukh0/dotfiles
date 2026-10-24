@@ -67,14 +67,14 @@ ShellRoot {
             case 4:
                 scroll.jump(500.25)
                 scroll.wheel(wheel(-0.5, 0))
-                check(Math.abs(grid.contentY - 500.75) < 0.01, "Touchpad preserves fractional pixel deltas")
+                check(Math.abs(grid.contentY - 500.25) < 0.01, "Continuous input follows the configured easing")
                 scroll.wheel(wheel(0, -120))
                 scroll.wheel(wheel(-1.25, 0))
                 settledPosition = grid.contentY
-                check(Math.abs(settledPosition - 502) < 0.01, "Touchpad interrupts wheel easing without a jump")
+                check(Math.abs(settledPosition - 500.25) < 0.01, "Continuous input does not jump during wheel easing")
                 break
             case 5:
-                check(Math.abs(grid.contentY - settledPosition) < 0.01, "No synthetic drift after native pixel input")
+                check(grid.contentY > settledPosition && Math.abs(grid.contentY - scroll.target) < 0.5, "Continuous input settles at its scaled target")
                 scroll.jump(1e9)
                 const end = grid.originY + grid.contentHeight - grid.height
                 scroll.wheel(wheel(0, -120))
@@ -105,4 +105,4 @@ ShellRoot {
                             capture_output=True, text=True, timeout=12)
     output = result.stdout + result.stderr
     assert "SCROLL PASS" in output and "SCROLL FAIL" not in output, output
-    print("PASS: smooth wheel motion, rapid input, reversal, native touchpad precision, filtering and keyboard reveal")
+    print("PASS: smooth wheel motion, rapid input, reversal, continuous touchpad easing, filtering and keyboard reveal")

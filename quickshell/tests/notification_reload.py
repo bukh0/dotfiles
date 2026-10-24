@@ -6,22 +6,30 @@ if os.environ.get('QS_AUDIT_BUS')!='1':
 with tempfile.TemporaryDirectory(prefix='qs-notification-reload-') as directory:
  p=Path(directory);profile=p/'profile';profile.mkdir()
  shutil.copyfile(Path(__file__).resolve().parent.parent/'components/NotificationDaemon.qml',profile/'NotificationDaemon.qml')
- (profile/'qmldir').write_text('singleton NotificationDaemon 1.0 NotificationDaemon.qml\n')
+ shutil.copyfile(Path(__file__).resolve().parent.parent/'components/NotificationHistory.qml',profile/'NotificationHistory.qml')
+ (profile/'qmldir').write_text('singleton NotificationDaemon 1.0 NotificationDaemon.qml\nNotificationHistory 1.0 NotificationHistory.qml\n')
  shell=p/'shell.qml'
  shell.write_text('''import QtQuick
 import Quickshell
 import Quickshell.Io
 import "profile" as Config
 ShellRoot {
+ id: shell
+ Config.NotificationHistory {}
+ property bool notificationHistoryReady: false
  PersistentProperties {
   id: notificationHistory
   property string times: "{}"
-  onLoaded: Config.NotificationDaemon.restoreTimestamps(times)
+  onLoaded: {
+   Config.NotificationDaemon.restoreTimestamps(times)
+   shell.notificationHistoryReady = true
+   times = JSON.stringify(Config.NotificationDaemon.timestamps)
+  }
  }
  property int count: Config.NotificationDaemon.notificationModel.count
  PersistentProperties { id: state; property int phase: 0; property string summaries: ""; property string stamps: ""; property int popups: 0 }
  Connections { target: Config.NotificationDaemon; function onNewNotification(data) { state.popups++ }
- function onTimestampsChanged() { notificationHistory.times = JSON.stringify(Config.NotificationDaemon.timestamps) } }
+ function onTimestampsChanged() { if (shell.notificationHistoryReady) notificationHistory.times = JSON.stringify(Config.NotificationDaemon.timestamps) } }
  function fail(message) { console.error("FAIL",message); Qt.quit() }
  Component.onCompleted: console.log("READY")
  Timer { interval: 400; running: true; repeat: true
@@ -68,7 +76,7 @@ ShellRoot {
  bar_state=re.search(r'    PersistentProperties \{\n        id: barState.*?\n    \}', actual_shell, re.S).group(0)
  bar_state=bar_state.replace('NotificationDaemon.', 'Config.NotificationDaemon.')
  shell.write_text(shell.read_text().replace('ShellRoot {', 'ShellRoot {\n'+bar_state, 1))
- env=dict(os.environ,QT_QPA_PLATFORM='offscreen',XDG_RUNTIME_DIR=directory,XDG_CACHE_HOME=directory)
+ env=dict(os.environ,QT_QPA_PLATFORM='offscreen',XDG_RUNTIME_DIR=directory,XDG_CACHE_HOME=directory,XDG_STATE_HOME=directory)
  with (p/'log').open('w') as log:
   proc=subprocess.Popen(['quickshell','-p',str(shell)],env=env,stdout=log,stderr=log)
   try:

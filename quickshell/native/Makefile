@@ -1,5 +1,6 @@
 CXX ?= g++
-CXXFLAGS ?= -std=c++17 -O3 -Wall -Wextra -Wpedantic
+CXXFLAGS ?= -O3
+PROJECT_CXXFLAGS = -std=c++17 -Wall -Wextra -Wpedantic
 LDFLAGS ?=
 
 .PHONY: all clean
@@ -7,7 +8,7 @@ LDFLAGS ?=
 all: sysmon
 
 sysmon: sysmon.cpp
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -MMD -MP -MF sysmon.d -MT $@ -o $@ $<
+	$(CXX) $(PROJECT_CXXFLAGS) $(CXXFLAGS) $(LDFLAGS) -MMD -MP -MF sysmon.d -MT $@ -o $@ $<
 
 clean:
 	rm -f sysmon sysmon.d

@@ -64,12 +64,12 @@ elif "set" in sys.argv:
         text = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
         if name == "BrightnessService.qml":
             text = text.replace('"/sys/class/backlight/"', f'"{backlight.parent}/"')
-        (profile / name).write_text(text)
+        (profile / name).write_text(text.replace("property bool nativeStatusEnabled: true", "property bool nativeStatusEnabled: false"))
     stub_colors(profile / "Colors.qml")
     theme = (ROOT / "profiles" / "default" / "Theme.qml").read_text()
     theme = "\n".join(line for line in theme.splitlines()
                       if line != "import Quickshell" and "sysmonPath:" not in line)
-    (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
+    (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text().replace("import Quickshell\n", ""))
     (profile / "Theme.qml").write_text(theme)
     (profile / "qmldir").write_text("BaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton BrightnessService 1.0 BrightnessService.qml\nSliderRow 1.0 SliderRow.qml\nBrightnessSlider 1.0 BrightnessSlider.qml\n")
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen", XDG_RUNTIME_DIR=str(runtime),
@@ -119,7 +119,7 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
     nmcli.chmod(0o755)
     for name in ("NetworkService.qml", "NotificationDaemon.qml", "NotificationPopup.qml", "NotificationBody.js"):
         text = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
-        (profile / name).write_text(text)
+        (profile / name).write_text(text.replace("property bool nativeStatusEnabled: true", "property bool nativeStatusEnabled: false"))
     with (profile / "qmldir").open("a") as module:
         module.write("singleton NetworkService 1.0 NetworkService.qml\n"
                      "singleton NotificationDaemon 1.0 NotificationDaemon.qml\n"
@@ -135,7 +135,7 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
             text = re.sub(r"    WlrLayershell.keyboardFocus:.*", "", text)
             text = re.sub(r"    anchors \{.*?\n    \}", "", text, count=1, flags=re.S)
             text = re.sub(r"    mask: Region \{.*?\n    \}", "", text, count=1, flags=re.S)
-        (profile / name).write_text(text)
+        (profile / name).write_text(text.replace("property bool nativeStatusEnabled: true", "property bool nativeStatusEnabled: false"))
         prefix = "singleton " if name in ("BluetoothService.qml", "MusicService.qml", "SysmonService.qml") else ""
         with (profile / "qmldir").open("a") as module:
             module.write(f"{prefix}{Path(name).stem} 1.0 {name}\n")
@@ -155,7 +155,7 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
         theme = "\n".join(line for line in theme.splitlines()
                           if line != "import Quickshell" and "sysmonPath:" not in line)
         theme = theme.replace("BaseTheme {", 'BaseTheme {\n readonly property string sysmonPath: "' + str(binaries / "sysmon") + '"', 1)
-        (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
+        (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text().replace("import Quickshell\n", ""))
         (profile / "Theme.qml").write_text(theme)
         (profile / "qmldir").write_text(module_text)
         run(["quickshell", "-p", str(stage / "services.qml")], env, "REGRESSION PASS: services")

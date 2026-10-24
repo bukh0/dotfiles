@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell.Services.UPower
 import "."
 
@@ -13,7 +14,7 @@ Item {
 
     readonly property var icons: ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
 
-    readonly property bool isCharging: status === "Charging" || status === "Full" || status === "Not charging"
+    readonly property bool isCharging: status === "Charging" || status === "Full"
     readonly property bool isCritical: !isCharging && capacity <= 10
     readonly property bool isLow: !isCharging && capacity <= 20
 
@@ -58,12 +59,33 @@ Item {
         }
     }
 
-    Timer {
-        interval: 1000
-        running: root.isCritical
-        repeat: true
-        onTriggered: label.opacity = label.opacity === 1 ? 0.3 : 1
+    SequentialAnimation {
+        running: root.isCritical && root.visible
+        loops: Animation.Infinite
+        NumberAnimation { target: label; property: "opacity"; to: 0.35; duration: 650 }
+        NumberAnimation { target: label; property: "opacity"; to: 1; duration: 650 }
         onRunningChanged: if (!running) label.opacity = 1
+    }
+    function durationText(seconds) {
+        if (!Number.isFinite(seconds) || seconds <= 0) return ""
+        const minutes = Math.round(seconds / 60)
+        return Math.floor(minutes / 60) + "h " + (minutes % 60) + "m"
+    }
+    HoverHandler { id: hover; blocking: false }
+    ToolTip {
+        id: tooltip
+        popupType: Popup.Window
+        visible: hover.hovered
+        delay: 500
+        text: {
+            if (!root.hasBattery) return ""
+            const remaining = root.durationText(root.isCharging ? root.device.timeToFull : root.device.timeToEmpty)
+            const watts = root.device.changeRate
+            return root.status + " · " + root.capacity + "%"
+                + (remaining ? "\n" + remaining + (root.isCharging ? " until full" : " remaining") : "")
+                + (Number.isFinite(watts) && watts > 0 ? "\n" + watts.toFixed(1) + " W" : "")
+        }
+        contentItem: Text { text: tooltip.text; font: tooltip.font; color: tooltip.palette.toolTipText; textFormat: Text.PlainText }
     }
 
     Text {

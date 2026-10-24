@@ -7,6 +7,7 @@ import "."
 
 PanelWindow {
     id: controlPanel
+    Component.onDestruction: NetworkService.cancelPasswordPrompt(outputName)
 
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Top
@@ -228,6 +229,66 @@ PanelWindow {
             contentWidth: availableWidth
             contentHeight: contentLoader.implicitHeight
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            Binding { target: panelScroll.contentItem; property: "pixelAligned"; value: false }
+
+            WheelHandler {
+                id: panelWheel
+                target: null
+                enabled: controlPanel.isOpen && panelScroll.contentHeight > panelScroll.availableHeight
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                property real destination: 0
+                property real lastDelta: 0
+                function bounded(y) {
+                    const flick = panelScroll.contentItem
+                    return Math.max(flick.originY, Math.min(flick.originY
+                        + Math.max(0, flick.contentHeight - flick.height), y))
+                }
+                function scroll(event) {
+                    // Own the gesture's zero-delta phase frames as well.
+                    event.accepted = true
+                    const ticks = event.angleDelta.y !== 0 ? event.angleDelta.y / 120 : event.pixelDelta.y / 15
+                    if (ticks === 0) return
+                    const flick = panelScroll.contentItem
+                    flick.cancelFlick()
+                    const delta = ticks * 180
+                    const base = panelWheelAnimation.running && delta * lastDelta > 0 ? destination : flick.contentY
+                    const maxLead = flick.height * 1.5
+                    destination = bounded(Math.max(flick.contentY - maxLead,
+                        Math.min(flick.contentY + maxLead, base - delta)))
+                    lastDelta = delta
+                    panelWheelAnimation.running = true
+                }
+                onWheel: event => scroll(event)
+                onEnabledChanged: {
+                    if (!enabled) {
+                        panelWheelAnimation.running = false
+                        const flick = panelScroll.contentItem
+                        if (flick) {
+                            flick.cancelFlick()
+                            flick.contentY = bounded(flick.contentY)
+                            destination = flick.contentY
+                        }
+                        lastDelta = 0
+                    }
+                }
+            }
+            FrameAnimation {
+                id: panelWheelAnimation
+                onTriggered: {
+                    const flick = panelScroll.contentItem
+                    panelWheel.destination = panelWheel.bounded(panelWheel.destination)
+                    const remaining = panelWheel.destination - flick.contentY
+                    if (Math.abs(remaining) < 0.5) {
+                        flick.contentY = panelWheel.destination
+                        running = false
+                    } else flick.contentY = panelWheel.bounded(flick.contentY + remaining * (1 - Math.exp(-28 * frameTime)))
+                }
+            }
+            Connections {
+                target: panelScroll.contentItem
+                function onMovementStarted() { panelWheelAnimation.running = false }
+            }
+            ScrollBar.vertical.onPressedChanged: if (ScrollBar.vertical.pressed) panelWheelAnimation.running = false
 
             Loader {
                 id: contentLoader

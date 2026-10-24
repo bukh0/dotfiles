@@ -237,6 +237,25 @@ Rectangle {
                     }
                     rowHeights = next
                 }
+                Connections {
+                    target: notifList.model
+                    function onDataChanged(topLeft, bottomRight, roles) {
+                        const dirtyIds = []
+                        for (let i = topLeft.row; i <= bottomRight.row; i++) {
+                            const row = notifList.model.get(i)
+                            if (row) dirtyIds.push(String(row.notifId))
+                        }
+                        Qt.callLater(() => {
+                            const next = Object.assign({}, notifList.rowHeights)
+                            for (const id of dirtyIds) delete next[id]
+                            for (let i = 0; i < notifList.count; i++) {
+                                const card = notifList.itemAtIndex(i)
+                                if (card) next[String(notifList.model.get(i).notifId)] = card.implicitHeight
+                            }
+                            notifList.rowHeights = next
+                        })
+                    }
+                }
                 onCountChanged: Qt.callLater(() => refreshMeasurements(false))
                 onWidthChanged: Qt.callLater(() => refreshMeasurements(true))
 
@@ -253,13 +272,21 @@ Rectangle {
                     })
                 }
 
+                function anchorBeginning() {
+                    if (Math.abs(contentY - originY) < 0.5) {
+                        positionViewAtBeginning()
+                        trackpadScroll.destination = contentY
+                    }
+                }
+
                 function scrollTo(y) {
                     wheelAnimation.running = false
                     cancelFlick()
                     contentY = trackpadScroll.bounded(y)
+                    anchorBeginning()
                 }
 
-                // Animate discrete wheel steps; preserve native touchpad momentum.
+                // Ease wheel and touchpad input toward the same scaled destination.
                 onDraggingChanged: if (dragging) wheelAnimation.running = false
                 onVisibleChanged: if (!visible) wheelAnimation.running = false
 
@@ -279,25 +306,22 @@ Rectangle {
                     function scroll(pixelDelta, angleDelta) {
                         if (pixelDelta === 0 && angleDelta === 0) return false
                         notifList.cancelFlick()
-                        if (pixelDelta !== 0) {
-                            wheelAnimation.running = false
-                            notifList.contentY = bounded(notifList.contentY - pixelDelta)
-                            destination = notifList.contentY
-                        } else {
-                            const delta = angleDelta / 120 * 100
-                            // Reversing direction responds immediately instead of
-                            // first consuming the previous direction's queued travel.
-                            const base = wheelAnimation.running && delta * lastDelta > 0
-                                ? destination : notifList.contentY
-                            destination = bounded(base - delta)
-                            lastDelta = delta
-                            wheelAnimation.running = true
-                        }
+                        const ticks = angleDelta !== 0 ? angleDelta / 120 : pixelDelta / 15
+                        const delta = ticks * 180
+                        // Reverse immediately instead of consuming queued travel.
+                        const base = wheelAnimation.running && delta * lastDelta > 0
+                            ? destination : notifList.contentY
+                        const maxLead = notifList.height * 1.5
+                        destination = bounded(Math.max(notifList.contentY - maxLead,
+                            Math.min(notifList.contentY + maxLead, base - delta)))
+                        lastDelta = delta
+                        wheelAnimation.running = true
                         return true
                     }
 
                     onWheel: event => {
-                        event.accepted = scroll(event.pixelDelta.y, event.angleDelta.y)
+                        scroll(event.pixelDelta.y, event.angleDelta.y)
+                        event.accepted = true
                     }
                 }
 
@@ -309,6 +333,7 @@ Rectangle {
                         if (Math.abs(remaining) < 0.5) {
                             notifList.contentY = trackpadScroll.destination
                             running = false
+                            notifList.anchorBeginning()
                         } else {
                             notifList.contentY = trackpadScroll.bounded(notifList.contentY
                                 + remaining * (1 - Math.exp(-28 * frameTime)))
@@ -444,6 +469,20 @@ Rectangle {
                                     text: NotificationBody.styled(delegateRoot.body)
                                     textFormat: Text.StyledText
                                     linkColor: Colors.primary
+                                    ToolTip {
+                                        id: plainTooltip1
+                                        popupType: Popup.Window
+                                        contentItem: Text {
+                                            text: plainTooltip1.text
+                                            font: plainTooltip1.font
+                                            color: plainTooltip1.palette.toolTipText
+                                            textFormat: Text.PlainText
+                                            wrapMode: Text.Wrap
+                                        }
+                                        visible: parent.hoveredLink !== ""
+                                        text: parent.hoveredLink
+                                        delay: 500
+                                    }
                                     onLinkActivated: link => { if (NotificationBody.safeLink(link)) root.linkActivated(link) }
                                     color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.7)
                                     font.pixelSize: 12

@@ -2,9 +2,44 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Networking as Native
 
 Item {
     id: root
+    // Legacy transports remain available for isolated fixtures and diagnostics.
+    // Normal operation reads status through native D-Bus property updates.
+    property bool nativeStatusEnabled: true
+    property bool _nativeReady: false
+    readonly property var nativeSnapshot: {
+        const devices = Native.Networking.devices.values
+        const wifi = devices.filter(d => d.type === Native.DeviceType.Wifi && d.connected)
+        let active = null, activeDevice = null
+        for (const device of wifi) {
+            const found = device.networks.values.find(n => n.connected)
+            if (found) { active = found; activeDevice = device; break }
+        }
+        return {
+            wifiOn: Native.Networking.wifiEnabled && Native.Networking.wifiHardwareEnabled,
+            type: devices.some(d => d.type === Native.DeviceType.Wired && d.connected) ? "ethernet" : wifi.length ? "wifi" : "none",
+            ssid: active ? active.name : "",
+            strength: active ? Math.round(active.signalStrength * 100) : 0,
+            device: activeDevice ? activeDevice.name : wifi.length ? wifi[0].name : ""
+        }
+    }
+    onNativeSnapshotChanged: if (_nativeReady && nativeStatusEnabled) nativeSync.restart()
+    Component.onCompleted: { _nativeReady = true; if (nativeStatusEnabled) refresh() }
+    Timer { id: nativeSync; interval: 0; onTriggered: root.refresh() }
+    function applyNativeStatus() {
+        const state = nativeSnapshot
+        wifiOn = state.wifiOn
+        _radioOff = !state.wifiOn
+        if (_radioOff) { networks = []; cancelPasswordPrompt() }
+        connectionType = state.type
+        ssid = state.ssid
+        signalStrength = state.strength
+        activeWifiDevice = state.device
+    }
+
 
     property bool wifiOn: false
     property bool _radioOff: false
@@ -58,6 +93,8 @@ Item {
         property bool _exited: false
         property bool _stderrDone: false
         property string _stderrText: ""
+        property int _exitCode: 0
+        property int _exitStatus: 0
         onStarted: { started = true; commandLaunchCheck.stop() }
         running: false
         stderr: StdioCollector {
@@ -68,7 +105,9 @@ Item {
                 commandSettled.restart()
             }
         }
-        onExited: {
+        onExited: (code, status) => {
+            cmdProc._exitCode = code
+            cmdProc._exitStatus = status
             cmdProc._exited = true
             commandSettled.restart()
         }
@@ -93,7 +132,9 @@ Item {
         if (root.actionKind !== "command" || !cmdProc._exited || !cmdProc._stderrDone) return
         commandLaunchCheck.stop()
         if (!cmdProc.started) root.commandError("Could not start network command")
-        else root.reportStderr(cmdProc._stderrText.trim())
+        else if (cmdProc._stderrText.trim() !== "") root.reportStderr(cmdProc._stderrText.trim())
+        else if (cmdProc._exitStatus !== 0) root.commandError("Network command crashed.")
+        else if (cmdProc._exitCode !== 0) root.commandError("Network command failed (exit " + cmdProc._exitCode + ").")
         root.targetSsid = ""
         root.refresh()
         root.actionKind = ""
@@ -134,6 +175,8 @@ Item {
         cmdProc._exited = false
         cmdProc._stderrDone = false
         cmdProc._stderrText = ""
+        cmdProc._exitCode = 0
+        cmdProc._exitStatus = 0
         commandSettled.stop()
         commandLaunchCheck.restart()
         cmdProc.command = cmd
@@ -143,6 +186,8 @@ Item {
 
     Process {
         id: statusPoll
+        property bool started: false
+        onStarted: { started = true; statusLaunchCheck.stop() }
         onExited: (code, status) => { if (code !== 0 || status !== 0) root.clearStatus() }
         // The wifi list is allowed to fail (no Wi-Fi device / radio off);
         // that must not stop ethernet detection from the device list.
@@ -155,6 +200,7 @@ Item {
         ]
         stdout: StdioCollector {
             onStreamFinished: {
+                if (!statusPoll.started) return
                 if (text.trim() === "") { root.clearStatus(); return }
                 root._statusErrorLogged = false
                 const lines = text.trim().split("\n")
@@ -191,6 +237,7 @@ Item {
         }
         stderr: StdioCollector {
             onStreamFinished: {
+                if (!statusPoll.started) return
                 const msg = text.trim()
                 if (msg.length > 0 && !root._statusErrorLogged) {
                     root._statusErrorLogged = true
@@ -199,15 +246,37 @@ Item {
             }
         }
         onRunningChanged: {
-            if (!running) root._drainMonitor()
+            if (!running) {
+                if (!started) {
+                    statusLaunchCheck.stop()
+                    root.clearStatus()
+                }
+                root._drainMonitor()
+            }
+        }
+    }
+
+    Timer {
+        id: statusLaunchCheck
+        interval: 500
+        onTriggered: {
+            if (!statusPoll.started && !statusPoll.running) {
+                root.clearStatus()
+                root._drainMonitor()
+            }
         }
     }
 
     property bool _monitorPending: false
 
     function refresh() {
+        if (nativeStatusEnabled) { applyNativeStatus(); return }
         if (statusPoll.running) root._monitorPending = true
-        else statusPoll.running = true
+        else {
+            statusPoll.started = false
+            statusLaunchCheck.restart()
+            statusPoll.running = true
+        }
     }
 
     function _busy() {
@@ -239,7 +308,7 @@ Item {
     Process {
         id: nmMonitor
         command: ["nmcli", "monitor"]
-        running: true
+        running: !root.nativeStatusEnabled
         property int restartDelay: 250
         stdout: SplitParser {
             onRead: (line) => {
@@ -256,6 +325,7 @@ Item {
                 return
             }
             nmStableTimer.stop()
+            if (root.nativeStatusEnabled) return
             nmMonitorRestart.interval = restartDelay
             nmMonitorRestart.restart()
             restartDelay = Math.min(restartDelay * 2, 30000)
@@ -265,19 +335,19 @@ Item {
     Timer {
         id: nmMonitorRestart
         interval: 250
-        onTriggered: nmMonitor.running = true
+        onTriggered: if (!root.nativeStatusEnabled) nmMonitor.running = true
     }
 
     Timer {
         // nmcli monitor reports connection changes, not every signal change.
         // Read cached strength regularly without initiating Wi-Fi scans.
         interval: root.connectionType === "wifi" ? 10000 : 60000
-        running: true
+        running: !root.nativeStatusEnabled
         repeat: true
         onTriggered: {
-            if (!root._busy()) statusPoll.running = true
+            if (!root._busy()) root.refresh()
         }
-        Component.onCompleted: statusPoll.running = true
+        Component.onCompleted: root.refresh()
     }
 
     function parseNmcliFields(line) {
@@ -311,8 +381,9 @@ Item {
         property bool exited: false
         property bool succeeded: false
         property bool started: false
-        onStarted: started = true
+        onStarted: { started = true; scanLaunchCheck.stop() }
         onExited: (code, status) => {
+            scanLaunchCheck.stop()
             exited = true
             succeeded = code === 0 && status === 0
             scanSettled.restart()
@@ -332,6 +403,19 @@ Item {
             if (running) return
             if (!started) { exited = true; stdoutDone = true; succeeded = false }
             scanSettled.restart()
+        }
+    }
+
+    Timer {
+        id: scanLaunchCheck
+        interval: 500
+        onTriggered: {
+            if (root.scanning && !scanPoll.started && !scanPoll.running) {
+                scanPoll.exited = true
+                scanPoll.stdoutDone = true
+                scanPoll.succeeded = false
+                scanSettled.restart()
+            }
         }
     }
 
@@ -379,6 +463,7 @@ Item {
         onTriggered: {
             if (!scanPoll.exited || !scanPoll.stdoutDone) return
             if (scanPoll.succeeded && !root._radioOff) root.networks = root.parseScan(scanPoll.output)
+            scanLaunchCheck.stop()
             root.scanning = false
             if (root._scanPending) scanRestart.restart()
             root._drainMonitor()
@@ -408,6 +493,7 @@ Item {
         scanPoll.exited = false
         scanPoll.succeeded = false
         scanPoll.started = false
+        scanLaunchCheck.restart()
         scanPoll.running = true
     }
 
@@ -420,9 +506,13 @@ Item {
         interval: 0
         property int exitCode: 0
         onTriggered: {
-            if (!connectProc._exited || !connectProc._stderrDone) return
+            if (root.actionKind !== "connect" || !connectProc._exited || !connectProc._stderrDone) return
+            connectLaunchCheck.stop()
+            connectProc._password = ""
             const stderrText = connectProc._stderrText
-            if (exitCode === 0) {
+            if (!connectProc._started) {
+                root.commandError("Could not start network connection")
+            } else if (exitCode === 0) {
                 root.awaitingPasswordFor = ""
                 root._lastPasswordFailureSsid = ""
             } else {
@@ -435,7 +525,7 @@ Item {
                         root._lastPasswordFailureSsid = connectProc.targetSsid
                         root.awaitingPasswordScreen = connectProc.targetScreen
                         root.awaitingPasswordFor = connectProc.targetSsid
-                        if (isRetry) root.commandError("Incorrect password for " + connectProc.targetSsid)
+                        if (isRetry && connectProc._hadPassword) root.commandError("Incorrect password for " + connectProc.targetSsid)
                     }
                 } else if (stderrText.trim().length > 0) {
                     // Any other failure used to vanish silently.
@@ -462,6 +552,7 @@ Item {
         stderr: StdioCollector {
             id: connectStderr
             onStreamFinished: {
+                if (!connectProc._started) return
                 connectProc._stderrText = text
                 connectProc._stderrDone = true
                 connectSettledTimer.restart()
@@ -470,6 +561,7 @@ Item {
         stdinEnabled: true
         onStarted: {
             connectProc._started = true
+            connectLaunchCheck.stop()
             if (connectProc._password !== "") connectProc.write(connectProc._password + "\n")
             // Don't keep the password around once it has been handed over.
             connectProc._password = ""
@@ -495,8 +587,21 @@ Item {
         property bool _exited: false
         property bool _stderrDone: false
         property bool _promptCancelled: false
+        property bool _hadPassword: false
         property string _password: ""
         property string _stderrText: ""
+    }
+
+    Timer {
+        id: connectLaunchCheck
+        interval: 500
+        onTriggered: {
+            if (!connectProc._started && !connectProc.running && root.actionKind === "connect") {
+                connectProc._exited = true
+                connectProc._stderrDone = true
+                connectSettledTimer.restart()
+            }
+        }
     }
 
     // Returns true if the connect was started (see runCommand).
@@ -513,6 +618,7 @@ Item {
         connectProc.targetSsid = targetSsid
         connectProc.targetScreen = screenName || ""
         connectProc._password = password || ""
+        connectProc._hadPassword = connectProc._password !== ""
         connectProc._stderrText = ""
         // Publish ownership before enabling the hold; preserve it across prompt removal.
         submittingPasswordScreen = connectProc._password !== "" ? connectProc.targetScreen : ""
@@ -521,6 +627,7 @@ Item {
         connectProc.command = password
             ? ["env", "LC_ALL=C", "nmcli", "--wait", "30", "--ask", "dev", "wifi", "connect", targetSsid]
             : ["env", "LC_ALL=C", "nmcli", "--wait", "30", "dev", "wifi", "connect", targetSsid]
+        connectLaunchCheck.restart()
         connectProc.running = true
         return true
     }

@@ -14,9 +14,9 @@ ColumnLayout {
     }
 
     readonly property var audio: Pipewire.defaultAudioSink ? Pipewire.defaultAudioSink.audio : null
-    property real volume: audio ? audio.volume : 0.5
+    property real volume: audio && isFinite(audio.volume) ? Math.max(0, audio.volume) : 0
     property bool muted: audio ? audio.muted : false
-    onAudioChanged: cmdDebounce.stop()
+    onAudioChanged: { cmdDebounce.stop(); slider.abortDrag() }
 
     readonly property string volIcon: {
         if (muted || slider.visualValue === 0) return "󰝟"
@@ -44,6 +44,8 @@ ColumnLayout {
         icon: volIcon
         iconColor: muted ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4) : Colors.primary
         trackColor: muted ? Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.4) : Colors.primary
+        // Allow 150%, and preserve higher externally set values on read.
+        maxValue: Math.max(1.5, root.volume)
         value: volume
 
         onIconTapped: {

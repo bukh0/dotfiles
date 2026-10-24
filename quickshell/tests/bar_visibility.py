@@ -4,14 +4,14 @@ import os,re,subprocess,tempfile
 from qt_tools import qmltestrunner
 ROOT=Path(__file__).resolve().parent.parent
 source=(ROOT/'components/shell.qml').read_text()
-controls=source[source.index('    PersistentProperties {'):source.index('    // Singletons')]
+controls=source[source.index('    PersistentProperties {'):source.index('    signal togglePanelRequested')]
 controls=re.sub(r'    PersistentProperties \{\n        id: notificationHistory.*?\n    \}\n', '', controls, flags=re.S)
 controls=controls.replace('PersistentProperties {','QtObject {').replace('IpcHandler {','QtObject {\n        id: controls\n        property string target: ""').replace('        target: "bar"\n','').replace('Hyprland.','fakeHyprland.').replace('NotificationDaemon.', 'notifications.')
 start=source.index('            Item {',source.index('    Variants {'))
 output=source[start:source.index('\n        }\n    }\n}',start)].strip()
 output=output.replace('Hyprland.','fakeHyprland.').replace('Bar {','Rectangle {\n                    property var screen\n                    objectName: "bar"')
 visibility = source[source.index('    function barVisibleOn('):source.index('    NotificationDrawer {')].replace('Hyprland.', 'fakeHyprland.')
-drawer = source[source.index('    NotificationDrawer {'):source.index('    NotificationPopup {')]
+drawer = source[source.index('    NotificationDrawer {'):source.index('    NotificationHistory {}')]
 drawer = drawer.replace('NotificationDrawer {', 'QtObject {\n        property var screen\n        property int barHeight').replace('NotificationDaemon.', 'notifications.').replace('Theme.barTotalHeight', '42')
 with tempfile.TemporaryDirectory(prefix='qs-bar-visibility-') as directory:
  p=Path(directory)
@@ -27,6 +27,7 @@ Item {
   property var surfaceScreen: first
   onIsDrawerOpenChanged: if (!isDrawerOpen) drawerPinned=false
  }
+ signal togglePanelRequested(var screen)
  function getActiveScreen() { return first }
 
  QtObject { id: fakeHyprland; property int refreshes: 0

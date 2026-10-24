@@ -54,20 +54,73 @@ QtObject {
     // The shell's PersistentProperties keeps this small primitive map across
     // reloads. Reloadable children inside a QML singleton are not restored.
     property var timestamps: ({})
+    property var _restoredIds: ({})
     function restoreTimestamps(json) {
-        const restored = ({})
+        const restored = Object.assign({}, timestamps)
         try {
             const parsed = JSON.parse(json)
             if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
                 for (const id of Object.keys(parsed)) {
                     const value = parsed[id]
                     if (typeof value === "number" && isFinite(value) && value >= 0
-                            && value <= 8640000000000000)
-                        restored[id] = value
+                            && value <= 8640000000000000
+                            && (!_serverIds[id] || _restoredIds[id]))
+                        restored[id] = typeof restored[id] === "number" ? Math.min(restored[id], value) : value
                 }
             }
         } catch (_) {}
         timestamps = restored
+        // Re-delivery can precede PersistentProperties.onLoaded. Repair those
+        // rows too, without rolling back genuine arrivals or replacements.
+        for (const serverId of Object.keys(_restoredIds)) {
+            for (let i = 0; i < notificationModel.count; i++) {
+                if (notificationModel.get(i).notifId === _serverIds[serverId]) {
+                    notificationModel.setProperty(i, "timestamp", restored[serverId])
+                    notificationModel.setProperty(i, "historyKey", serverId + ":" + restored[serverId])
+                }
+            }
+        }
+        for (const serverId of Object.keys(_restoredIds)) removeArchivedDuplicate(serverId + ":" + restored[serverId])
+        for (let i = 1; i < notificationModel.count; i++) {
+            let position = i
+            while (position > 0 && notificationModel.get(position - 1).timestamp < notificationModel.get(i).timestamp)
+                position--
+            if (position !== i) notificationModel.move(i, position, 1)
+        }
+    }
+
+    property int _nextHistoryId: -1
+    function historyJson() {
+        const rows = []
+        for (let i = 0; i < notificationModel.count; i++) rows.push(Object.assign({}, notificationModel.get(i)))
+        return JSON.stringify({version: 1, rows: rows})
+    }
+    function restoreHistory(json) {
+        let data
+        try { data = JSON.parse(json) } catch (_) { return }
+        if (!data || data.version !== 1 || !Array.isArray(data.rows)) return
+        for (const row of data.rows.slice(0, maxNotifications)) {
+            if (!row || typeof row.historyKey !== "string" || row.historyKey.length > 128
+                    || !Number.isFinite(row.timestamp) || row.timestamp < 0 || row.timestamp > 8640000000000000) continue
+            if ([row.appName, row.summary, row.body, row.iconSource].some(v => typeof v !== "string" || v.length > 65536)) continue
+            let exists = false
+            for (let i = 0; i < notificationModel.count; i++)
+                if (notificationModel.get(i).historyKey === row.historyKey) exists = true
+            if (exists) continue
+            const restored = {notifId: _nextHistoryId--, historyKey: row.historyKey,
+                appName: row.appName, summary: row.summary, body: row.body,
+                timestamp: row.timestamp, urgency: [0, 1, 2].includes(row.urgency) ? row.urgency : 1,
+                iconSource: row.iconSource.startsWith("image://") ? "" : row.iconSource}
+            let index = 0
+            while (index < notificationModel.count && notificationModel.get(index).timestamp >= row.timestamp) index++
+            if (index < maxNotifications) notificationModel.insert(index, restored)
+        }
+        while (notificationModel.count > maxNotifications) closeNotification(notificationModel.count - 1)
+    }
+    function removeArchivedDuplicate(key) {
+        for (let i = notificationModel.count - 1; i >= 0; i--)
+            if (notificationModel.get(i).notifId < 0 && notificationModel.get(i).historyKey === key)
+                notificationModel.remove(i)
     }
 
     property int _nextId: 1
@@ -141,6 +194,7 @@ QtObject {
                 delete times[serverId]
                 root.timestamps = times
                 delete root._serverIds[serverId]
+                delete root._restoredIds[serverId]
                 delete root._serverObjects[serverId]
             }
         }
@@ -234,6 +288,8 @@ QtObject {
         // lastGeneration remains true on subsequent app replacements too.
         // Only the first delivery of this object is restoration.
         const restoring = notif.lastGeneration && !alreadyConnected
+        if (restoring) root._restoredIds[serverId] = true
+        else delete root._restoredIds[serverId]
         const savedTime = root.timestamps[serverId]
         const timestamp = restoring && typeof savedTime === "number" ? savedTime : Date.now()
         root.timestamps = Object.assign({}, root.timestamps, {[serverId]: timestamp})
@@ -265,8 +321,11 @@ QtObject {
         root._serverObjects[notif.id] = notif
         root.actionRevision++
 
+        const historyKey = serverId + ":" + timestamp
+        removeArchivedDuplicate(historyKey)
         const row = {
             notifId: id,
+            historyKey: historyKey,
             appName: data.appName,
             summary: data.summary,
             body: data.body.replace(/<img\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, ""),
@@ -274,7 +333,13 @@ QtObject {
             urgency: data.urgency,
             iconSource: root.getIconSource(data)
         }
-        if (existingId) {
+        if (restoring) {
+            // Server re-delivery order is unrelated to the saved arrival times.
+            let position = 0
+            while (position < root.notificationModel.count
+                   && root.notificationModel.get(position).timestamp >= row.timestamp) position++
+            root.notificationModel.insert(position, row)
+        } else if (existingId) {
             let replaced = false
             for (let i = 0; i < root.notificationModel.count; i++) {
                 if (root.notificationModel.get(i).notifId === id) {
@@ -345,6 +410,8 @@ QtObject {
 
     property IpcHandler ipc: IpcHandler {
         target: "notifications"
+
+        function clearAll(): void { root.clearAll() }
 
         function closeLatest(): void {
             root.dismissPopup()

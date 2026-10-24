@@ -16,7 +16,7 @@ with tempfile.TemporaryDirectory(prefix='qs-notification-layout-') as directory:
         source = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
         (profile / name).write_text(source)
     stub_colors(profile / "Colors.qml")
-    (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
+    (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text().replace("import Quickshell\n", ""))
     (profile / 'Theme.qml').write_text((ROOT / 'profiles' / os.environ.get('QS_TEST_PROFILE', 'default') / 'Theme.qml').read_text()
         .replace('import Quickshell\n', '').replace('Quickshell.shellPath("../../native/sysmon")', '""'))
     (profile / 'NotificationDaemon.qml').write_text('''pragma Singleton

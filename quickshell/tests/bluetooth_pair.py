@@ -40,6 +40,7 @@ def call(conn, sender, path, interface, method, args, invocation):
   record('unregister'); invocation.return_value(None)
  elif method == 'Pair':
   record('pair')
+  if Path(os.environ['TEST_PAIR_MODE']).read_text() == 'cancel': return
   if Path(os.environ['TEST_PAIR_MODE']).read_text() == 'already':
    invocation.return_dbus_error('org.bluez.Error.AlreadyExists','Already paired'); return
   def confirmed(c, result):
@@ -51,7 +52,8 @@ def call(conn, sender, path, interface, method, args, invocation):
             GLib.Variant('(ou)',(device,123456)),None,Gio.DBusCallFlags.NONE,5000,None,confirmed)
  elif method == 'Connect':
   record('connect'); invocation.return_value(None)
- elif method == 'CancelPairing': invocation.return_value(None)
+ elif method == 'CancelPairing':
+  record('cancel'); invocation.return_value(None)
 def set_prop(conn,sender,path,interface,name,value):
  if Path(os.environ['TEST_PAIR_MODE']).read_text() == 'slow-trust':
   record('trusting'); time.sleep(0.4)
@@ -113,6 +115,13 @@ if Path(os.environ['TEST_PAIR_MODE']).read_text() == 'slow-trust':
    return GLib.SOURCE_REMOVE
   return GLib.SOURCE_CONTINUE
  GLib.timeout_add(20, heartbeat)
+if Path(os.environ['TEST_PAIR_MODE']).read_text() == 'cancel':
+ import signal
+ def cancel_when_pairing():
+  if 'pair' not in Path(os.environ['TEST_EVENTS']).read_text().splitlines(): return GLib.SOURCE_CONTINUE
+  os.kill(os.getpid(), signal.SIGTERM)
+  return GLib.SOURCE_REMOVE
+ GLib.timeout_add(20, cancel_when_pairing)
 raise SystemExit(helper.main('AA:BB:CC:DD:EE:FF'))
 '''
 
@@ -131,7 +140,7 @@ with tempfile.TemporaryDirectory(prefix="qs-bluetooth-pair-") as directory:
                     break
                 time.sleep(.02)
             assert (stage / "ready").exists(), (stage / "server.log").read_text()
-            for response, mode, cleanup in (("confirm", "slow-trust", "0"), ("confirm", "normal", "0"), ("deny", "normal", "0"), ("confirm", "already", "0"), ("confirm", "normal", "1"), ("confirm", "register-failure", "0"), ("confirm", "local-register-failure", "0")):
+            for response, mode, cleanup in (("confirm", "cancel", "0"), ("confirm", "slow-trust", "0"), ("confirm", "normal", "0"), ("deny", "normal", "0"), ("confirm", "already", "0"), ("confirm", "normal", "1"), ("confirm", "register-failure", "0"), ("confirm", "local-register-failure", "0")):
                 (stage / "mode").write_text(mode)
                 (stage / "events").write_text("")
                 result = subprocess.run([sys.executable, str(stage / "client.py"), str(ROOT / "native/bluetooth_pair.py")],
@@ -140,13 +149,15 @@ with tempfile.TemporaryDirectory(prefix="qs-bluetooth-pair-") as directory:
                 if mode == "slow-trust":
                     expected[2:2] = ["trusting", "heartbeat"]
                 expected.append("local-unregister")
-                if mode == "register-failure":
+                if mode == "cancel":
+                    expected = ["register", "pair", "cancel", "unregister", "local-unregister"]
+                elif mode == "register-failure":
                     expected = ["register", "unregister", "local-unregister"]
                 elif mode == "local-register-failure":
                     expected = ["local-unregister"]
-                assert result.returncode == (0 if response == "confirm" and "failure" not in mode else 1), result.stdout + result.stderr
+                assert result.returncode == (0 if response == "confirm" and "failure" not in mode and mode != "cancel" else 1), result.stdout + result.stderr
                 assert (stage / "events").read_text().splitlines() == expected, result.stdout + result.stderr
-            print("PASS Bluetooth agent confirmation/rejection, trust/connect ordering, AlreadyExists recovery, registration failures, and failing cleanup on a private bus")
+            print("PASS Bluetooth cancellation delivery before unregister, confirmation/rejection, trust/connect ordering, AlreadyExists recovery, registration failures, and failing cleanup on a private bus")
         finally:
             server.terminate()
             server.wait(timeout=5)

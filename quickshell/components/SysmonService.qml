@@ -9,13 +9,18 @@ Item {
     property int watchers: 0
     property bool sampling: false
     property bool _skipFirst: true
+    property bool _stoppingForIdle: false
     onWatchersChanged: {
         if (watchers > 0) {
+            if (root.tempSourcePath === "none" && !tempSourceDiscover.running)
+                tempSourceDiscover.running = true
             if (!sysmonDaemon.running) sysmonRestart.restart()
         } else {
             sysmonRestart.stop()
             startupCheck.stop()
             sysmonStableTimer.stop()
+            root._restartForTemperature = false
+            root._stoppingForIdle = sysmonDaemon.running
             sysmonDaemon.running = false
         }
     }
@@ -34,9 +39,11 @@ Item {
             }
         }
         onExited: (exitCode, exitStatus) => {
+            // The wrapper reserves normal exit 130 for dialog cancellation.
+            if (exitStatus === 0 && exitCode === 130) return
             if (exitCode !== 0 || exitStatus !== 0) {
                 Quickshell.execDetached(["notify-send", "-a", "Power Profile", "--",
-                    "Power profile change failed", "Authentication was cancelled or the profile could not be applied."])
+                    "Power profile change failed", "The profile could not be applied."])
             }
         }
     }
@@ -75,7 +82,7 @@ Item {
         stdout: StdioCollector {
             onStreamFinished: {
                 const discovered = text.trim().split("\n")[0] || "none"
-                if (discovered === root.tempSourcePath && sysmonDaemon.running) return
+                if (discovered === root.tempSourcePath && (sysmonDaemon.running || sysmonRestart.running)) return
                 root.tempSourcePath = discovered
                 if (sysmonDaemon.running) {
                     root._restartForTemperature = true
@@ -119,6 +126,7 @@ Item {
             }
         }
         onStarted: {
+            root._stoppingForIdle = false
             root._skipFirst = true
             root.sampling = true
             startupCheck.stop()
@@ -134,8 +142,11 @@ Item {
     function _scheduleRestart() {
         startupCheck.stop()
         sysmonStableTimer.stop()
+        const intentional = root._stoppingForIdle || root._restartForTemperature
+        root._stoppingForIdle = false
+        root._restartForTemperature = false
         if (root.watchers <= 0 || sysmonRestart.running) return
-        if (!root._restartForTemperature)
+        if (!intentional)
             root._restartDelay = Math.min(root._restartDelay * 2, 30000)
         sysmonRestart.interval = root._restartDelay
         sysmonRestart.restart()

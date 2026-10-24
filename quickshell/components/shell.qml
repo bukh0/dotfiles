@@ -7,6 +7,7 @@ import "."
 
 ShellRoot {
     id: shell
+    property bool notificationHistoryReady: false
     PersistentProperties {
         id: barState
         property bool shown: true
@@ -15,7 +16,11 @@ ShellRoot {
     PersistentProperties {
         id: notificationHistory
         property string times: "{}"
-        onLoaded: NotificationDaemon.restoreTimestamps(times)
+        onLoaded: {
+            NotificationDaemon.restoreTimestamps(times)
+            shell.notificationHistoryReady = true
+            times = JSON.stringify(NotificationDaemon.timestamps)
+        }
     }
     IpcHandler {
         target: "bar"
@@ -25,6 +30,22 @@ ShellRoot {
         function show(): void { barState.shown = true }
         // Compatibility with older helpers: refresh real state, never latch their snapshot.
         function setFullscreen(hidden: bool): void { Hyprland.refreshWorkspaces(); Hyprland.refreshToplevels() }
+    }
+
+    signal togglePanelRequested(var screen)
+    IpcHandler {
+        target: "controlpanel"
+        function toggle(): void { shell.togglePanelRequested(shell.getActiveScreen()) }
+    }
+    IpcHandler {
+        target: "drawer"
+        function toggle(): void {
+            const screen = shell.getActiveScreen()
+            if (!shell.barVisibleOn(screen)) return
+            if (!(NotificationDaemon.isDrawerOpen && NotificationDaemon.drawerPinned))
+                NotificationDaemon.surfaceScreen = screen
+            NotificationDaemon.toggleDrawer()
+        }
     }
 
     // Singletons are created lazily. Touch the ones that must run while
@@ -73,6 +94,9 @@ ShellRoot {
         onBarShownOnScreenChanged: if (!barShownOnScreen) NotificationDaemon.isDrawerOpen = false
     }
 
+    NotificationHistory {}
+    BatteryAlerts {}
+
     NotificationPopup {
         id: notifPopup
         barHeight: shell.barVisibleOn(screen) ? Theme.barTotalHeight : 0
@@ -80,7 +104,9 @@ ShellRoot {
 
     Connections {
         target: NotificationDaemon
-        function onTimestampsChanged() { notificationHistory.times = JSON.stringify(NotificationDaemon.timestamps) }
+        function onTimestampsChanged() {
+            if (shell.notificationHistoryReady) notificationHistory.times = JSON.stringify(NotificationDaemon.timestamps)
+        }
         function onNewNotification(data) {
             notifPopup.showNotification(data, getActiveScreen())
         }
@@ -93,6 +119,12 @@ ShellRoot {
                 id: output
                 required property var modelData
 
+                Connections {
+                    target: shell
+                    function onTogglePanelRequested(screen) {
+                        if (screen === output.modelData) bar.togglePanel()
+                    }
+                }
                 Bar {
                     id: bar
                     screen: modelData

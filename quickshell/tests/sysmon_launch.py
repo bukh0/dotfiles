@@ -55,7 +55,12 @@ ShellRoot {
    }
    if (phase === 0 && restored && SysmonService.cpuPercent === "37%") {
     if (!sawImmediate) { console.log("FAIL instantaneous values delayed until delta sample"); Qt.quit(); return }
+    SysmonService._restartForTemperature = true
     SysmonService.watchers = 0
+    if (SysmonService._restartForTemperature) { console.log("FAIL idle retained restart intent"); Qt.quit(); return }
+    SysmonService._restartForTemperature = true
+    SysmonService._scheduleRestart()
+    if (SysmonService._restartForTemperature) { console.log("FAIL exit retained restart intent"); Qt.quit(); return }
     phase = 1
    } else if (phase === 1 && ++idleTicks >= 6) {
     if (SysmonService.sampling || SysmonService.cpuPercent !== "37%") {

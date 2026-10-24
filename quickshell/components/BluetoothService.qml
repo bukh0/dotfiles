@@ -2,18 +2,37 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Bluetooth as Native
 
 // ── BluetoothService ──────────────────────────────────────────────────────
 // Owns ALL Bluetooth state and processes. It is a singleton (like
 // NetworkService) so it keeps running while the control panel is closed:
-// connect/disconnect notifications keep working and the D-Bus monitor is
-// spawned once instead of on every panel open.
+// connect/disconnect notifications keep working through native D-Bus updates.
+// The legacy monitor is retained only for diagnostics.
 //
 // NOTE: QML singletons are created lazily. shell.qml must touch this once at
 // startup (BluetoothService.refresh()) or nothing runs until the panel is
 // first opened.
 Item {
     id: root
+    property bool nativeStatusEnabled: true
+    property bool _nativeReady: false
+    readonly property var nativeSnapshot: {
+        const objects = {}
+        for (const adapter of Native.Bluetooth.adapters.values)
+            objects[adapter.dbusPath] = {"org.bluez.Adapter1": {Powered: {data: adapter.enabled}}}
+        for (const device of Native.Bluetooth.devices.values) {
+            objects[device.dbusPath] = {"org.bluez.Device1": {
+                Address: {data: device.address}, Alias: {data: device.name},
+                Name: {data: device.deviceName}, Icon: {data: device.icon},
+                Paired: {data: device.paired}, Connected: {data: device.connected}
+            }}
+        }
+        return JSON.stringify({data: [objects]})
+    }
+    onNativeSnapshotChanged: if (_nativeReady && nativeStatusEnabled) nativeSync.restart()
+    Timer { id: nativeSync; interval: 0; onTriggered: root.refresh() }
+
 
     // ── Public state (read by BluetoothToggle) ─────────────────────────
     property bool hasAdapter: false
@@ -33,6 +52,7 @@ Item {
     property var _prevConnected: null
     property var _prevNames: ({})
     property bool _pollQueued: false
+    property bool _pollInFlight: false
     property bool _pollErrorLogged: false
     property int _monitorDelay: 250
 
@@ -51,13 +71,45 @@ Item {
 
     // ── State polling (BlueZ ObjectManager over busctl) ────────────────
     function refresh() {
+        if (nativeStatusEnabled) { _nativeReady = true; root._applyManagedObjects(nativeSnapshot); return }
         // Never drop a request: if a poll is in flight its data may already
         // be stale, so remember to run one more when it finishes.
-        if (btPoll.running) {
+        if (root._pollInFlight) {
             root._pollQueued = true
             return
         }
+        root._pollInFlight = true
+        btPoll.started = false
+        btPoll.exited = false
+        btPoll.streamDone = false
+        btPoll.output = ""
+        btPoll.ok = false
+        pollLaunchCheck.restart()
         btPoll.running = true
+    }
+
+    function _finishPoll() {
+        if (!root._pollInFlight || !btPoll.exited || !btPoll.streamDone) return
+        pollLaunchCheck.stop()
+        if (btPoll.started && btPoll.ok) root._applyManagedObjects(btPoll.output)
+        else root._markUnavailable()
+        root._pollInFlight = false
+        if (root._pollQueued) {
+            root._pollQueued = false
+            root.refresh()
+        }
+    }
+
+    Timer {
+        id: pollLaunchCheck
+        interval: 500
+        onTriggered: {
+            if (root._pollInFlight && !btPoll.started && !btPoll.running) {
+                btPoll.exited = true
+                btPoll.streamDone = true
+                root._finishPoll()
+            }
+        }
     }
 
     function _markUnavailable() {
@@ -190,35 +242,48 @@ Item {
 
     Process {
         id: btPoll
+        property bool started: false
+        property bool exited: false
+        property bool streamDone: false
+        property bool ok: false
+        property string output: ""
+        onStarted: { started = true; pollLaunchCheck.stop() }
+        onExited: (code, status) => {
+            exited = true
+            ok = code === 0 && status === 0
+            pollSettled.restart()
+        }
         command: ["busctl", "--system", "-j", "call", "org.bluez", "/",
                   "org.freedesktop.DBus.ObjectManager", "GetManagedObjects"]
         stdout: StdioCollector {
-            onStreamFinished: root._applyManagedObjects(text)
+            onStreamFinished: {
+                btPoll.output = btPoll.started ? text : ""
+                btPoll.streamDone = true
+                pollSettled.restart()
+            }
         }
         // Log only. Notifying here spammed "Bluetooth Warning" on every
         // poll whenever bluetoothd wasn't running.
         stderr: StdioCollector {
             onStreamFinished: {
-                const msg = text.trim()
+                const msg = btPoll.started ? text.trim() : ""
                 if (msg !== "" && !root._pollErrorLogged) {
                     root._pollErrorLogged = true
                     console.warn("bluetooth: busctl:", msg)
                 }
             }
         }
-        // Chain follow-up work off "process finished", not off "stdout
-        // finished" (at which point running is usually still true).
-        onRunningChanged: {
-            if (!running && root._pollQueued) {
-                root._pollQueued = false
-                running = true
-            }
-        }
+    }
+
+    Timer {
+        id: pollSettled
+        interval: 0
+        onTriggered: root._finishPoll()
     }
 
     Timer {
         interval: 20000
-        running: true
+        running: !root.nativeStatusEnabled
         repeat: true
         onTriggered: root.refresh()
     }
@@ -239,7 +304,7 @@ Item {
     Timer {
         id: btMonitorRestart
         interval: 250
-        onTriggered: btMonitor.running = true
+        onTriggered: if (!root.nativeStatusEnabled) btMonitor.running = true
     }
 
     Process {
@@ -248,7 +313,7 @@ Item {
             "type='signal',sender='org.bluez',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'",
             "type='signal',sender='org.bluez',interface='org.freedesktop.DBus.ObjectManager'"
         ]
-        running: true
+        running: !root.nativeStatusEnabled
         stdout: SplitParser {
             onRead: line => {
                 // InterfacesAdded/Removed = device discovered / forgotten,
@@ -257,7 +322,9 @@ Item {
                     || line.includes("member=InterfacesRemoved")
                     || line.includes("Connected")
                     || line.includes("Powered")
-                    || line.includes("Paired"))
+                    || line.includes("Paired")
+                    || line.includes("Name")
+                    || line.includes("Alias"))
                     monitorDebounce.restart()
             }
         }
@@ -268,6 +335,7 @@ Item {
                 return
             }
             btStableTimer.stop()
+            if (root.nativeStatusEnabled) return
             btMonitorRestart.interval = root._monitorDelay
             btMonitorRestart.restart()
             root._monitorDelay = Math.min(root._monitorDelay * 2, 30000)
@@ -416,11 +484,11 @@ Item {
         }
     }
 
-    // Safety net: if the scan process never starts, don't stay "Scanning..."
+    // Recover from failed launches and processes stuck beyond their own timeout.
     Timer {
         interval: (root.scanSeconds + 4) * 1000
         running: root.scanning
-        onTriggered: root.scanning = false
+        onTriggered: root.stopScan()
     }
 
     function stopScan() {

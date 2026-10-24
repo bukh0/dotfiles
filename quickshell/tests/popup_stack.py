@@ -9,8 +9,17 @@ with tempfile.TemporaryDirectory(prefix='qs-popup-stack-') as directory:
  for name in ('NotificationPopup.qml','NotificationButton.qml','NotificationActions.qml','Colors.qml', 'NotificationBody.js'):
   source=(ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
   (profile/name).write_text(source)
+ # Exercise the actual wrapper's screen routing with only the native window
+ # surface replaced; content and burst handling remain unchanged.
+ wrapper = (ROOT / 'components/NotificationPopup.qml').read_text()
+ wrapper = re.sub(r'^import Quickshell.*\n', '', wrapper, flags=re.M)
+ wrapper = wrapper.replace('PanelWindow {', 'Rectangle {\n    property var screen: null')
+ wrapper = re.sub(r'^    (?:WlrLayershell.layer:|anchors \{|margins \{).*\n', '', wrapper, flags=re.M)
+ wrapper = wrapper.replace('NotificationPopupContent {', 'NotificationPopup {')
+ wrapper = wrapper.replace('id: content', 'id: content; objectName: "wrappedContent"')
+ (profile / 'PopupWindow.qml').write_text(wrapper)
  stub_colors(profile / "Colors.qml")
- (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
+ (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text().replace("import Quickshell\n", ""))
  (profile/'Theme.qml').write_text((ROOT/'profiles/default/Theme.qml').read_text().replace('import Quickshell\n','').replace('Quickshell.shellPath("../../native/sysmon")','""'))
  (profile/'NotificationDaemon.qml').write_text('''pragma Singleton
 import QtQuick
@@ -36,6 +45,7 @@ import "profile" as Config
 Item {
  width: 800; height: 900
  Config.NotificationPopup { id: popup; x: 30; y: 30; width: 430 }
+ Config.PopupWindow { id: popupWindow; x: 1000 }
  SignalSpy { id: linkSpy; target: popup; signalName: "linkActivated" }
  TestCase {
   name: "PopupStack"; when: windowShown
@@ -102,6 +112,19 @@ Item {
    compare(popup.closingCount,1)
    wait(300)
    compare(popup.closingCount,0)
+  }
+  function test_wrapperReappliesScreen() {
+   const left = {name: "left"}, right = {name: "right"}
+   const content = findChild(popupWindow, "wrappedContent")
+   popupWindow.showNotification(entry(501,0), left)
+   compare(popupWindow.screen, left)
+   popupWindow.showNotification(entry(502,0), right)
+   compare(popupWindow.screen, left)
+   content.dismissAll()
+   popupWindow.screen = right
+   popupWindow.showNotification(entry(503,0), left)
+   compare(popupWindow.screen, left, "new burst must repair compositor fallback even with unchanged content.screen")
+   content.dismissAll()
   }
   function test_screenLatchedForBurst() {
    const left = {name: "left"}, right = {name: "right"}

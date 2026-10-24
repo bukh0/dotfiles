@@ -8,7 +8,15 @@ import "."
 
 PanelWindow {
     id: root
-    onVisibleChanged: if (!visible && controlPanel) controlPanel.isOpen = false
+    function togglePanel() {
+        if (!visible) return
+        controlPanel.pinned = !(controlPanel.isOpen && controlPanel.pinned)
+        controlPanel.isOpen = controlPanel.pinned
+    }
+    onVisibleChanged: if (!visible && controlPanel) {
+        controlPanel.triggerHovered = false
+        controlPanel.isOpen = false
+    }
 
     WlrLayershell.layer: WlrLayer.Top
 
@@ -71,9 +79,14 @@ PanelWindow {
         Timer {
             id: openDelay
             interval: 120
-            onTriggered: if (interaction.containsMouse && !controlPanel.pinned) controlPanel.beginHoverOpen()
+            onTriggered: if (root.visible && interaction.containsMouse && !controlPanel.pinned) controlPanel.beginHoverOpen()
+        }
+        Connections {
+            target: root
+            function onVisibleChanged() { if (!root.visible) openDelay.stop() }
         }
         onEntered: {
+            if (!root.visible) return
             controlPanel.triggerHovered = true
             controlPanel.cancelHoverClose()
             if (controlPanel._fadingOut) controlPanel.beginHoverOpen()
@@ -172,6 +185,7 @@ PanelWindow {
                     NetworkIndicator {}
                     BatteryIndicator {}
                     NotificationBell {
+                        barVisible: root.visible
                         id: bell
                         screen: root.screen
                         hoverBottomMargin: Math.max(0, (root.implicitHeight - height) / 2)
@@ -236,6 +250,7 @@ PanelWindow {
                 NetworkIndicator {}
                 BatteryIndicator {}
                 NotificationBell {
+                    barVisible: root.visible
                     screen: root.screen
                     hoverBottomMargin: Math.max(0, (root.implicitHeight - height) / 2)
                 }

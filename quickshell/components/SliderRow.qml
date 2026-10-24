@@ -12,13 +12,18 @@ RowLayout {
     property color trackColor: Colors.primary
     property real value: 0.5
     property real minValue: 0.0
+    property real maxValue: 1.0
     property bool preferVerticalScroll: false
 
     // Own the interaction lifetime: MouseArea.pressed becomes false before
     // released is delivered, which otherwise briefly restores the old value.
     property bool isDragging: false
     property real dragValue: value
-    readonly property real visualValue: Math.max(minValue, Math.min(1, isDragging ? dragValue : value))
+    readonly property real visualValue: Math.max(minValue, Math.min(maxValue, isDragging ? dragValue : value))
+
+    readonly property real position: visualValue / Math.max(maxValue, 0.001)
+
+    function abortDrag() { isDragging = false }
 
     signal dragged(real val)
     signal committed(real val)
@@ -48,7 +53,7 @@ RowLayout {
             color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.3)
 
             Rectangle {
-                width: Theme.sliderThumbSize / 2 + (parent.width - Theme.sliderThumbSize) * Math.min(Math.max(root.visualValue, 0), 1)
+                width: Theme.sliderThumbSize / 2 + (parent.width - Theme.sliderThumbSize) * Math.min(Math.max(root.position, 0), 1)
                 height: parent.height
                 radius: height / 2
                 color: root.trackColor
@@ -57,7 +62,7 @@ RowLayout {
         }
 
         Rectangle {
-            x: Math.min(Math.max(root.visualValue, 0), 1) * (parent.width - width)
+            x: Math.min(Math.max(root.position, 0), 1) * (parent.width - width)
             anchors.verticalCenter: parent.verticalCenter
             width: Theme.sliderThumbSize
             height: Theme.sliderThumbSize
@@ -71,9 +76,10 @@ RowLayout {
             enabled: !root.preferVerticalScroll
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
             onWheel: event => {
-                const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y / 1000 : event.angleDelta.y / 120 * 0.05
+                const ticks = event.angleDelta.y !== 0 ? event.angleDelta.y / 120 : event.pixelDelta.y / 15
+                const delta = ticks * 0.05
                 if (delta === 0 || root.isDragging) { event.accepted = false; return }
-                const value = Math.max(root.minValue, Math.min(1, root.visualValue + delta))
+                const value = Math.max(root.minValue, Math.min(root.maxValue, root.visualValue + delta))
                 root.dragged(value)
                 root.committed(value)
                 event.accepted = true
@@ -89,30 +95,33 @@ RowLayout {
                 root.isDragging = true
                 setValue(root.dragValue)
             }
-            onPositionChanged: mouse => { if (pressed) setValue(valueAt(mouse.x)) }
+            onPositionChanged: mouse => { if (pressed && root.isDragging) setValue(valueAt(mouse.x)) }
             onReleased: mouse => {
+                if (!root.isDragging) return
                 const v = valueAt(mouse.x)
                 root.dragValue = v
                 root.committed(v)
                 root.isDragging = false
             }
             onCanceled: {
+                if (!root.isDragging) return
                 root.committed(root.dragValue)
                 root.isDragging = false
             }
 
             function valueAt(x) {
-                return clamp((x - Theme.sliderThumbSize / 2) / Math.max(1, width - Theme.sliderThumbSize))
+                return clamp(root.maxValue * (x - Theme.sliderThumbSize / 2) / Math.max(1, width - Theme.sliderThumbSize))
             }
 
             function setValue(val) {
+                if (!root.isDragging) return
                 const v = clamp(val)
                 root.dragValue = v
                 root.dragged(v)
             }
 
             function clamp(v) {
-                return Math.max(root.minValue, Math.min(1, v))
+                return Math.max(root.minValue, Math.min(root.maxValue, v))
             }
         }
     }

@@ -64,7 +64,7 @@ ShellRoot {
                     check(battery.visible, "present battery hidden")
                     battery.device = {ready: true, isPresent: true, percentage: 0.05, state: UPowerDeviceState.PendingCharge}
                     check(battery.icon === "󰚥", "pending charge should show external power")
-                    check(battery.isCharging && !battery.isCritical && !battery.isLow, "pending charge must not warn while on AC")
+                    check(!battery.isCharging && battery.isCritical && battery.isLow, "pending charge at low capacity must warn even on AC")
                     battery.device = {ready: true, isPresent: true, percentage: 0.05, state: UPowerDeviceState.Discharging}
                     check(battery.isCritical, "discharging low battery must warn")
                     battery.device = {ready: true, isPresent: false, percentage: 0, state: 0}

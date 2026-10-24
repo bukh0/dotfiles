@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
-source = (ROOT / 'components/BluetoothService.qml').read_text()
+source = (ROOT / 'components/BluetoothService.qml').read_text().replace("property bool nativeStatusEnabled: true", "property bool nativeStatusEnabled: false")
 action = source[source.index('    Process {\n        id: actionProc'):source.index('    function _validMac(')]
 action = action.replace('        actionProc.running = true', '        if (root.failSpawn) actionProc.command = ["/nonexistent/qs-bt-test"]\n        actionProc.running = true')
 # Delay delivery of the stream completion event beyond the old 40 ms grace

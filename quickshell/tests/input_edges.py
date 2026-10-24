@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory(prefix='qs-input-edges-') as directory:
         source = re.sub(r'^import Quickshell.*\n', '', source, flags=re.M)
         (p / name).write_text(source)
     stub_colors(p / "Colors.qml")
-    (p / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text())
+    (p / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text().replace("import Quickshell\n", ""))
     (p / 'Theme.qml').write_text((ROOT / 'profiles/default/Theme.qml').read_text()
         .replace('import Quickshell\n', '').replace('Quickshell.shellPath("../../native/sysmon")', '""'))
     (p / 'MusicService.qml').write_text('''pragma Singleton
@@ -68,11 +68,24 @@ Item {
     title: "Track", artist: "", album: "", status: "Paused", artUrl: ""})
    Config.MusicService.selectedPlayer = "1"
    Config.Hyprland.calls = []
+   Config.Hyprland.workspaces = {values: []}
+   Config.Hyprland.usingLua = true
    music.preferVerticalScroll = false
    scroll.contentItem.cancelFlick()
    scroll.contentItem.contentY = 0
    report.notices = []
    wait(250)
+  }
+  function test_existingWorkspaceClick() {
+   Config.Hyprland.workspaces = {values: [{id: 1, activate: function() { fail("bypassed dispatcher") }}]}
+   for (const lua of [true, false]) {
+    Config.Hyprland.usingLua = lua
+    Config.Hyprland.calls = []
+    mouseClick(workspaces, 10, 10)
+    compare(Config.Hyprland.calls.length, 2)
+    verify(Config.Hyprland.calls[0].includes(lua ? 'monitor = "Test"' : 'focusmonitor Test'))
+    compare(Config.Hyprland.calls[1], lua ? 'hl.dsp.focus({ workspace = "1" })' : 'workspace 1')
+   }
   }
   function test_workspaceIdle() {
    mouseWheel(workspaces, 10, 10, 0, -60)
