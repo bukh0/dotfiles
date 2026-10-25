@@ -107,9 +107,10 @@ Rectangle {
         if (busy || !filtered.length) return
         if (page === "Wallpapers" && delta !== 0 && delta % columns === 0) {
             const column = selected % columns
-            const rows = Math.floor((filtered.length - 1 - column) / columns) + 1
+            const rows = Math.ceil(filtered.length / columns)
             const row = Math.floor(selected / columns)
-            selected = ((row + delta / columns % rows + rows) % rows) * columns + column
+            const nextRow = ((row + delta / columns) % rows + rows) % rows
+            selected = Math.min(filtered.length - 1, nextRow * columns + column)
         } else selected = (selected + delta % filtered.length + filtered.length) % filtered.length
         reveal(true)
     }
@@ -117,9 +118,10 @@ Rectangle {
         if (busy || !filtered.length || deltaPages === 0) return
         if (page === "Wallpapers") {
             const column = selected % columns
-            const lastRow = Math.floor((filtered.length - 1 - column) / columns)
+            const lastRow = Math.floor((filtered.length - 1) / columns)
             const row = Math.floor(selected / columns)
-            selected = Math.max(0, Math.min(lastRow, row + deltaPages * pageSize / columns)) * columns + column
+            const nextRow = Math.max(0, Math.min(lastRow, row + deltaPages * pageSize / columns))
+            selected = Math.min(filtered.length - 1, nextRow * columns + column)
         } else selected = Math.max(0, Math.min(filtered.length - 1, selected + deltaPages * pageSize))
         reveal(true)
     }

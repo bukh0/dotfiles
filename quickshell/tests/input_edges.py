@@ -38,7 +38,9 @@ QtObject {
 }
 ''')
     report = (ROOT / 'components/BluetoothService.qml').read_text()
-    report = report[report.index('    function _reportResult('):report.index('    function _validMac(')]
+    match = re.search(r"(?m)^(?P<indent>[ \t]*)function _reportResult\s*\(.*?^(?P=indent)\}", report, re.S)
+    assert match, "Could not locate _reportResult function"
+    report = match.group(0)
     (p / 'BluetoothReport.qml').write_text('import QtQuick\nItem {\n id: root\n property var notices: []\n function notify(title, text) { notices = notices.concat([text]) }\n' + report + '\n}')
     (p / 'qmldir').write_text(''.join(f'singleton {name} 1.0 {name}.qml\n' for name in ('Theme', 'Colors', 'MusicService', 'Hyprland')))
     (p / 'tst_input.qml').write_text('''import QtQuick

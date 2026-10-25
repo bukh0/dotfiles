@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-10-25 — supplied edge-case review
+
+- Reproduced and fixed SliderRow's nonzero-minimum mismatch: pointer values and
+  thumb positions now use the same min-to-max range. A zero-width range stays
+  finite. Volume's zero minimum and above-150% behavior are unchanged.
+- Reproduced unreachable partial wallpaper rows with Down and Page Down. Vertical
+  navigation now clamps missing columns to the final item and wraps by row.
+  The alleged fractional page-size bug was not present: pageSize remains a
+  multiple of the fixed column count, including before layout completes.
+- Initialize the CPU tooltip to "Calculating…". Keep first-delta suppression and
+  immediate RAM/temperature/profile publication; no native sampling delay was
+  changed. A quick sensor-discovery restart does not inherently add a whole
+  extra second to the sampling interval.
+- Delete an orphan closer even when its server-ID mapping is already absent.
+  This is defensive cleanup; no normal-path mapping collision or race was found.
+- Extract the Bluetooth report function by its own signature/indentation in the
+  input-edge fixture, without depending on the following function's position.
+
+The network queue reproduction drains a monitor refresh after two coalesced
+scans without overlap. The existing 150 ms monitor debounce rechecks busy state;
+the alleged permanent wedge did not reproduce, so transport scheduling is
+unchanged. BlueZ registers a disconnect watch for discovery clients and invokes
+its discovery-stop cleanup when they disconnect. No separate bluetoothctl
+"scan off" process was added; it would be a different discovery session. See
+[BlueZ's discovery implementation](https://github.com/bluez/bluez/blob/master/src/adapter.c).
+
+Regression coverage includes both slider themes, partial-row navigation,
+monitor draining, orphan closer cleanup, initial CPU tooltip and launch recovery,
+Bluetooth report handling, and audio sink replacement. Fullscreen is unchanged.
+
 ## 2026-10-25 — backlight discovery failure handling
 
 Reproduced discovery marking a backlight available when brightnessctl printed a

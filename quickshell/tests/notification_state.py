@@ -351,6 +351,14 @@ Item {
   compare(Config.NotificationDaemon.notificationModel.count,1)
   compare(Config.NotificationDaemon.notificationModel.get(0).summary,"Updated")
  }
+ function test_orphanCloserCleanup() {
+  const daemon = Config.NotificationDaemon
+  daemon._closers[98765] = function() { fail("forget must not invoke a closer") }
+  const revision = daemon.actionRevision
+  daemon._forgetLocalId(98765)
+  verify(!Object.prototype.hasOwnProperty.call(daemon._closers, 98765))
+  compare(daemon.actionRevision, revision)
+ }
  function test_historyOverflow() {
   Config.NotificationDaemon.maxNotifications = 2
   for (let i = 0; i < 5; i++) Config.NotificationDaemon._receiveNotification(notification(10+i))

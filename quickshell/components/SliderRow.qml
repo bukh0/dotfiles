@@ -21,7 +21,8 @@ RowLayout {
     property real dragValue: value
     readonly property real visualValue: Math.max(minValue, Math.min(maxValue, isDragging ? dragValue : value))
 
-    readonly property real position: visualValue / Math.max(maxValue, 0.001)
+    readonly property real valueRange: Math.max(0, maxValue - minValue)
+    readonly property real position: valueRange > 0 ? (visualValue - minValue) / valueRange : 0
 
     function abortDrag() { isDragging = false }
 
@@ -110,7 +111,7 @@ RowLayout {
             }
 
             function valueAt(x) {
-                return clamp(root.maxValue * (x - Theme.sliderThumbSize / 2) / Math.max(1, width - Theme.sliderThumbSize))
+                return clamp(root.minValue + root.valueRange * (x - Theme.sliderThumbSize / 2) / Math.max(1, width - Theme.sliderThumbSize))
             }
 
             function setValue(val) {

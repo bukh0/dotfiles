@@ -92,6 +92,17 @@ ShellRoot {
                 const tile = grid.itemAtIndex(view.selected)
                 check(tile && tile.y >= grid.contentY - 1 && tile.y + tile.height <= grid.contentY + grid.height + 1,
                     "Keyboard navigation still reveals the last wallpaper")
+                view.filtered = ["0", "1", "2", "3", "4"]
+                for (let column = 1; column < 4; column++) {
+                    view.selected = column
+                    view.move(4)
+                    check(view.selected === 4, "Down reaches partial last row from column " + column)
+                    view.move(4)
+                    check(view.selected === 0, "Down wraps from final row")
+                    view.selected = column
+                    view.movePage(1)
+                    check(view.selected === 4, "Page Down reaches partial last row")
+                }
                 console.log(failures ? "SCROLL FAILED" : "SCROLL PASS")
                 Qt.quit()
             }

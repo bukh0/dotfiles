@@ -23,6 +23,7 @@ import Quickshell
 import "."
 ShellRoot {
  Component.onCompleted: {
+  if (SysmonService.tooltipCpu !== "Calculating…") { console.log("FAIL missing initial CPU tooltip"); Qt.callLater(Qt.quit); return }
   SysmonService.cpuPercent = "61%"
   SysmonService.rxSpeed = "9 B/s"
   SysmonService.watchers++

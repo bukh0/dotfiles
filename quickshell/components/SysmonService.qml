@@ -57,7 +57,7 @@ Item {
     property bool   cpuHot: false
 
     property string tooltipRam: ""
-    property string tooltipCpu: ""
+    property string tooltipCpu: "Calculating…"
     property string tooltipNet: "Calculating…"
     property string tooltipTemp: "Calculating…"
     property string tooltipProfile: ""

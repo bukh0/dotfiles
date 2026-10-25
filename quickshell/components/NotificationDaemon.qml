@@ -151,8 +151,8 @@ QtObject {
     }
 
     function _forgetLocalId(id) {
-        if (!Object.values(root._serverIds).includes(id)) return
         delete root._closers[id]
+        if (!Object.values(root._serverIds).includes(id)) return
         for (const serverId in root._serverIds) {
             if (root._serverIds[serverId] === id) {
                 const times = Object.assign({}, root.timestamps)
