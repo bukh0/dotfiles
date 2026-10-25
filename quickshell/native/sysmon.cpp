@@ -78,13 +78,22 @@ int main(int argc, char* argv[]) {
                 if (col == 4 || col == 5) lastIdle += val;
                 col++;
             }
-            seededCpu = lastTotal > 0;
+            seededCpu = col > 4 && iss.eof() && lastTotal > 0;
         }
     }
     if (!seededCpu) {
         std::cerr << "sysmon: failed to read /proc/stat" << std::endl;
         return 1;
     }
+
+    bool sampleErrorLogged = false;
+    const auto skipSample = [&](const char* path) {
+        if (!sampleErrorLogged)
+            std::cerr << "sysmon: failed to read " << path << "; retrying" << std::endl;
+        sampleErrorLogged = true;
+        // A persistent error must not spin or flood the collector with logs.
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    };
 
     while (std::cout.good()) {
         // 1. CPU
@@ -95,18 +104,18 @@ int main(int argc, char* argv[]) {
             std::istringstream iss(line);
             std::string cpu;
             if (iss >> cpu && cpu == "cpu") {
-                validCpu = true;
                 unsigned long long val; int col = 1;
                 while (iss >> val) {
                     if (col <= 8) total += val;
                     if (col == 4 || col == 5) idle += val;
                     col++;
                 }
+                validCpu = col > 4 && iss.eof();
             }
         }
         if (!validCpu) {
-            std::cerr << "sysmon: failed to read /proc/stat" << std::endl;
-            return 1;
+            skipSample("/proc/stat");
+            continue;
         }
 
         long cpuPct = 0;
@@ -115,7 +124,6 @@ int main(int argc, char* argv[]) {
             auto dI = (idle > lastIdle) ? (idle - lastIdle) : 0ULL;
             cpuPct = (dT > dI) ? ((dT - dI) * 100 + dT / 2) / dT : 0;
         }
-        lastIdle = idle; lastTotal = total;
         std::string tooltipCpu = "CPU: " + std::to_string(cpuPct) + "%\\n" + cpuModel;
 
         // 2. RAM
@@ -134,8 +142,8 @@ int main(int argc, char* argv[]) {
             }
         }
         if (found != 15 || memTotal == 0 || memAvail > memTotal || swapFree > swapTotal) {
-            std::cerr << "sysmon: failed to read /proc/meminfo" << std::endl;
-            return 1;
+            skipSample("/proc/meminfo");
+            continue;
         }
         long ramPct = memTotal > 0 ? ((memTotal - memAvail) * 100 + memTotal / 2) / memTotal : 0;
         std::string tooltipRam = "Total: " + std::to_string(memTotal / 1024) + " MB\\nAvailable: " + std::to_string(memAvail / 1024) +
@@ -146,8 +154,8 @@ int main(int argc, char* argv[]) {
         std::uint64_t rxDelta = 0, txDelta = 0;
         std::unordered_map<std::string, Counters> interfaces;
         if (!std::getline(netFile, line) || !std::getline(netFile, line)) {
-            std::cerr << "sysmon: failed to read /proc/net/dev" << std::endl;
-            return 1;
+            skipSample("/proc/net/dev");
+            continue;
         }
         while (std::getline(netFile, line)) {
             size_t colon = line.find(':');
@@ -182,6 +190,10 @@ int main(int argc, char* argv[]) {
         std::string txSpeed = !firstSample && dt > 0
             ? formatSpeed(txDelta / dt)
             : "0 B/s";
+        // Commit baselines together only after every required input is valid.
+        // The next valid row then averages CPU/network over the skipped interval.
+        lastIdle = idle;
+        lastTotal = total;
         previousInterfaces = std::move(interfaces);
         lastTime = now;
         firstSample = false;
@@ -216,6 +228,7 @@ int main(int argc, char* argv[]) {
                 profile = state;
         }
 
+        sampleErrorLogged = false;
         const char delimiter = '\x1f';
         std::cout << ramPct << "%" << delimiter << tooltipRam << delimiter
                   << cpuPct << "%" << delimiter << tooltipCpu << delimiter

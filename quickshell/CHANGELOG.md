@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-10-25 — wheel input, sampling recovery and clipboard checks
+
+- Reproduce and fix lost workspace steps on large wheel deltas. Handle up to
+  three steps per event, preserving fractional input and discarding excess whole
+  steps so a large flick cannot leave a backlog for the next gesture.
+- Retry transient CPU, memory and network sample failures without exiting
+  sysmon. Preserve sampling baselines until a complete valid sample, wait one
+  second between failures and log once per failure streak. Startup failures
+  still exit; truncated CPU records are rejected.
+- Discover clipboard tests in the shared runner and include backend, service and
+  UI regressions in its default suite. Include clipboard paths in both commit
+  hook filters; test the direct hook against actual staged temporary files.
+- Resolve the picker's timeout utility through PATH. Keep the isolated picker
+  fixture's timeout available while testing missing application helpers.
+- Confirm locally that swww already resolves to awww. No wallpaper command,
+  Bluetooth transport, notification timing or fullscreen behavior changes.
+
+Validation: 17 selected suites passed, including all eight clipboard suites,
+large wheel events, transient sysmon failures/recovery, picker timeout/cancel
+and staged-file hook filtering.
+
 ## 2026-10-25 — directory cleanup
 
 - Group core QML fixtures under tests/fixtures/ and update their staging paths.

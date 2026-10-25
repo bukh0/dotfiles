@@ -21,7 +21,7 @@ with tempfile.TemporaryDirectory(prefix='qs-sysmon-sampling-') as directory:
         (p / 'temperature').write_text(str(temperature) + '\n')
     update(1000, 1000, 800, 45000)
     proc = subprocess.Popen([str(p / 'sysmon'), str(p / 'temperature')], stdout=subprocess.PIPE,
-        text=True, env=dict(os.environ, XDG_CACHE_HOME=directory))
+        stderr=subprocess.PIPE, text=True, env=dict(os.environ, XDG_CACHE_HOME=directory))
     try:
         with selectors.DefaultSelector() as selector:
             selector.register(proc.stdout, selectors.EVENT_READ)
@@ -38,6 +38,33 @@ with tempfile.TemporaryDirectory(prefix='qs-sysmon-sampling-') as directory:
             update(1500, 1501, 990, 40000)
             third = sample()
             assert third[0] == '1%' and third[2] == '100%' and third[7:9] == ['40°C', '0'], third
+        with selectors.DefaultSelector() as errors:
+            errors.register(proc.stderr, selectors.EVENT_READ)
+            def expect_error():
+                assert errors.select(4), 'missing read error'
+                assert 'failed to read' in proc.stderr.readline()
+            def resumed():
+                with selectors.DefaultSelector() as output:
+                    output.register(proc.stdout, selectors.EVENT_READ)
+                    assert output.select(4), 'no recovery sample'
+                    row = proc.stdout.readline().rstrip('\n').split('\x1f')
+                    assert len(row) == 11, ('daemon exited after a transient read', proc.poll())
+                    return row
+            # The failed RAM sample must not advance the CPU baseline.
+            update(1600, 1501, 1200, 40000)
+            expect_error()
+            update(2000, 2001, 500, 40000)
+            assert resumed()[2] == '50%'
+            # A truncated CPU record is invalid too, even with the cpu prefix.
+            (p / 'stat').write_text('cpu 1\n')
+            expect_error()
+            update(2500, 2501, 500, 40000)
+            assert resumed()[2] == '50%'
+            (p / 'net-dev').write_text('')
+            expect_error()
+            (p / 'net-dev').write_text('header\nheader\nlo: 0 0 0 0 0 0 0 0 0\n')
+            assert len(resumed()) == 11
+        print('PASS transient CPU/RAM/network read failures preserve the process and recover')
         print('PASS repeated partial reads refresh CPU/RAM/temperature and percentages round correctly')
     finally:
         proc.terminate(); proc.wait(timeout=5)

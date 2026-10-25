@@ -97,6 +97,17 @@ Item {
    mouseWheel(workspaces, 10, 10, 0, -60)
    compare(Config.Hyprland.calls.length,2)
   }
+  function test_workspaceLargeDelta() {
+   mouseWheel(workspaces, 10, 10, 0, -240)
+   compare(Config.Hyprland.calls.length,4,"Two notches must switch twice")
+   Config.Hyprland.calls=[]
+   mouseWheel(workspaces, 10, 10, 0, 1200)
+   compare(Config.Hyprland.calls.length,6,"Cap large bursts at three switches")
+   Config.Hyprland.calls=[]
+   mouseWheel(workspaces, 10, 10, 0, -120)
+   compare(Config.Hyprland.calls.length,2,"Discard capped excess rather than carrying a backlog")
+   verify(Config.Hyprland.calls[1].includes("e+1"))
+  }
   function test_workspaceReverse() {
    mouseWheel(workspaces, 10, 10, 0, -60)
    mouseWheel(workspaces, 10, 10, 0, 60)

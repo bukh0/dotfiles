@@ -6,4 +6,4 @@ repos:
         entry: python3 quickshell/tests/run.py
         language: system
         pass_filenames: false
-        files: '^quickshell/(components/|profiles/|native/|picker/|tests/)'
+        files: '^quickshell/(components/|profiles/|native/|picker/|clipboard/|tests/)'

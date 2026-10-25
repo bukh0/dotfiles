@@ -86,7 +86,11 @@ RowLayout {
             accumulated += delta
             wheelIdle.restart()
             if (Math.abs(accumulated) >= 120) {
-                root.scrollWorkspace(accumulated > 0)
+                const backward = accumulated > 0
+                const steps = Math.min(3, Math.floor(Math.abs(accumulated) / 120))
+                for (let i = 0; i < steps; i++) root.scrollWorkspace(backward)
+                // Keep fractional input, but discard excess whole steps so a
+                // large burst cannot spill into the next gesture.
                 accumulated %= 120
             }
             event.accepted = true

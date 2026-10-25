@@ -33,7 +33,9 @@ after Blueman upgrades. Cancellation is scheduled before the Pair call deadline.
 
 Run `python3 tests/run.py` for core regressions, `python3 tests/run.py --all`
 for all discovered isolated suites, or `python3 tests/run.py --list` to list
-individual suites. Pass suite names to run a subset. The runner disables Python
+individual suites. Clipboard tests in `clipboard/tests/test_*.py` are discovered
+as `clipboard_*` suites; backend, service and UI checks also run by default. Both
+commit-hook filters include `clipboard/`. Pass suite names to run a subset. The runner disables Python
 bytecode generation so tests do not leave cache folders in the configuration. Tests require Quickshell,
 Qt 6 test tools and the relevant native helper dependencies. The local
 `.pre-commit-config.yaml` targets the parent dotfiles checkout. From `~/dotfiles`,

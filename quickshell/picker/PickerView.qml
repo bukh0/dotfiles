@@ -46,7 +46,7 @@ Rectangle {
     property int operationTimeoutSeconds: 45
     property bool operationCancelled: false
     function boundedCommand(args) {
-        return ["/usr/bin/timeout", "--signal=TERM", "--kill-after=2s", String(operationTimeoutSeconds) + "s"].concat(args)
+        return ["timeout", "--signal=TERM", "--kill-after=2s", String(operationTimeoutSeconds) + "s"].concat(args)
     }
     function cancelOperation() {
         if (!busy || operationCancelled) return
