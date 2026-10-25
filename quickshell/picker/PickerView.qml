@@ -43,6 +43,8 @@ Rectangle {
         thumbnailVersions = versions
     }
     property bool busy: false
+    // The search field loses focus when disabled; keep cancellation keys here.
+    onBusyChanged: if (busy) forceActiveFocus()
     property int operationTimeoutSeconds: 45
     property bool operationCancelled: false
     function boundedCommand(args) {
@@ -196,7 +198,7 @@ Rectangle {
         const ctrl = (event.modifiers & Qt.ControlModifier) !== 0
         const nav = (event.modifiers & (Qt.ControlModifier | Qt.AltModifier)) !== 0
         const step = page === "Wallpapers" ? columns : 1
-        if (ctrl && event.key === Qt.Key_C && !search.selectedText) dismiss()
+        if (ctrl && event.key === Qt.Key_C && (busy || !search.selectedText)) dismiss()
         else if (event.key === Qt.Key_Escape || (ctrl && event.key === Qt.Key_BracketLeft)) back()
         else if (busy) { event.accepted = true; return }
         else if (event.key === Qt.Key_Down || (nav && event.key === Qt.Key_J)) move(step)
@@ -473,6 +475,7 @@ Rectangle {
     component Chip: Rectangle {
         id: chip
         property string text: ""
+        property bool allowWhileBusy: false
         signal clicked()
         implicitHeight: 30
         implicitWidth: Math.max(30, chipLabel.implicitWidth + 18)
@@ -490,7 +493,7 @@ Rectangle {
         MouseArea {
             id: chipMouse
             anchors.fill: parent
-            enabled: !view.busy
+            enabled: !view.busy || chip.allowWhileBusy
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: chip.clicked()
@@ -554,6 +557,8 @@ Rectangle {
                 Keys.onPressed: event => view.handleKey(event)
             }
             Chip {
+                objectName: "pickerClose"
+                allowWhileBusy: true
                 text: "×"
                 onClicked: view.dismiss()
             }

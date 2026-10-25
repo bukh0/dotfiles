@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-25 — picker cancellation input
+
+- Reproduce Escape failing during apply with a real Qt key event: disabling the
+  focused search field left the root key handler without focus. Transfer focus
+  to PickerView while busy so cancellation keys continue to reach it.
+- Keep the close chip clickable during apply while other controls remain
+  disabled. Ctrl+C also cancels while busy if search text was selected before
+  the operation; idle selection/copy behavior is unchanged.
+- Replace the cancellation test's direct handleKey call with Qt key events for
+  Escape and Ctrl+C and a mouse click on the close chip. Retain timeout, retry
+  and descendant-cleanup checks.
+- Preserve the existing explicitly tested PendingCharge warnings, Bluetooth
+  debounce/filter, notification timing and fullscreen behavior.
+
 ## 2026-10-25 — wheel input, sampling recovery and clipboard checks
 
 - Reproduce and fix lost workspace steps on large wheel deltas. Handle up to
