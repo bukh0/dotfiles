@@ -12,8 +12,15 @@ def stub_colors(destination):
     loads the real FileView/JsonAdapter singleton in Quickshell.
     """
     colours = json.loads((ROOT / 'components/colors.json').read_text())
-    properties = '\n'.join(f'    readonly property color {name}: {json.dumps(value)}'
-                           for name, value in colours.items())
+    properties = []
+    for name, value in colours.items():
+        expression = json.dumps(value)
+        # Match Colors.qml's optional derived shades for palettes without them.
+        if not value and name in ('surfaceContainer', 'surfaceContainerHigh'):
+            alpha = '0.06' if name == 'surfaceContainer' else '0.12'
+            expression = f'Qt.tint(surface, Qt.rgba(surfaceFg.r, surfaceFg.g, surfaceFg.b, {alpha}))'
+        properties.append(f'    readonly property color {name}: {expression}')
+    properties = '\n'.join(properties)
     Path(destination).write_text('pragma Singleton\nimport QtQuick\nQtObject {\n' + properties + '\n}\n')
 
 
@@ -28,11 +35,16 @@ def stub_mpris(directory):
 
 def run_suite(path, timeout=240):
     """Use the current interpreter, report failures, and bound a hung fixture."""
+    import os
     import subprocess
     import sys
     print(f'\nRunning {path.stem}', flush=True)
     try:
-        return subprocess.run([sys.executable, str(path)], timeout=timeout).returncode == 0
+        env = dict(os.environ)
+        # Nested suites share helpers without depending on the working directory.
+        helpers = str(Path(__file__).resolve().parent)
+        env['PYTHONPATH'] = helpers + (os.pathsep + env['PYTHONPATH'] if env.get('PYTHONPATH') else '')
+        return subprocess.run([sys.executable, str(path)], env=env, timeout=timeout).returncode == 0
     except subprocess.TimeoutExpired:
         print(f'TIMEOUT: {path.stem}', flush=True)
         return False

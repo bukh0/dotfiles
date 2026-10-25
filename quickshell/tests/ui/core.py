@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+"""Isolated regressions: never write to real backlights or network services."""
+from qt_tools import qmltestrunner
+from harness import stub_colors
+import os
+import re
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def run(command, env, marker=None):
+    try:
+        result = subprocess.run(command, env=env, text=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, timeout=25)
+    except subprocess.TimeoutExpired as error:
+        print(error.stdout.decode() if isinstance(error.stdout, bytes) else error.stdout, flush=True)
+        raise
+    print(result.stdout, end="")
+    if result.returncode or (marker and marker not in result.stdout):
+        raise SystemExit(f"Failed: {command}")
+
+
+with tempfile.TemporaryDirectory(prefix="quickshell-tests-") as directory:
+    stage = Path(directory)
+    profile = stage / "profile"
+    profile.mkdir()
+    backlight = stage / "backlight" / "mock"
+    backlight.mkdir(parents=True)
+    (backlight / "brightness").write_text("100\n")
+    (backlight / "actual_brightness").write_text("82\n")
+    writes = stage / "writes"
+    writes.touch()
+    failure = stage / "failure"
+    failure.touch()
+    runtime = stage / "runtime"
+    runtime.mkdir(mode=0o700)
+    binaries = stage / "bin"
+    binaries.mkdir()
+    mock = binaries / "brightnessctl"
+    mock.write_text('''#!/usr/bin/env python3
+import os, pathlib, sys, time
+root = pathlib.Path(os.environ["TEST_BACKLIGHT"]) / "mock"
+if "info" in sys.argv:
+    print("mock,backlight," + (root / "brightness").read_text().strip() + ",100%,100")
+elif "set" in sys.argv:
+    time.sleep(0.12)
+    if pathlib.Path(os.environ["TEST_FAILURE"]).read_text():
+        print("mock write denied", file=sys.stderr)
+        sys.exit(1)
+    value = sys.argv[-1]
+    (root / "brightness").write_text(value + "\\n")
+    with open(os.environ["TEST_WRITES"], "a") as log:
+        log.write(value + "\\n")
+''')
+    mock.chmod(0o755)
+    notify = binaries / "notify-send"
+    notify.write_text("#!/bin/sh\nexit 0\n")
+    notify.chmod(0o755)
+    for name in ("BrightnessService.qml", "BrightnessSlider.qml", "SliderRow.qml", "Colors.qml"):
+        text = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
+        if name == "BrightnessService.qml":
+            text = text.replace('"/sys/class/backlight/"', f'"{backlight.parent}/"')
+        (profile / name).write_text(text)
+    stub_colors(profile / "Colors.qml")
+    theme = (ROOT / "profiles" / "default" / "Theme.qml").read_text()
+    theme = "\n".join(line for line in theme.splitlines()
+                      if line != "import Quickshell" and "sysmonPath:" not in line)
+    (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text().replace("import Quickshell\n", ""))
+    (profile / "Theme.qml").write_text(theme)
+    (profile / "qmldir").write_text("BaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\nsingleton BrightnessService 1.0 BrightnessService.qml\nSliderRow 1.0 SliderRow.qml\nBrightnessSlider 1.0 BrightnessSlider.qml\n")
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen", XDG_RUNTIME_DIR=str(runtime),
+               TEST_BACKLIGHT=str(backlight.parent), TEST_WRITES=str(writes),
+               TEST_FAILURE=str(failure), TEST_NETWORK_FAILURE=str(stage / "network-failure"), PATH=str(binaries) + os.pathsep + os.environ["PATH"])
+    env.pop("WAYLAND_DISPLAY", None)
+    shutil.copyfile(ROOT / "tests" / "fixtures" / "brightness.qml", stage / "brightness.qml")
+    run(["quickshell", "-p", str(stage / "brightness.qml")], env, "REGRESSION PASS: brightness")
+    nmcli = binaries / "nmcli"
+    nmcli.write_text('''#!/usr/bin/env python3
+import sys, time, os, pathlib
+args = sys.argv[1:]
+flag = pathlib.Path(os.environ["TEST_NETWORK_FAILURE"])
+if args == ["test-status-failure"]:
+    flag.write_text("all")
+    sys.exit(0)
+if args and args[0].startswith("test-mode-"):
+    flag.write_text(args[0].removeprefix("test-mode-"))
+    sys.exit(0)
+mode = flag.read_text() if flag.exists() else ""
+if mode == "all" and "monitor" not in args:
+    sys.exit(1)
+if "monitor" in args:
+    time.sleep(20)
+elif "connect" in args:
+    if args[-1] == "needs-password":
+        print("Error: Secrets were required, but not provided.", file=sys.stderr)
+        sys.exit(10)
+    if "--ask" in args:
+        assert sys.stdin.read() == "test-password\\n"
+    time.sleep(0.1)
+elif "disconnect" in args:
+    assert args[-1] == ("wlan0" if mode == "fallback" else "wlan1"), args
+elif args == ["radio", "wifi"]:
+    print("disabled" if mode == "off" else "enabled")
+elif "ACTIVE,SSID,SIGNAL,DEVICE" in args:
+    print("yes:active:10:wlan0\\nyes:<b>Backup</b>:5:wlan1")
+elif "TYPE,STATE,DEVICE" in args:
+    print("wifi:connected:wlan0\\nwifi:connected:wlan1")
+elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
+    if mode == "scan":
+        print("partial:50:WPA2:no:wlan0")
+        sys.exit(1)
+    if mode == "empty": sys.exit(0)
+    print("__proto__:90:WPA2:no:wlan0\\nconstructor:80:WPA2:no:wlan0\\n spaced :70::no:wlan0\\nactive:10:WPA2:yes:wlan0\\n<b>Backup</b>:5:WPA2:yes:wlan1\\n<b>Backup</b>:4:WPA2:no:wlan0\\n<b>Backup</b>:5:WPA2:yes:wlan1")
+''')
+    nmcli.chmod(0o755)
+    for name in ("NetworkService.qml", "NotificationDaemon.qml", "NotificationPopup.qml", "NotificationBody.js"):
+        text = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
+        (profile / name).write_text(text)
+    with (profile / "qmldir").open("a") as module:
+        module.write("singleton NetworkService 1.0 NetworkService.qml\n"
+                     "singleton NotificationDaemon 1.0 NotificationDaemon.qml\n"
+                     "NotificationPopup 1.0 NotificationPopup.qml\n")
+    for name in ("PlainToolTip.qml", "BatteryIndicator.qml", "ControlPanel.qml", "MusicWidget.qml", "MusicService.qml", "SysmonService.qml", "NotificationActions.qml", "NotificationButton.qml", "Divider.qml", "VDivider.qml", "VolumeSlider.qml", "SystemResourceRow.qml", "WifiToggle.qml", "BluetoothToggle.qml", "BluetoothService.qml"):
+        text = (ROOT / "components" / name.replace("NotificationPopup.qml", "NotificationPopupContent.qml").replace("NotificationDrawer.qml", "NotificationDrawerContent.qml")).read_text()
+        if name == "BatteryIndicator.qml":
+            text = text.replace("readonly property var device: UPower.displayDevice", "property var device: null")
+        if name == "ControlPanel.qml":
+            text = text.replace("PanelWindow {", "Rectangle {", 1)
+            text = re.sub(r"    WlrLayershell\.\w+:.*", "", text)
+            text = re.sub(r"    exclusionMode:.*", "", text)
+            text = re.sub(r"    WlrLayershell.keyboardFocus:.*", "", text)
+            text = re.sub(r"    anchors \{.*?\n    \}", "", text, count=1, flags=re.S)
+            text = re.sub(r"    mask: Region \{.*?\n    \}", "", text, count=1, flags=re.S)
+        (profile / name).write_text(text)
+        prefix = "singleton " if name in ("BluetoothService.qml", "MusicService.qml", "SysmonService.qml") else ""
+        with (profile / "qmldir").open("a") as module:
+            module.write(f"{prefix}{Path(name).stem} 1.0 {name}\n")
+    for name, script in {"busctl": "echo '{\"data\":[{}]}'", "dbus-monitor": "sleep 20", "playerctl": "exit 0",
+                         "sysmon": "for sample in 1 2; do printf '%b\\n' '50%\\0037RAM\\003737%\\0037CPU\\00371 B/s\\00372 B/s\\0037Net\\003745°C\\00370\\0037Temp\\0037auto\\n'; sleep 0.2; done; exec sleep 20"}.items():
+        executable = binaries / name
+        executable.write_text("#!/bin/sh\n" + script + "\n")
+        executable.chmod(0o755)
+    module_text = (profile / "qmldir").read_text()
+    shutil.copyfile(ROOT / "tests" / "fixtures" / "services.qml", stage / "services.qml")
+    slider_test = (ROOT / "tests" / "fixtures" / "tst_slider.qml").read_text()
+    (stage / "tst_slider.qml").write_text(slider_test)
+    for theme_name in ("default", "alt"):
+        print(f"Testing {theme_name} theme", flush=True)
+        (stage / "network-failure").unlink(missing_ok=True)
+        theme = (ROOT / "profiles" / theme_name / "Theme.qml").read_text()
+        theme = "\n".join(line for line in theme.splitlines()
+                          if line != "import Quickshell" and "sysmonPath:" not in line)
+        theme = theme.replace("BaseTheme {", 'BaseTheme {\n readonly property string sysmonPath: "' + str(binaries / "sysmon") + '"', 1)
+        (profile / "BaseTheme.qml").write_text((ROOT / "components/BaseTheme.qml").read_text().replace("import Quickshell\n", ""))
+        (profile / "Theme.qml").write_text(theme)
+        (profile / "qmldir").write_text(module_text)
+        run(["quickshell", "-p", str(stage / "services.qml")], env, "REGRESSION PASS: services")
+        # Qt's standalone runner cannot load Quickshell's executable plugins.
+        # Use the actual slider with just its two visual singletons.
+        (profile / "qmldir").write_text("BaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton Colors 1.0 Colors.qml\n")
+        runner = qmltestrunner()
+        run([runner, "-input", str(stage / "tst_slider.qml")], env)
+

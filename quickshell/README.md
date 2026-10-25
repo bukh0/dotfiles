@@ -13,7 +13,14 @@ picker/              Theme and wallpaper picker
 clipboard/           Clipboard browser and byte-safe Python bridge
 run.sh               Profile launcher (`run.sh [default|alt]`)
 reload.sh            Launcher alias
-tests/               Python regression suites and runner
+tests/               Regression runner and shared Python helpers
+tests/bluetooth/     Bluetooth transport and pairing
+tests/network/       Wi-Fi commands, monitoring and prompt ownership
+tests/notifications/ Notification state, text and layout
+tests/picker/        Picker navigation, processes and wallpaper handling
+tests/system/        Resource monitoring, brightness and power
+tests/ui/            Shared widgets, focus and input
+tests/integration/   Launchers, profiles, hooks and desktop integration
 tests/fixtures/      QML fixtures staged by the core suite
 ```
 
@@ -26,14 +33,15 @@ Bluetooth pairing uses the installed Blueman dialogs through `native/bluetooth_p
 its own pairing request and exits afterwards; it does not start a persistent
 applet or replace the session's default agent. PIN and confirmation dialogs
 remain available with Do Not Disturb enabled. The helper is tested with Blueman
-2.4.6 and uses its private dialog/path APIs; rerun `tests/bluetooth_pair.py`
+2.4.6 and uses its private dialog/path APIs; rerun `tests/bluetooth/bluetooth_pair.py`
 after Blueman upgrades. Cancellation is scheduled before the Pair call deadline.
 
 `~/.scripts/picker-menu.sh` builds the theme helper on demand. All theme application goes through `theme.switcher --apply THEME [WALLPAPER]`; `wallpick.sh` remains a compatibility wrapper. The helper uses OpenSSL for cache hashes and `vipsthumbnail` for previews. Generated binaries and dependency files are ignored by Git.
 
 Run `python3 tests/run.py` for core regressions, `python3 tests/run.py --all`
 for all discovered isolated suites, or `python3 tests/run.py --list` to list
-individual suites. Clipboard tests in `clipboard/tests/test_*.py` are discovered
+individual suites. Suite names stay the same regardless of their subdirectory;
+use the runner so shared helpers are available. Clipboard tests in `clipboard/tests/test_*.py` are discovered
 as `clipboard_*` suites; backend, service and UI checks also run by default. Both
 commit-hook filters include `clipboard/`. Pass suite names to run a subset. The runner disables Python
 bytecode generation so tests do not leave cache folders in the configuration. Tests require Quickshell,
@@ -66,10 +74,10 @@ popup body click invokes its default action when available. Opening the notifica
 panel clears active and queued popups without deleting history; popups resume
 for new arrivals after the panel closes. History survives hot reloads but is not saved across process restarts.
 
-After Quickshell upgrades, run `python3 tests/notifications.py` and
-`python3 tests/notification_reload.py` to check timeout units and notification
+After Quickshell upgrades, run `python3 tests/notifications/notifications.py` and
+`python3 tests/notifications/notification_reload.py` to check timeout units and notification
 restoration. The installed 0.3.2 build exposes `expireTimeout` in milliseconds.
-Run `python3 tests/input_edges.py` for workspace dispatch branches; it mocks
+Run `python3 tests/ui/input_edges.py` for workspace dispatch branches; it mocks
 `Hyprland.usingLua`, so also check workspace switching in the running session.
 
 Set `QS_TEST_PROFILE=alt` for alternate-profile notification state/layout checks.

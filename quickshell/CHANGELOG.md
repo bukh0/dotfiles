@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-10-25 — regression directory layout
+
+- Group regression suites under tests/bluetooth, network, notifications, picker,
+  system, ui and integration. Keep the runner, shared helpers and hook at the
+  test root and QML fixtures in tests/fixtures.
+- Preserve existing suite names and default/all/live selection. The runner
+  discovers grouped suites and rejects duplicate names; child processes receive
+  the shared helper directory through PYTHONPATH.
+- Make the palette test stub honor Colors.qml's fallback for empty derived
+  container colors, discovered while validating against the current palette.
+- Update source-root lookup, the prompt-owner fixture reference and README paths.
+  Clipboard suites stay with the clipboard application and remain discoverable.
+- Keep runtime component paths, profile symlinks, launchers and fullscreen
+  behavior unchanged. Earlier changelog entries retain their historical paths.
+
 ## 2026-10-25 — picker cancellation input
 
 - Reproduce Escape failing during apply with a real Qt key event: disabling the
