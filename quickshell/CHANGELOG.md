@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-25 — directory cleanup
+
+- Group core QML fixtures under tests/fixtures/ and update their staging paths.
+- Remove the unreferenced Neovim-only test from the Quickshell test tree.
+- Remove generated Python caches, the generated sysmon dependency file and the
+  empty docs directory. Retain the sysmon executable needed by the live shell.
+- Disable Python bytecode generation in the test runner and its child processes.
+- Keep runtime paths, profile links, active helpers and fullscreen behavior intact.
+
 ## 2026-10-25 — supplied edge-case review
 
 - Reproduced and fixed SliderRow's nonzero-minimum mismatch: pointer values and

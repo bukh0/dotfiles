@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """Run core regressions, selected suites, or discover all isolated suites."""
 import argparse
+import os
+import sys
 from pathlib import Path
+# Keep test imports and child interpreters from leaving bytecode in the config.
+sys.dont_write_bytecode = True
+os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 from harness import run_suite
 
 HERE = Path(__file__).resolve().parent

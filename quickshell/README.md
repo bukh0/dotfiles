@@ -13,7 +13,8 @@ picker/              Theme and wallpaper picker
 clipboard/           Clipboard browser and byte-safe Python bridge
 run.sh               Profile launcher (`run.sh [default|alt]`)
 reload.sh            Launcher alias
-tests/               Isolated regression fixtures
+tests/               Python regression suites and runner
+tests/fixtures/      QML fixtures staged by the core suite
 ```
 
 Use `./run.sh` for the default profile and `./run.sh alt` for the alternate profile. `native/Makefile` builds `native/sysmon`; both profiles resolve the helper from there.
@@ -32,7 +33,8 @@ after Blueman upgrades. Cancellation is scheduled before the Pair call deadline.
 
 Run `python3 tests/run.py` for core regressions, `python3 tests/run.py --all`
 for all discovered isolated suites, or `python3 tests/run.py --list` to list
-individual suites. Pass suite names to run a subset. Tests require Quickshell,
+individual suites. Pass suite names to run a subset. The runner disables Python
+bytecode generation so tests do not leave cache folders in the configuration. Tests require Quickshell,
 Qt 6 test tools and the relevant native helper dependencies. The local
 `.pre-commit-config.yaml` targets the parent dotfiles checkout. From `~/dotfiles`,
 install it with `pre-commit install --config quickshell/.pre-commit-config.yaml`

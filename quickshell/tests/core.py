@@ -76,7 +76,7 @@ elif "set" in sys.argv:
                TEST_BACKLIGHT=str(backlight.parent), TEST_WRITES=str(writes),
                TEST_FAILURE=str(failure), TEST_NETWORK_FAILURE=str(stage / "network-failure"), PATH=str(binaries) + os.pathsep + os.environ["PATH"])
     env.pop("WAYLAND_DISPLAY", None)
-    shutil.copyfile(ROOT / "tests" / "brightness.qml", stage / "brightness.qml")
+    shutil.copyfile(ROOT / "tests" / "fixtures" / "brightness.qml", stage / "brightness.qml")
     run(["quickshell", "-p", str(stage / "brightness.qml")], env, "REGRESSION PASS: brightness")
     nmcli = binaries / "nmcli"
     nmcli.write_text('''#!/usr/bin/env python3
@@ -145,8 +145,8 @@ elif "SSID,SIGNAL,SECURITY,ACTIVE,DEVICE" in args:
         executable.write_text("#!/bin/sh\n" + script + "\n")
         executable.chmod(0o755)
     module_text = (profile / "qmldir").read_text()
-    shutil.copyfile(ROOT / "tests" / "services.qml", stage / "services.qml")
-    slider_test = (ROOT / "tests" / "tst_slider.qml").read_text().replace('"../profiles/default"', '"profile"')
+    shutil.copyfile(ROOT / "tests" / "fixtures" / "services.qml", stage / "services.qml")
+    slider_test = (ROOT / "tests" / "fixtures" / "tst_slider.qml").read_text()
     (stage / "tst_slider.qml").write_text(slider_test)
     for theme_name in ("default", "alt"):
         print(f"Testing {theme_name} theme", flush=True)

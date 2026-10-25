@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../profiles/default" as Config
+import "profile" as Config
 
 Item {
     width: 420
