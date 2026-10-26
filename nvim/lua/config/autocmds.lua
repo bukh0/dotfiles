@@ -38,13 +38,7 @@ autocmd("BufWritePre", {
   group = augroup,
   callback = function(ev)
     if ev.match:match("^%w%w+:[\\/][\\/]") then return end
-    vim.fn.mkdir(vim.fn.fnamemodify(vim.uv.fs_realpath(ev.match) or ev.match, ":p:h"), "p")
+    vim.fn.mkdir(vim.fn.fnamemodify(vim.fn.resolve(ev.match), ":p:h"), "p")
   end,
 })
 
-vim.api.nvim_create_user_command("Ws", function()
-  require("conform").format({ lsp_format = "fallback" })
-  vim.cmd("write")
-end, { desc = "Format and save" })
-
-vim.cmd([[cabbrev <expr> ws (getcmdtype()==':' && getcmdpos()<=3) ? 'Ws' : 'ws']])

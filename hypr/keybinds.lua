@@ -36,9 +36,9 @@ hl.bind(mod .. " + SHIFT + M",  hl.dsp.exit())
 hl.bind(mod .. " + SHIFT + Q", hl.dsp.exec_cmd("uwsm stop"))
 
 -- Screenshot
-hl.bind(mod .." + CTRL + Print", hl.dsp.exec_cmd('FILE="$HOME/Pictures/Screenshots/screenshot-$(date +%Y%m%d-%H%M%S).png"; grim -g "$(slurp)" "$FILE" && notify-send -a "Screenshot" -i "$FILE" -h string:image-path:"$FILE" "Screenshot Saved" "Region captured"'))
+hl.bind(mod .. " + CTRL + Print", hl.dsp.exec_cmd("~/.scripts/screenshot.sh region"))
 
-hl.bind(mod .." + Print", hl.dsp.exec_cmd('FILE="$HOME/Pictures/Screenshots/screenshot-$(date +%Y%m%d-%H%M%S).png"; grim "$FILE" && notify-send -a "Screenshot" -i "$FILE" -h string:image-path:"$FILE" "Screenshot Saved" "Fullscreen captured"'))
+hl.bind(mod .. " + Print", hl.dsp.exec_cmd("~/.scripts/screenshot.sh full"))
 
 
 -- Theming & Scripts

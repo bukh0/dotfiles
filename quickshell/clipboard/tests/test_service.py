@@ -9,7 +9,7 @@ with tempfile.TemporaryDirectory(prefix="clipboard-service-") as runtime:
     profile = Path(runtime) / "profile"
     shutil.copytree(Path(__file__).resolve().parent.parent, profile)
     shutil.copyfile(profile / "tests/service.qml", profile / "shell.qml")
-    (profile / "fake_backend.py").write_text('''import json, sys, time
+    (profile / "fake_backend.py").write_text('''import json, sys, time, os
 action = sys.argv[1]
 result = {}
 if action == "context": result = {"address": "0x123"}
@@ -18,7 +18,9 @@ if action == "preview":
     time.sleep(0.3 if sys.argv[2] == "1" else 0.01)
     result = {"text": "first" if sys.argv[2] == "1" else "second"}
 if action == "copy" and sys.argv[2] == "bad": result = {"error": "Copy failed"}
-print(json.dumps(result))
+print(json.dumps(result), flush=True)
+os.close(1)
+time.sleep(0.08)
 ''')
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen", XDG_RUNTIME_DIR=runtime)
     env.pop("WAYLAND_DISPLAY", None)

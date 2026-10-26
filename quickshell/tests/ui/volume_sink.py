@@ -30,6 +30,16 @@ Item {
  VolumeSlider { id: volume; width: 400; x: 50; y: 50 }
  TestCase {
   name: "SinkChangeDuringDrag"; when: windowShown
+  function test_amplifiedVolumeKeepsDragScale() {
+   Pipewire.defaultAudioSink = firstSink
+   firstAudio.volume = 3.0
+   const area = findChild(volume, "dragArea")
+   mousePress(area, area.width / 2, area.height / 2)
+   wait(100)
+   fuzzyCompare(firstAudio.volume, 1.5, 0.02)
+   mouseRelease(area, area.width / 2, area.height / 2)
+   fuzzyCompare(firstAudio.volume, 1.5, 0.02, "release changed volume without pointer movement")
+  }
   function test_oldGestureDoesNotWriteNewSink() {
    Pipewire.defaultAudioSink = firstSink
    const area = findChild(volume, "dragArea")

@@ -1,4 +1,4 @@
-# Keep Wayland and X11 applications on the same Xcursor theme.
-# Hyprcursor is disabled, so these are the authoritative cursor settings.
-export XCURSOR_THEME="Adwaita"
-export XCURSOR_SIZE="24"
+# Seed new sessions from GTK Settings; gtk-cursor-sync follows live changes.
+XCURSOR_THEME="$(python3 "$HOME/.scripts/gtk-cursor-sync.py" --theme || printf Adwaita)"
+XCURSOR_SIZE="$(python3 "$HOME/.scripts/gtk-cursor-sync.py" --size || printf 24)"
+export XCURSOR_THEME XCURSOR_SIZE

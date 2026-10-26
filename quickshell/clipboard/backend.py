@@ -11,6 +11,10 @@ import sys
 import tempfile
 
 
+class CommandExitError(RuntimeError):
+    """The helper ran but returned a nonzero exit status."""
+
+
 def run(args, *, stderr=subprocess.PIPE, **kwargs):
     try:
         return subprocess.run(args, check=True, stderr=stderr, timeout=12, **kwargs)
@@ -20,7 +24,7 @@ def run(args, *, stderr=subprocess.PIPE, **kwargs):
         raise RuntimeError(f"{args[0]} took too long. Try again.") from None
     except subprocess.CalledProcessError:
         # Never include process output: it may contain clipboard contents.
-        raise RuntimeError(f"{args[0]} could not complete the action. The entry may have expired.") from None
+        raise CommandExitError(f"{args[0]} could not complete the action. The entry may have expired.") from None
 
 
 def identifier(value):
@@ -60,7 +64,7 @@ def entries():
     db = Path(os.environ.get("CLIPHIST_DB_PATH", str(Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))) / "cliphist/db")))
     try:
         output = run(["cliphist", "-preview-width", "1000", "list"], stdout=subprocess.PIPE).stdout
-    except RuntimeError:
+    except CommandExitError:
         config = Path(os.environ.get("CLIPHIST_CONFIG_PATH", str(Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "cliphist/config")))
         if not db.exists() and not config.exists():
             return []
@@ -110,9 +114,10 @@ def preview(entry_id):
                 return {"image": "", "text": "Image preview unavailable. You can still copy or paste it.", "size": size, "mime": mime}
         data = stream.read(32768)
         try:
-            value = data.decode("utf-8")
+            decoder = codecs.getincrementaldecoder("utf-8")("strict")
+            value = decoder.decode(data, final=size <= len(data))
         except UnicodeDecodeError:
-            value = data.decode("utf-8", "replace")
+            value = "Binary content. Copy or paste to use this entry."
         if b"\0" in data:
             value = "Binary content. Copy or paste to use this entry."
         elif size > len(data):
@@ -154,7 +159,12 @@ def paste(address):
     current = active_window()
     if current.get("address") != address:
         raise RuntimeError("Copied. Focus changed, so automatic paste was skipped. Press Ctrl+V to paste.")
-    terminal = re.search(r"kitty|alacritty|foot|wezterm|ghostty|konsole|term", current.get("class", ""), re.I)
+    terminal = re.fullmatch(
+        r"kitty|alacritty(?:[.-][a-z0-9_-]+)?|foot(?:client)?|wezterm|org\.wezfurlong\.wezterm|"
+        r"ghostty|com\.mitchellh\.ghostty|konsole|org\.kde\.konsole|"
+        r"gnome-terminal(?:-server)?|org\.gnome\.(?:terminal|console)|kgx|"
+        r"xfce4-terminal|mate-terminal|tilix|com\.gexperts\.tilix|terminator",
+        current.get("class", ""), re.I)
     keys = ["wtype", "-M", "ctrl"]
     if terminal:
         keys += ["-M", "shift"]

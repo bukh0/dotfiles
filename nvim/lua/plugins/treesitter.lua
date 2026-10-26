@@ -19,7 +19,10 @@ return {
     vim.api.nvim_create_autocmd("FileType", {
       callback = function(ev)
         if pcall(vim.treesitter.start, ev.buf) then
-          vim.bo[ev.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+          local lang = vim.treesitter.language.get_lang(vim.bo[ev.buf].filetype)
+          if lang and lang ~= "c" and lang ~= "cpp" and vim.treesitter.query.get(lang, "indents") then
+            vim.bo[ev.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+          end
         end
       end,
     })

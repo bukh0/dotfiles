@@ -44,8 +44,11 @@ ColumnLayout {
         icon: volIcon
         iconColor: muted ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.4) : Colors.primary
         trackColor: muted ? Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.4) : Colors.primary
-        // Allow 150%, and preserve higher externally set values on read.
-        maxValue: Math.max(1.5, root.volume)
+        // Keep the pointer mapping stable as writes reduce amplified volume.
+        // Recalculate the range only after this gesture ends.
+        property real dragMaximum: 1.5
+        onIsDraggingChanged: if (isDragging) dragMaximum = Math.max(1.5, root.volume)
+        maxValue: isDragging ? dragMaximum : Math.max(1.5, root.volume)
         value: volume
 
         onIconTapped: {

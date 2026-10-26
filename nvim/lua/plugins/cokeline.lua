@@ -8,10 +8,6 @@ return {
       "nvim-tree/nvim-web-devicons",
     },
     config = function()
-      -- FORCE Neovim's native tabline highlights to be completely transparent on startup
-      vim.api.nvim_set_hl(0, "TabLineFill", { bg = "NONE", ctermbg = "NONE" })
-      vim.api.nvim_set_hl(0, "TabLine", { bg = "NONE", ctermbg = "NONE" })
-
       local cokeline = require("cokeline")
       local theme = require("utils.theme")
 
@@ -21,18 +17,6 @@ return {
         return (theme.colors() or {})[key] or "NONE"
       end
 
-      local function refresh_tabline_highlights()
-        vim.api.nvim_set_hl(0, "TabLineFill", { bg = "NONE", ctermbg = "NONE" })
-        vim.api.nvim_set_hl(0, "TabLine", { bg = "NONE", ctermbg = "NONE" })
-      end
-
-      -- These two highlight groups aren't covered by apply_ui_highlights(),
-      -- so they still need their own re-force on colorscheme switches.
-      vim.api.nvim_create_autocmd("ColorScheme", {
-        group = vim.api.nvim_create_augroup("CokelineTransparentTabline", { clear = true }),
-        callback = refresh_tabline_highlights,
-      })
-
       -- buffer.devicon is nil for buffers with no icon match; guard both fields
       -- so an unmatched filetype doesn't error instead of just showing no icon.
       local function devicon(buffer)
@@ -41,8 +25,8 @@ return {
       end
 
       cokeline.setup({
-        -- Hides the tabline completely if you only have 1 file open
-        show_if_buffers_are_at_least = 2,
+        -- config.cokeline owns visibility; disable the renderer's auto-hide.
+        show_if_buffers_are_at_least = 0,
         fill_hl = "TabLineFill",
 
         buffers = {

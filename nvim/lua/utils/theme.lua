@@ -8,8 +8,12 @@ local DEBOUNCE_MS = 80
 -- Some themes normalize g:colors_name (e.g. Monokai Pro's filters).
 -- Keep the requested variant so toggling/restarting does not reset it.
 local active_colorscheme = vim.g.colors_name
+local last_solid_base
+local cached_colors
 vim.api.nvim_create_autocmd("ColorSchemePre", {
   callback = function(event)
+    last_solid_base = nil
+    cached_colors = nil
     if event.match ~= "" then
       active_colorscheme = event.match
     end
@@ -33,12 +37,10 @@ local function fallback_fg()
   return vim.o.background == "light" and "#2e2e2e" or "#cdd6f4"
 end
 
--- Cached palette, invalidated only when the debounced dispatcher below fires
--- or transparency is toggled — not recomputed on every call. Safe now for
+-- Cached palette, invalidated when a theme loads or ColorScheme fires,
+-- or transparency is toggled — not recomputed on every call. Safe for
 -- anything (cokeline's get_color included) to call M.colors() directly on
 -- every redraw instead of keeping its own local copy.
-local cached_colors = nil
-
 local function invalidate_colors()
   cached_colors = nil
 end
@@ -47,7 +49,9 @@ function M.colors()
   if cached_colors then
     return cached_colors
   end
-  local solid_base = hl("Normal", "bg") or fallback_base()
+  local raw_bg = hl("Normal", "bg")
+  if raw_bg then last_solid_base = raw_bg end
+  local solid_base = last_solid_base or fallback_base()
   local fg = hl("Normal") or hl("Statement") or fallback_fg()
 
   cached_colors = {
@@ -81,6 +85,8 @@ function M.apply_ui_highlights()
   override("NormalNC", c.base, c.fg)
   override("WinBar", c.base, c.fg)
   override("WinBarNC", c.base, c.dim)
+  override("TabLine", "NONE")
+  override("TabLineFill", "NONE")
   override("SignColumn", c.base)
   override("EndOfBuffer", c.base)
   override("WinSeparator", "NONE", c.dim)
@@ -90,32 +96,27 @@ function M.apply_ui_highlights()
   override("PmenuSel", c.accent, c.solid_base)
 end
 
--- Single debounced ColorScheme dispatcher. Before: every M.on_colorscheme()
--- caller registered its own autocmd + its own generation counter + its own
--- vim.defer_fn, so apply_ui_highlights() and the colorscheme.state write ran
--- once PER SUBSCRIBER instead of once per real change (toggling transparency
--- rebuilt highlights twice and wrote the same name to disk twice). Now
--- there's exactly one autocmd/one debounce cycle; subscribers are just
--- appended to a list and run together once it settles.
+-- Apply highlights immediately to avoid opaque frames during theme changes.
+-- Debounce subscribers (including state persistence) until previews settle.
 local subscribers = {}
 local generation = 0
 
 vim.api.nvim_create_autocmd("ColorScheme", {
   callback = function()
+    invalidate_colors()
+    M.apply_ui_highlights()
     generation = generation + 1
     local this_gen = generation
     vim.defer_fn(function()
       if this_gen ~= generation then
         return
       end
-      invalidate_colors()
       for _, callback in ipairs(subscribers) do
         local ok, err = pcall(callback)
         if not ok then
           vim.notify("theme rebuild callback failed: " .. tostring(err), vim.log.levels.WARN)
         end
       end
-      pcall(M.apply_ui_highlights)
     end, DEBOUNCE_MS)
   end,
 })
@@ -154,8 +155,9 @@ function M.pick_colorscheme(opts)
     end,
     preview = function(ctx)
       vim.schedule(function()
-        if not ctx.picker.closed then
-          vim.cmd.colorscheme(ctx.item.text)
+        if not ctx.picker.closed and ctx.item and ctx.item.text then
+          vim.o.background = background
+          pcall(vim.cmd.colorscheme, ctx.item.text)
         end
       end)
       Snacks.picker.preview.file(ctx)
@@ -166,15 +168,21 @@ function M.pick_colorscheme(opts)
     end,
     on_close = function()
       vim.schedule(function()
-        if not selected then vim.o.background = background end
+        vim.o.background = background
         previewing = false
-        vim.cmd.colorscheme(selected or original)
+        local applied, err = pcall(vim.cmd.colorscheme, selected or original)
+        if not applied then
+          vim.o.background = background
+          pcall(vim.cmd.colorscheme, original)
+          vim.notify("Colorscheme failed: " .. tostring(err), vim.log.levels.WARN)
+        end
       end)
     end,
   }))
   if not ok then
     previewing = false
-    vim.cmd.colorscheme(original)
+    vim.o.background = background
+    pcall(vim.cmd.colorscheme, original)
     error(picker)
   end
   return picker

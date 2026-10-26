@@ -8,9 +8,10 @@ import "."
 
 ShellRoot {
     id: root
+    Component.onCompleted: Quickshell.watchFiles = false
     property bool closing: false
     function dismiss() {
-        if (clipboardBackend.busy) return
+        if (closing || clipboardBackend.busy) return
         closing = true
         window.visible = false
         Qt.quit()
@@ -39,7 +40,16 @@ ShellRoot {
     }
     PanelWindow {
         id: window
-        screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) || Quickshell.screens[0]
+        property bool screenChosen: false
+        function chooseInitialScreen() {
+            if (screenChosen) return
+            const focused = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
+            if (focused) { screen = focused; screenChosen = true }
+            else screen = Quickshell.screens[0]
+        }
+        Component.onCompleted: { chooseInitialScreen(); if (!screenChosen) Hyprland.refreshMonitors() }
+        Connections { target: Hyprland; function onFocusedMonitorChanged() { window.chooseInitialScreen() } }
+        Connections { target: Quickshell; function onScreensChanged() { window.chooseInitialScreen() } }
         anchors { top: true; bottom: true; left: true; right: true }
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"

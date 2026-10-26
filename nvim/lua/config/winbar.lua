@@ -1,14 +1,20 @@
 local M = {}
+local last_focused_file_win
 
 local function esc(s)
   return (s:gsub("%%", "%%%%"))
 end
 
+local function is_float(win)
+  if not vim.api.nvim_win_is_valid(win) then return false end
+  local config = vim.api.nvim_win_get_config(win)
+  return config.relative ~= "" or config.external
+end
+
 -- Real file windows only: skips floats, terminals, explorer, help, quickfix.
 local function is_file_win(win)
   if not vim.api.nvim_win_is_valid(win) then return false end
-  local config = vim.api.nvim_win_get_config(win)
-  if config.relative ~= "" or config.external then return false end
+  if is_float(win) then return false end
   return vim.bo[vim.api.nvim_win_get_buf(win)].buftype == ""
 end
 
@@ -19,7 +25,8 @@ function M.render()
   local path = vim.api.nvim_buf_get_name(buf)
   local tail = path == "" and "[No Name]" or vim.fn.fnamemodify(path, ":t")
   local parent = path == "" and "" or vim.fn.fnamemodify(path, ":h:t")
-  local focused = win == vim.api.nvim_get_current_win()
+  local current = vim.api.nvim_get_current_win()
+  local focused = win == current or (is_float(current) and win == last_focused_file_win)
 
   local icon = ""
   local ok, devicons = pcall(require, "nvim-web-devicons")
@@ -53,6 +60,11 @@ local EXPR = "%!v:lua.require'config.winbar'.render()"
 
 function M.update()
   local wins = vim.api.nvim_tabpage_list_wins(0)
+  local current = vim.api.nvim_get_current_win()
+  local floating = is_float(current)
+  if not floating and is_file_win(current) then
+    last_focused_file_win = current
+  end
   local count = #vim.tbl_filter(is_file_win, wins)
   for _, win in ipairs(wins) do
     local file_win = is_file_win(win)
@@ -63,8 +75,8 @@ function M.update()
       -- Only clear our own bar; special windows may have plugin headers.
       vim.wo[win].winbar = ""
     end
-    if file_win then
-      vim.wo[win].cursorline = win == vim.api.nvim_get_current_win()
+    if file_win and not floating then
+      vim.wo[win].cursorline = win == current
     end
   end
 end
@@ -83,12 +95,6 @@ function M.setup()
   vim.api.nvim_create_autocmd({ "WinEnter", "DiagnosticChanged", "BufModifiedSet", "BufFilePost" }, {
     group = group,
     callback = function() vim.cmd("redrawstatus!") end,
-  })
-  vim.api.nvim_create_autocmd("WinLeave", {
-    group = group,
-    callback = function()
-      if is_file_win(0) then vim.wo.cursorline = false end
-    end,
   })
   M.update()
 end

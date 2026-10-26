@@ -17,6 +17,10 @@ with tempfile.TemporaryDirectory(prefix='clipboard-paste-error-') as d:
     text = text.replace('        id: window', '        id: window\n        implicitWidth: 1000; implicitHeight: 700')
     text = re.sub(r'^        (anchors \{.*|exclusionMode:.*|WlrLayershell\..*)\n', '', text, flags=re.M)
     text = text.replace('    id: root', '''    id: root
+    Connections {
+        target: clipboardBackend
+        function onCopied(pasteRequested) { Qt.callLater(root.dismiss) }
+    }
     Timer { interval: 200; running: true; onTriggered: clipboardBackend.choose("1", true) }''')
     (profile / 'shell.qml').write_text(text)
     (profile / 'backend.py').write_text('''import json,sys
@@ -36,4 +40,4 @@ print(json.dumps({'entries': []} if sys.argv[1] == 'list' else {'error': 'Copied
         if (root/'notice').exists(): break
         time.sleep(.05)
     assert 'Copied. Focus changed' in (root/'notice').read_text()
-    print('PASS paste failure notifies and exits without reopening the popup')
+    print('PASS dismissal during paste delay preserves paste and failure notification')

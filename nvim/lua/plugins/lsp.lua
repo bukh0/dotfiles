@@ -2,11 +2,11 @@ local function switch_source_header(bufnr)
   local client = vim.lsp.get_clients({ bufnr = bufnr, name = "clangd" })[1]
   if not client then return end
   client:request("textDocument/switchSourceHeader", vim.lsp.util.make_text_document_params(bufnr), function(err, result)
-    if err or not result then
+    if err or not result or result == "" then
       vim.notify("No source/header found", vim.log.levels.INFO)
       return
     end
-    vim.cmd.edit(vim.uri_to_fname(result))
+    vim.cmd.edit(vim.fn.fnameescape(vim.uri_to_fname(result)))
   end, bufnr)
 end
 
@@ -37,7 +37,23 @@ return {
         severity_sort = true,
         underline = true,
         update_in_insert = false,
-        virtual_text = { spacing = 4, source = "if_many", prefix = "●" },
+        virtual_text = {
+          spacing = 3,
+          prefix = "",
+          source = "if_many",
+          severity = { min = vim.diagnostic.severity.WARN },
+          format = function(diagnostic)
+            return vim.trim(diagnostic.message:gsub("%s+", " "))
+          end,
+        },
+        signs = {
+          text = {
+            [vim.diagnostic.severity.ERROR] = "󰅙",
+            [vim.diagnostic.severity.WARN] = "",
+            [vim.diagnostic.severity.INFO] = "󰋼",
+            [vim.diagnostic.severity.HINT] = "󰌵",
+          },
+        },
         float = { border = "rounded", source = true },
       })
 
@@ -77,6 +93,7 @@ return {
             vim.keymap.set(mode or "n", lhs, rhs, { buffer = ev.buf, desc = desc })
           end
           map("gd", function() Snacks.picker.lsp_definitions() end, "Goto definition")
+          map("gr", function() Snacks.picker.lsp_references() end, "References")
           map("gD", vim.lsp.buf.declaration, "Goto declaration")
           map("gI", function() Snacks.picker.lsp_implementations() end, "Goto implementation")
           map("gy", function() Snacks.picker.lsp_type_definitions() end, "Goto type definition")

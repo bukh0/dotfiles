@@ -21,11 +21,11 @@ map("v", "<A-k>", ":m '<-2<cr>gv=gv", { desc = "Move selection up" })
 map("v", "<", "<gv")
 map("v", ">", ">gv")
 
-map({ "i", "n", "s" }, "<esc>", function()
-  vim.cmd("noh")
+map({ "i", "s" }, "<esc>", "<cmd>nohlsearch<cr><esc>", { desc = "Escape and clear hlsearch" })
+map("n", "<esc>", function()
+  vim.cmd.nohlsearch()
   if vim.snippet.active() then vim.snippet.stop() end
-  return "<esc>"
-end, { expr = true, desc = "Escape and clear hlsearch" })
+end, { desc = "Clear hlsearch and stop snippet" })
 map({ "i", "x", "n", "s" }, "<C-s>", "<cmd>w<cr><esc>", { desc = "Save file" })
 
 map("n", "<leader>-", "<C-w>s", { desc = "Split below" })

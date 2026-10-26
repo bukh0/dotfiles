@@ -34,9 +34,6 @@ function M.setup()
 
   -- utils.theme.on_colorscheme already calls apply_ui_highlights after every
   -- (debounced) theme change — no separate ColorScheme autocmd needed here.
-  if theme.transparent then
-    vim.schedule(theme.apply_ui_highlights)
-  end
 end
 
 return M

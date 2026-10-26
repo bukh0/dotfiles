@@ -22,7 +22,8 @@ return {
       frontmatter = { enabled = false },
       note_id_func = function(title)
         if title ~= nil and title ~= "" then
-          return title:gsub(" ", "-"):gsub("[^A-Za-z0-9-]", ""):lower()
+          local slug = title:lower():gsub("[^a-z0-9]+", "-"):gsub("^-+", ""):gsub("-+$", "")
+          if slug ~= "" then return slug end
         end
         return tostring(os.time())
       end,

@@ -33,8 +33,22 @@ never interpolated into commands or rendered as rich text. Automatic paste is
 skipped if the previously focused window is no longer active.
 
 Run isolated tests with `python3 tests/test_backend.py` and
-`python3 tests/test_ui.py`, and `python3 tests/test_service.py`. These never
+`python3 tests/test_ui.py`, `python3 tests/test_service.py`,
+`python3 tests/test_process_failures.py`, `python3 tests/test_preview_requests.py`,
+and `python3 tests/test_store.py`. These never
 modify the real clipboard/history.
 
 API references: [Quickshell](https://quickshell.org/docs/v0.3.1/types/Quickshell/PanelWindow/)
 and [cliphist](https://github.com/sentriz/cliphist).
+
+Process results are published only after both stdout EOF and process exit;
+failed starts and abnormal exits produce errors instead of leaving actions busy.
+Preview requests follow the latest selection, including rapid A → B → A changes.
+UTF-8 text previews omit an incomplete character at the preview limit.
+The confirmation dialog blocks search edits. The popup stays on its opening
+monitor and disables QML hot reload while running so pending paste work survives
+source edits; palette updates still use the existing file watcher.
+
+The store wrapper drains ignored offers and serializes watcher stores with
+`flock` in the runtime directory (falling back to the user cache directory).
+It leaves payload limits and duplicate handling to cliphist.

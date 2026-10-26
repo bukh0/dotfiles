@@ -73,6 +73,17 @@ ShellRoot {
             const row = history.itemAtIndex(view.selected)
             if (!row || row.y < history.contentY || row.y + row.height > history.contentY + history.height)
                 throw new Error("Rebuild left selection off screen")
+            view.category = "image"
+            if (view.filtered.length) throw new Error("Expected empty image filter")
+            view.move(1)
+            if (view.selected !== 0) throw new Error("Empty selection moved")
+            view.confirmClear = true
+            function findSearch(item) {
+                if (item.objectName === "clipboardSearch") return item
+                for (const child of item.children || []) { const found = findSearch(child); if (found) return found }
+                return null
+            }
+            if (!findSearch(view).readOnly) throw new Error("Modal allows search edits")
             console.log("CLIPBOARD UI PASS")
             Qt.quit()
         }

@@ -143,12 +143,38 @@ os._exit(0)
     def test_new_database(self):
         self.assertEqual(backend.entries(), [])
 
+    def test_missing_helper_is_not_an_empty_database(self):
+        with mock.patch.object(backend.subprocess, "run", side_effect=FileNotFoundError):
+            with self.assertRaisesRegex(RuntimeError, "Required command is missing: cliphist"):
+                backend.entries()
+
+    def test_list_timeout_is_not_an_empty_database(self):
+        with mock.patch.object(backend.subprocess, "run",
+                               side_effect=subprocess.TimeoutExpired("cliphist", 12)):
+            with self.assertRaisesRegex(RuntimeError, "cliphist took too long"):
+                backend.entries()
+
     def test_large_preview_preserves_copy(self):
         value = ("some text with unicode →\n" * 5000).encode()
         entry = self.store(value)
         self.assertLess(len(backend.preview(entry)["text"]), 34000)
         backend.copy(entry)
         self.assertEqual((self.path / "copied").read_bytes(), value)
+
+    def test_preview_utf8_boundary(self):
+        for character in ("é", "→", "😀"):
+            encoded = character.encode()
+            for split in range(1, len(encoded)):
+                value = b"a" * (32768 - split) + encoded + b"tail"
+                entry = self.store(value)
+                text = backend.preview(entry)["text"]
+                self.assertNotIn("\ufffd", text)
+                self.assertNotIn("Binary content", text)
+                self.assertIn("Preview shortened", text)
+                backend.copy(entry)
+                self.assertEqual((self.path / "copied").read_bytes(), value)
+        entry = self.store(b"a" * 32767 + b"\xc3")
+        self.assertIn("Binary content", backend.preview(entry)["text"])
 
     def test_focus_guard_and_terminal_paste(self):
         (self.path / "window").write_text(json.dumps({"address": "0xabc", "class": "kitty"}))
@@ -163,6 +189,17 @@ os._exit(0)
         (self.path / "window").write_text(json.dumps({"address": "0xabc", "class": "firefox"}))
         backend.paste("0xabc")
         self.assertNotIn("shift", (self.path / "keys").read_text())
+
+    def test_terminal_class_boundaries(self):
+        for app_class, terminal in (("kitty", True), ("Alacritty", True),
+                ("Alacritty-floating", True), ("org.gnome.Console", True),
+                ("com.mitchellh.ghostty", True), ("org.wezfurlong.wezterm", True),
+                ("longterm-planner", False), ("terminal-settings", False),
+                ("kitty-editor", False), ("xterm", False)):
+            with self.subTest(app_class=app_class):
+                (self.path / "window").write_text(json.dumps({"address": "0xabc", "class": app_class}))
+                backend.paste("0xabc")
+                self.assertEqual("-M shift" in (self.path / "keys").read_text(), terminal)
 
     def test_paste_without_original_window(self):
         with self.assertRaisesRegex(RuntimeError, "No window was focused"):

@@ -5,6 +5,9 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
   hl.exec_cmd("systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP")
 
+  -- Follow GTK Settings cursor changes without requiring a new session.
+  hl.exec_cmd("systemctl --user import-environment HYPRLAND_INSTANCE_SIGNATURE && systemctl --user restart gtk-cursor-sync.service")
+
   -- Core services
   hl.exec_cmd("awww-daemon &")
   hl.exec_cmd("systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP && systemctl --user start hyprpolkitagent.service")

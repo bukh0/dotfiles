@@ -1,11 +1,11 @@
 local M = {}
 local state = require("utils.state")
 local enabled = state.read("cokeline.state", "1") ~= "0"
+local MINIMUM_BUFFERS = 2
 
 local function refresh()
   local buffers = require("cokeline.buffers").get_visible()
-  local minimum = require("cokeline.config").show_if_buffers_are_at_least
-  vim.o.showtabline = enabled and #buffers >= minimum and 2 or 0
+  vim.o.showtabline = enabled and #buffers >= MINIMUM_BUFFERS and 2 or 0
   vim.cmd.redrawtabline()
 end
 

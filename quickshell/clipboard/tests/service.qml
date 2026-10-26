@@ -7,7 +7,7 @@ ShellRoot {
         id: service
         helper: Quickshell.shellPath("fake_backend.py")
         property int copies: 0
-        onCopied: copies++
+        onCopied: { if (busy) throw new Error("Copy completed while busy"); copies++ }
     }
     Timer {
         id: steps
@@ -39,6 +39,14 @@ ShellRoot {
             }
             if (step === 18) {
                 if (service.error || service.copies !== 1) throw new Error("Copy recovery failed")
+                service.inspect("1")
+            }
+            if (step === 20) service.inspect("2")
+            if (step === 21) service.inspect("1")
+            if (step === 26) {
+                if (service.preview.text !== "first") throw new Error("A-B-A preview lost")
+                service.inspect("")
+                if (service.previewLoading) throw new Error("Empty selection loading")
                 console.log("CLIPBOARD SERVICE PASS")
                 Qt.quit()
             }
