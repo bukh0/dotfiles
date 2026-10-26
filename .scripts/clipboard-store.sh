@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
-# Invoked by wl-paste --watch, with clipboard bytes arriving on stdin.
+# stdin and CLIPBOARD_STATE describe the same captured wl-paste offer.
 set -euo pipefail
-# wl-paste 2.3 marks x-kde-passwordManagerHint offers as sensitive using the
-# same offer as stdin. A separate MIME query can see a newer clipboard entry.
-# Store only an explicitly ordinary offer; skip unknown/missing states too.
-case "${CLIPBOARD_STATE:-}" in data) ;; *) exit 0 ;; esac
-exec cliphist store
+if [[ "${CLIPBOARD_STATE:-}" != data ]]; then
+    cat >/dev/null
+    exit 0
+fi
+# Serialize watcher writers. Leave duplicate detection to cliphist; distinct
+# text and image representations are not interchangeable clipboard payloads.
+umask 077
+lock_dir="${XDG_RUNTIME_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}}"
+mkdir -p -- "$lock_dir"
+exec 9>"$lock_dir/qs-clip-store.lock"
+flock 9
+cliphist store
