@@ -79,6 +79,9 @@ declare -A SYNC_MAP=(
   ["$CONFIG/mpv/scripts"]="$DOTFILES/mpv/scripts"
   ["$CONFIG/mpv/fonts"]="$DOTFILES/mpv/fonts"
 
+  # User service started by the Hyprland autostart config.
+  ["$CONFIG/systemd/user/gtk-cursor-sync.service"]="$DOTFILES/systemd/user/gtk-cursor-sync.service"
+
   # --- Session env, GTK and cursor settings ---
   ["$CONFIG/uwsm"]="$DOTFILES/uwsm"
   ["$CONFIG/gtk-3.0/settings.ini"]="$DOTFILES/gtk-3.0/settings.ini"
@@ -134,6 +137,11 @@ for entry in "${!SYNC_MAP[@]}"; do
   fi
   if is_history "$src"; then
     echo "  skipped (shell history): $src"
+    continue
+  fi
+  if [[ -e "$src" && -e "$dest" && "$src" -ef "$dest" ]]; then
+    echo "  already linked: $src -> $dest"
+    SYNCED_DESTS+=("$dest")
     continue
   fi
   if [ -e "$src" ]; then
