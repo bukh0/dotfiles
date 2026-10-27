@@ -46,8 +46,15 @@ ShellRoot {
     property bool ready: false
     Timer { interval: 50; running: true; onTriggered: view.switchPage("Wallpapers") }
     Timer { interval: 300; running: true; onTriggered: { view.refresh(); view.refresh(); view.refresh() } }
+    Timer { interval: 400; running: true; onTriggered: view.busy = true }
+    Timer { interval: 900; running: true; onTriggered: {
+        if (view.walls.length !== 0 || !view.loading) {
+            console.log("REFRESH FAIL completion mutated busy view"); Qt.quit(); return
+        }
+        view.busy = false
+    } }
     Timer {
-        interval: 1800; running: true
+        interval: 2100; running: true
         onTriggered: {
             console.log(owner.ready && view.walls.length === 2 && !view.loading
                         ? "REFRESH PASS" : "REFRESH FAIL")

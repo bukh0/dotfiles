@@ -5,6 +5,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def require_external_files(*paths):
+    """Mark unavailable desktop integration inputs as skipped, never passed."""
+    missing = [str(path) for path in paths if not Path(path).is_file()]
+    if missing:
+        print('SKIP: external integration files unavailable: ' + ', '.join(missing), flush=True)
+        raise SystemExit(77)
+
+
 def stub_colors(destination):
     """UI-only QtTest runners cannot load Quickshell's statically linked Io plugin.
 
@@ -44,7 +52,8 @@ def run_suite(path, timeout=240):
         # Nested suites share helpers without depending on the working directory.
         helpers = str(Path(__file__).resolve().parent)
         env['PYTHONPATH'] = helpers + (os.pathsep + env['PYTHONPATH'] if env.get('PYTHONPATH') else '')
-        return subprocess.run([sys.executable, str(path)], env=env, timeout=timeout).returncode == 0
+        code = subprocess.run([sys.executable, str(path)], env=env, timeout=timeout).returncode
+        return None if code == 77 else code == 0
     except subprocess.TimeoutExpired:
         print(f'TIMEOUT: {path.stem}', flush=True)
         return False

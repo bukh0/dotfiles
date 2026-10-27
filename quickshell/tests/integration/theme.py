@@ -2,6 +2,11 @@ import os,subprocess,tempfile,time,json
 from pathlib import Path
 from PIL import Image
 BINARY=os.environ.get('THEME_TEST_BINARY', str(Path.home()/'.scripts/theme.switcher'))
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from harness import require_external_files
+require_external_files(BINARY)
+
 def call(args,env,ok=True):
  r=subprocess.run([BINARY,*args],env=env,text=True,capture_output=True,timeout=60)
  if ok: assert r.returncode==0,(args,r.returncode,r.stderr)

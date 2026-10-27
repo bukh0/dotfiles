@@ -7,6 +7,11 @@ from unittest import mock
 
 os.environ['GSETTINGS_BACKEND'] = 'memory'
 source = Path(os.environ.get('REVIEW_CURSOR_SCRIPT', str(Path.home() / '.scripts/gtk-cursor-sync.py')))
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from harness import require_external_files
+require_external_files(source)
+
 spec = importlib.util.spec_from_file_location('cursor_sync', source)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)

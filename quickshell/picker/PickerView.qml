@@ -44,7 +44,14 @@ Rectangle {
     }
     property bool busy: false
     // The search field loses focus when disabled; keep cancellation keys here.
-    onBusyChanged: if (busy) forceActiveFocus()
+    onBusyChanged: {
+        if (busy) forceActiveFocus()
+        else {
+            Qt.callLater(wallProc.finish)
+            Qt.callLater(themeProc.finish)
+            Qt.callLater(thumbProc.finish)
+        }
+    }
     property int operationTimeoutSeconds: 45
     property bool operationCancelled: false
     function boundedCommand(args) {
@@ -231,7 +238,7 @@ Rectangle {
         property string output: ""
         signal collected(string text)
         function finish() {
-            if (!pending || running || !exitReceived || !outputDone) return
+            if (view.busy || !pending || running || !exitReceived || !outputDone) return
             pending = false
             const rerun = rerunQueued
             rerunQueued = false

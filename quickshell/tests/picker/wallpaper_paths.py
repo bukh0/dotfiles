@@ -6,6 +6,11 @@ import tempfile
 from unittest.mock import patch
 
 source = Path(os.environ.get("REVIEW_SCRIPTS_DIR", str(Path.home() / ".scripts"))) / "wallpaper_tools.py"
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from harness import require_external_files
+require_external_files(source)
+
 spec = importlib.util.spec_from_file_location("wallpaper_tools", source)
 tools = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(tools)

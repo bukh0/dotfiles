@@ -26,6 +26,10 @@ tests/fixtures/      QML fixtures staged by the core suite
 
 Use `./run.sh` for the default profile and `./run.sh alt` for the alternate profile. `native/Makefile` builds `native/sysmon`; both profiles resolve the helper from there.
 
+Sensor discovery starts with the shell; resource sampling still runs only while
+the control panel is open. Cached CPU/network readings remain visible until a
+fresh measurement interval is available.
+
 Music state lives in `MusicService.qml` and updates through native MPRIS signals. Closing the control panel releases its widgets while retaining the music model. `SysmonService.qml` samples only while resource rows are loaded, retaining its last values between panel openings. The custom power toggle is retained because it controls both auto-cpufreq and AMD GPU settings.
 
 Bluetooth pairing uses the installed Blueman dialogs through `native/bluetooth_pair.py`
@@ -59,6 +63,12 @@ Its commands and file filters are relative to that repository root.
 The deployed configuration is backed by the existing `quickshell/` directory in
 `~/dotfiles`; this directory need not be a separate Git repository. The local
 `tests/` fixtures were restored from that tracked copy.
+
+Desktop integration suites that need external files under `~/.scripts`,
+`~/dotfiles`, or the desktop config explicitly skip when those inputs are
+missing. The runner lists these skips separately from passing suites. Existing
+test path overrides still work; missing external files do not establish that
+the corresponding integration passes. Available but broken scripts still fail.
 
 Volume supports adjustment up to 150%. Higher externally set values remain
 visible and can be reduced without an abrupt jump to 100%.

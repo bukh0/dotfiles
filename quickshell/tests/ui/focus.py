@@ -56,6 +56,7 @@ with tempfile.TemporaryDirectory(prefix='qs-focus-audit-') as d:
   source = (src/'components'/name).read_text()
   source = re.sub(r'^import Quickshell.*\n', '', source, flags=re.M)
   if name == 'MusicWidget.qml':
+   source = source.replace('id: pagesRow', 'id: pagesRow; objectName: "auditPages"', 1)
    source = source.replace('id: pager', 'id: pager; objectName: "auditPager"', 1)
    source = source.replace('id: artImage', 'id: artImage; objectName: "auditArtwork"', 1)
   (p/name).write_text(source)
@@ -79,7 +80,8 @@ QtObject {
  function findPlayer(name) { return backend }
 }
 ''')
- (p/'qmldir').write_text('singleton Colors 1.0 Colors.qml\nBaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton NetworkService 1.0 NetworkService.qml\nsingleton MusicService 1.0 MusicService.qml\n')
+ (p/'NotificationDaemon.qml').write_text('pragma Singleton\nimport QtQuick\nQtObject { property bool isDrawerOpen: false }')
+ (p/'qmldir').write_text('singleton NotificationDaemon 1.0 NotificationDaemon.qml\n'+'singleton Colors 1.0 Colors.qml\nBaseTheme 1.0 BaseTheme.qml\nsingleton Theme 1.0 Theme.qml\nsingleton NetworkService 1.0 NetworkService.qml\nsingleton MusicService 1.0 MusicService.qml\n')
  (p/'tst_focus.qml').write_text('''import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -103,6 +105,29 @@ Item {
    NetworkService.awaitingPasswordFor = ""
    mouseMove(panel, 2, 2)
    wait(panel.slideDuration + 30)
+  }
+  function test_drawersMutuallyExclusive() {
+   panel.isOpen = true; panel.pinned = true
+   NotificationDaemon.isDrawerOpen = true
+   verify(!panel.isOpen && !panel.pinned)
+   panel.beginHoverOpen()
+   verify(panel.isOpen && !NotificationDaemon.isDrawerOpen)
+  }
+  function test_musicSelectedPageLayout() {
+   MusicService.model.append({player: "second", playerName: "Second", title: "", artist: "", album: "", status: "Paused", artUrl: ""})
+   MusicService.selectedIndex = 1
+   panel.beginHoverOpen()
+   wait(20)
+   const pager = findChild(panel, "auditPager")
+   const row = findChild(panel, "auditPages")
+   verify(pager.width > 0)
+   compare(row.x, -pager.width, "opening must start directly at selected player")
+   panel.width = 900
+   wait(20)
+   compare(row.x, -pager.width, "resize must not animate through players")
+   panel.width = 800
+   MusicService.selectedIndex = 0
+   MusicService.model.remove(1)
   }
   function test_musicArtworkPath() {
    panel.beginHoverOpen()

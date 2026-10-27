@@ -8,6 +8,11 @@ import tempfile
 launcher = Path(__file__).resolve().parents[2] / "clipboard-menu.sh"
 if not launcher.exists():
     launcher = Path.home() / ".scripts/clipboard-menu.sh"
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tests'))
+from harness import require_external_files
+require_external_files(launcher)
+
 with tempfile.TemporaryDirectory(prefix="clipboard-launcher-") as directory:
     root = Path(directory)
     config = root / "config with spaces/quickshell/clipboard"

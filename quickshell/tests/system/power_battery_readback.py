@@ -17,6 +17,12 @@ if [[ ${MOCK_FAIL:-0} == 1 ]]; then exit 5; fi
   assert r.returncode==expected,(z,fail,second,r.returncode,r.stderr)
   assert not list(p.glob('qs-performance.*'))
  print('PASS profile success, cancellation, dialog error, sudo failure, partial-change cancellation and cleanup')
+ (p/'.scripts/toggle-performance.sh').write_text('sudo first || true\nsudo second\n')
+ (p/'bin/sudo').write_text('#!/bin/bash\nif [[ $2 == first ]]; then "$SUDO_ASKPASS" >/dev/null; exit 1; fi\nexit 5\n')
+ env.update(ZENITY_STATUS='1', SECOND='0', MOCK_FAIL='0')
+ r=subprocess.run(['bash',str(ROOT/'native/toggle-performance.sh')],env=env,capture_output=True,text=True)
+ assert r.returncode == 5, (r.returncode, r.stderr)
+ print('PASS earlier cancellation does not mask later sudo error')
  # Real QML battery component, with only native UPower replaced by a local stub.
  src=(ROOT/'components/BatteryIndicator.qml').read_text().replace('import Quickshell.Services.UPower','')
  (p/'BatteryIndicator.qml').write_text(src)

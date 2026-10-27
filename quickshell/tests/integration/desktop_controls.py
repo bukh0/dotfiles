@@ -2,6 +2,11 @@
 from pathlib import Path
 import os, shutil, subprocess, tempfile
 SCRIPTS=Path(os.environ.get('REVIEW_SCRIPTS_DIR', str(Path.home()/'.scripts')))
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from harness import require_external_files
+require_external_files(*(SCRIPTS / name for name in ['audio-mute-toggle.sh', 'mic-toggle.sh', 'toggle.blur.sh', 'animation.switcher.sh', 'quickshell-common.sh', 'toggle_waybar.sh', 'fullscreen_toggle.sh', 'toggle-performance.sh', 'weather.sh']))
+
 with tempfile.TemporaryDirectory(prefix='qs-desktop-controls-') as directory:
  root=Path(directory);home=root/'home';home.mkdir();bins=root/'bin';bins.mkdir()
  scripts=home/'.scripts';scripts.mkdir();cache=home/'.cache';cache.mkdir();config=home/'.config';config.mkdir()
@@ -44,7 +49,7 @@ if [[ "$1" == set-mute ]]; then printf 'Volume: 0.5 [MUTED]\\n' > "$TEST_ROOT/vo
  run('animation.switcher.sh',False,{'PICK':'Missing'})
  assert (config/'hypr/animations.lua').resolve()==anim/'Smooth.lua'
  print('PASS both animation links and invalid selection rejection')
- shutil.copyfile(Path.home()/'.scripts/quickshell-common.sh',scripts/'quickshell-common.sh')
+ shutil.copyfile(SCRIPTS/'quickshell-common.sh',scripts/'quickshell-common.sh')
  mock('quickshell','echo "$*" >> "$TEST_ROOT/qs-log"')
  run('toggle_waybar.sh')
  assert (root/'qs-log').read_text().splitlines()[-1].endswith('call bar toggle')

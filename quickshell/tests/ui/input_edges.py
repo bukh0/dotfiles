@@ -161,6 +161,11 @@ Item {
    compare(report.notices.length,2,"Device names must not hide real failures either")
    report._reportResult(124,"", "connect")
    compare(report.notices.length,3)
+   report._reportResult(0,"Unrelated GTK message", "pair")
+   compare(report.notices.length,3)
+   report._reportResult(0,"Bluetooth connection warning: Paired and trusted, but could not connect: unavailable", "pair")
+   compare(report.notices.length,4)
+   verify(report.notices[3].includes("Paired and trusted"))
   }
  }
 }

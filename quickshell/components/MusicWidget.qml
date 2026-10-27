@@ -153,9 +153,10 @@ ColumnLayout {
 
         Row {
             id: pagesRow
-            x: -pager.currentIndex * pager.width
+            property real displayedIndex: pager.currentIndex
+            x: -displayedIndex * pager.width
             height: pager.height
-            Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+            Behavior on displayedIndex { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
 
             Repeater {
                 model: playersListModel

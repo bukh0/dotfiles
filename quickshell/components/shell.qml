@@ -33,12 +33,13 @@ ShellRoot {
     }
 
     // Singletons are created lazily. Touch the ones that must run while
-    // the control panel is closed (Bluetooth notifications, backlight
-    // discovery) so they start with the shell.
+    // the control panel is closed (Bluetooth notifications, backlight and
+    // temperature discovery) so they start with the shell.
     Component.onCompleted: {
         MusicService.initialize()
         BluetoothService.refresh()
         BrightnessService.discover()
+        SysmonService.initialize()
     }
 
     function getActiveScreen() {

@@ -9,6 +9,11 @@ import shutil
 # Override these paths to validate staged replacements before installation.
 SCRIPTS = Path(os.environ.get('REVIEW_SCRIPTS_DIR', str(Path.home()/'.scripts')))
 BACKUP = Path(os.environ.get('REVIEW_BACKUP_SCRIPT', str(Path.home()/'dotfiles/backup-dotfiles.sh')))
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from harness import require_external_files
+require_external_files(BACKUP, *(SCRIPTS / name for name in ['fullscreen_toggle.sh', 'toggle-performance.sh']))
+
 def run(args, env, ok=True, **kwargs):
     r = subprocess.run(args, env=env, text=True, capture_output=True, timeout=20, **kwargs)
     if ok:
@@ -59,9 +64,22 @@ with tempfile.TemporaryDirectory(prefix='script-regressions-') as directory:
     config = home/'.config/quickshell'; config.mkdir(parents=True)
     (config/'shell.qml').write_text('// fixture\n')
     (config/'link.qml').symlink_to('shell.qml')
+    # install.sh links current configs directly into the checkout. Backing
+    # these up must stage them without copying a file/directory onto itself.
+    (repo/'uwsm').mkdir()
+    (repo/'uwsm/env').write_text('export TEST=1\n')
+    (home/'.config/uwsm').symlink_to(repo/'uwsm')
+    (repo/'zsh').mkdir()
+    (repo/'zsh/.zshrc').write_text('# shell config\n')
+    (home/'.zshrc').symlink_to(repo/'zsh/.zshrc')
+    service = home/'.config/systemd/user/gtk-cursor-sync.service'
+    service.parent.mkdir(parents=True)
+    service.write_text('[Service]\nExecStart=/bin/true\n')
     r = run(['bash',str(repo/'backup-dotfiles.sh')],env)
     staged = run(['git','-C',str(repo),'diff','--cached','--name-only'],env).stdout.splitlines()
     assert '.scripts/helper.sh' in staged and '.scripts/new.py' in staged, staged
+    assert 'uwsm/env' in staged and 'zsh/.zshrc' in staged, staged
+    assert 'systemd/user/gtk-cursor-sync.service' in staged, staged
     assert 'unrelated' not in staged and not any(x.endswith(('.d','.zsh_history')) for x in staged), staged
     assert (repo/'quickshell/link.qml').is_symlink()
     assert run(['bash',str(repo/'backup-dotfiles.sh'),'--push'],env,False).returncode == 1

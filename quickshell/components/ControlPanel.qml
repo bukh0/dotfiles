@@ -76,7 +76,15 @@ PanelWindow {
         onTriggered: _fadingOut = false
     }
 
+    Connections {
+        target: NotificationDaemon
+        function onIsDrawerOpenChanged() {
+            if (NotificationDaemon.isDrawerOpen) controlPanel.isOpen = false
+        }
+    }
+
     onIsOpenChanged: {
+        if (isOpen) NotificationDaemon.isDrawerOpen = false
         if (!isOpen) {
             pinned = false
             NetworkService.cancelPasswordPrompt(outputName)

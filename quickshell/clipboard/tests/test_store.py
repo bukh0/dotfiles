@@ -1,6 +1,11 @@
 import os,subprocess,tempfile
 from pathlib import Path
 script=os.environ.get('CLIPBOARD_STORE_SCRIPT', str(Path.home()/'.scripts/clipboard-store.sh'))
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tests'))
+from harness import require_external_files
+require_external_files(script)
+
 with tempfile.TemporaryDirectory() as d:
  p=Path(d)
  (p/'wl-paste').write_text('#!/bin/sh\ntouch "$TEST_ROOT/queried"\nprintf "%s\\n" "$TEST_TYPES"\n')

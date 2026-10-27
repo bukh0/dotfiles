@@ -192,6 +192,17 @@ Item {
   compare(Config.NotificationDaemon.timestamps[801], replacementTime)
   compare(model.get(0).timestamp, replacementTime)
  }
+ function test_orphanTimestampPruning() {
+  Config.NotificationDaemon.restoreTimestamps('{"901":100,"902":200}')
+  wait(100)
+  const restored = notification(901)
+  restored.lastGeneration = true
+  Config.NotificationDaemon._receiveNotification(restored)
+  compare(Config.NotificationDaemon.timestamps[901], 100)
+  wait(1100)
+  compare(Config.NotificationDaemon.timestamps[901], 100)
+  verify(Config.NotificationDaemon.timestamps[902] === undefined)
+ }
  function test_invalidSavedTimestamps() {
   for (const saved of ["null", "[]", "42", '{"601": 1e999}', '{"601": 9e15}', '"invalid"', '{"601": "yesterday"}']) {
    Config.NotificationDaemon.restoreTimestamps(saved)

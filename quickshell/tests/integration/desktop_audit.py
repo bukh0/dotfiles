@@ -16,6 +16,11 @@ def source(relative):
     path = home / relative
     return staged.get(str(path), path)
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from harness import require_external_files
+require_external_files(*(source(name) for name in ['.scripts/configs.sh', '.scripts/gamemode-toggle.sh', '.scripts/fullscreen_toggle.sh', '.scripts/audio-mute-toggle.sh', '.scripts/mic-toggle.sh', '.config/hypr/keybinds.lua', '.config/wlogout/layout']))
+
 with tempfile.TemporaryDirectory(prefix='desktop-audit-test-') as directory:
     root = Path(directory)
     bins = root / 'bin'; bins.mkdir()

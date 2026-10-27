@@ -7,6 +7,13 @@ import tempfile
 
 SCRIPTS = Path(os.environ.get('REVIEW_SCRIPTS_DIR', str(Path.home() / '.scripts')))
 KEYBINDS = Path(os.environ.get('REVIEW_KEYBINDS', str(Path.home() / '.config/hypr/keybinds.lua')))
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from harness import require_external_files
+require_external_files(KEYBINDS, SCRIPTS / 'performance-status.sh')
+if 'screenshot.sh' in KEYBINDS.read_text():
+    require_external_files(SCRIPTS / 'screenshot.sh')
+
 with tempfile.TemporaryDirectory(prefix='desktop-capture-') as directory:
     root = Path(directory)
     bins = root / 'bin'

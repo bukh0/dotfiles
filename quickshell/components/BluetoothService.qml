@@ -397,7 +397,11 @@ Item {
         // The pairing helper reports through its exit code. GTK/Blueman print
         // unrelated module-load errors even when pairing succeeds.
         if (kind === "pair") {
-            if (rc === 0) return
+            if (rc === 0) {
+                const warnings = lines.filter(l => l.startsWith("Bluetooth connection warning:"))
+                if (warnings.length) root.notify("Bluetooth Connection Warning", warnings[warnings.length - 1])
+                return
+            }
             const own = lines.filter(l => l.startsWith("Bluetooth pairing failed:"))
             const msg = own.length > 0 ? own[own.length - 1]
                 : (lines.length > 0 ? lines[lines.length - 1] : "Pairing failed (exit " + rc + ")")

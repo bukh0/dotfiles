@@ -5,6 +5,11 @@ import subprocess
 import tempfile
 
 LAUNCHER = Path(os.environ.get('PICKER_TEST_LAUNCHER', str(Path.home()/'.scripts/picker-menu.sh')))
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from harness import require_external_files
+require_external_files(LAUNCHER)
+
 with tempfile.TemporaryDirectory(prefix='picker-launcher-') as d:
     p = Path(d)
     config = p/'config/quickshell/picker'

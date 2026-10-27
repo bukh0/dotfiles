@@ -10,6 +10,7 @@ Item {
     property bool sampling: false
     property bool _skipFirst: true
     property bool _stoppingForIdle: false
+    function initialize() {} // Discover sensors at startup; sampling remains demand-driven.
     onWatchersChanged: {
         if (watchers > 0) {
             if (root.tempSourcePath === "none" && !tempSourceDiscover.running)
@@ -71,11 +72,11 @@ Item {
         command: ["sh", "-c",
             "for z in /sys/class/thermal/thermal_zone*; do " +
             "[ -r \"$z/type\" ] && case \"$(cat \"$z/type\")\" in " +
-            "x86_pkg_temp|cpu*|k10temp*) echo \"$z/temp\"; exit;; esac; " +
+            "x86_pkg_temp|cpu*|k10temp*) if grep -Eq '^-?[0-9]+$' \"$z/temp\" 2>/dev/null; then echo \"$z/temp\"; exit; fi;; esac; " +
             "done; " +
             "for h in /sys/class/hwmon/hwmon*; do " +
             "case \"$(cat \"$h/name\" 2>/dev/null)\" in coretemp|k10temp) " +
-            "[ -r \"$h/temp1_input\" ] && echo \"$h/temp1_input\"; exit;; esac; " +
+            "if grep -Eq '^-?[0-9]+$' \"$h/temp1_input\" 2>/dev/null; then echo \"$h/temp1_input\"; exit; fi;; esac; " +
             "done"
         ]
         running: true
@@ -85,8 +86,11 @@ Item {
                 if (discovered === root.tempSourcePath && (sysmonDaemon.running || sysmonRestart.running)) return
                 root.tempSourcePath = discovered
                 if (sysmonDaemon.running) {
+                    startupCheck.stop()
+                    sysmonStableTimer.stop()
                     root._restartForTemperature = true
                     sysmonDaemon.running = false
+                    if (root.watchers > 0) sysmonRestart.restart()
                 } else if (root.watchers > 0) {
                     sysmonRestart.restart()
                 }

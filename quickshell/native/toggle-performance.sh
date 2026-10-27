@@ -6,6 +6,7 @@ export SUDO_ASKPASS="$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/perfo
 # Preserve the user's script and its unprivileged cache/notification writes.
 # Only its existing sudo calls use graphical authentication.
 sudo() {
+    rm -f -- "$QS_PERFORMANCE_CANCEL_FILE" || return $?
     if command sudo --askpass "$@"; then
         : > "$QS_PERFORMANCE_APPLIED_FILE"
     else

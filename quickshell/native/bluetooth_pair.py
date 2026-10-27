@@ -61,6 +61,10 @@ def main(address):
             print(f"Bluetooth pairing failed: {error}", file=sys.stderr)
         loop.quit()
 
+    def connection_warning(error):
+        print(f"Bluetooth connection warning: Paired and trusted, but could not connect: {error}", file=sys.stderr)
+        finish()
+
     def connected(connection, result):
         if finished:
             return
@@ -68,17 +72,21 @@ def main(address):
             connection.call_finish(result)
             finish()
         except GLib.Error as error:
-            finish(error)
+            connection_warning(error)
 
     def trusted(connection, result):
         if finished:
             return
         try:
             connection.call_finish(result)
+        except GLib.Error as error:
+            finish(error)
+            return
+        try:
             connection.call("org.bluez", device, "org.bluez.Device1", "Connect", None, None,
                             Gio.DBusCallFlags.NONE, 30000, None, connected)
         except GLib.Error as error:
-            finish(error)
+            connection_warning(error)
 
     def paired(connection, result):
         if finished:

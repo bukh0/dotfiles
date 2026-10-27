@@ -51,7 +51,10 @@ def call(conn, sender, path, interface, method, args, invocation):
   conn.call(agent[0],agent[1],'org.bluez.Agent1','RequestConfirmation',
             GLib.Variant('(ou)',(device,123456)),None,Gio.DBusCallFlags.NONE,5000,None,confirmed)
  elif method == 'Connect':
-  record('connect'); invocation.return_value(None)
+  record('connect')
+  if Path(os.environ['TEST_PAIR_MODE']).read_text() == 'connect-error':
+   invocation.return_dbus_error('org.bluez.Error.Failed', 'Device has no connectable profile'); return
+  invocation.return_value(None)
  elif method == 'CancelPairing':
   record('cancel'); invocation.return_value(None)
 def set_prop(conn,sender,path,interface,name,value):
@@ -140,7 +143,7 @@ with tempfile.TemporaryDirectory(prefix="qs-bluetooth-pair-") as directory:
                     break
                 time.sleep(.02)
             assert (stage / "ready").exists(), (stage / "server.log").read_text()
-            for response, mode, cleanup in (("confirm", "cancel", "0"), ("confirm", "slow-trust", "0"), ("confirm", "normal", "0"), ("deny", "normal", "0"), ("confirm", "already", "0"), ("confirm", "normal", "1"), ("confirm", "register-failure", "0"), ("confirm", "local-register-failure", "0")):
+            for response, mode, cleanup in (("confirm", "cancel", "0"), ("confirm", "slow-trust", "0"), ("confirm", "normal", "0"), ("confirm", "connect-error", "0"), ("deny", "normal", "0"), ("confirm", "already", "0"), ("confirm", "normal", "1"), ("confirm", "register-failure", "0"), ("confirm", "local-register-failure", "0")):
                 (stage / "mode").write_text(mode)
                 (stage / "events").write_text("")
                 result = subprocess.run([sys.executable, str(stage / "client.py"), str(ROOT / "native/bluetooth_pair.py")],
@@ -157,7 +160,10 @@ with tempfile.TemporaryDirectory(prefix="qs-bluetooth-pair-") as directory:
                     expected = ["local-unregister"]
                 assert result.returncode == (0 if response == "confirm" and "failure" not in mode and mode != "cancel" else 1), result.stdout + result.stderr
                 assert (stage / "events").read_text().splitlines() == expected, result.stdout + result.stderr
-            print("PASS Bluetooth cancellation delivery before unregister, confirmation/rejection, trust/connect ordering, AlreadyExists recovery, registration failures, and failing cleanup on a private bus")
+                if mode == "connect-error":
+                    assert "Bluetooth connection warning: Paired and trusted" in result.stderr, result.stderr
+                    assert "Bluetooth pairing failed" not in result.stderr, result.stderr
+            print("PASS Bluetooth cancellation, confirmation/rejection, trust/connect ordering, post-pair connection warnings, AlreadyExists recovery, registration failures and cleanup on a private bus")
         finally:
             server.terminate()
             server.wait(timeout=5)

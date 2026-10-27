@@ -31,6 +31,7 @@ if args.list:
     raise SystemExit(0)
 selected = args.suites or (sorted(available) if args.all else DEFAULT)
 failures = []
+skipped = []
 for name in selected:
     if name not in available:
         parser.error(f'Unknown suite: {name}')
@@ -38,8 +39,14 @@ for name in selected:
         if args.suites:
             parser.error(f'{name} requires --live')
         continue
-    if not run_suite(available[name]):
+    result = run_suite(available[name])
+    if result is None:
+        skipped.append(name)
+    elif not result:
         failures.append(name)
 if failures:
     raise SystemExit('Failed suites: ' + ', '.join(failures))
-print('All selected suites passed.')
+if skipped:
+    print('All runnable suites passed. Skipped unavailable integrations: ' + ', '.join(skipped))
+else:
+    print('All selected suites passed.')

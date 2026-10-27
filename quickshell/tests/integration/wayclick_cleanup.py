@@ -8,6 +8,11 @@ import time
 
 source = Path(os.environ.get("REVIEW_SCRIPTS_DIR", str(Path.home() / ".scripts"))) / "wayclick/dusky_wayclick.sh"
 # Load the real trap/functions without installing anything or opening input devices.
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from harness import require_external_files
+require_external_files(source)
+
 prefix = source.read_text().split("if (( EUID == 0 )); then", 1)[0]
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)

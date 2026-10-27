@@ -70,6 +70,7 @@ QtObject {
                 }
             }
         } catch (_) {}
+        timestampPrune.restart()
         timestamps = restored
         // Re-delivery can precede PersistentProperties.onLoaded. Repair those
         // rows too, without rolling back genuine arrivals or replacements.
@@ -85,6 +86,20 @@ QtObject {
             while (position > 0 && notificationModel.get(position - 1).timestamp < notificationModel.get(i).timestamp)
                 position--
             if (position !== i) notificationModel.move(i, position, 1)
+        }
+    }
+
+    // Allow persisted state and restored notifications to arrive in either order.
+    // Restart the quiet window on re-delivery, then discard orphaned metadata.
+    property Timer timestampPrune: Timer {
+        interval: 1000
+        onTriggered: {
+            const live = {}
+            for (const id of Object.keys(root.timestamps)) {
+                if (root._serverIds[id]) live[id] = root.timestamps[id]
+                else delete root._restoredIds[id]
+            }
+            root.timestamps = live
         }
     }
 
@@ -253,7 +268,7 @@ QtObject {
         // lastGeneration remains true on subsequent app replacements too.
         // Only the first delivery of this object is restoration.
         const restoring = notif.lastGeneration && !alreadyConnected
-        if (restoring) root._restoredIds[serverId] = true
+        if (restoring) { root._restoredIds[serverId] = true; timestampPrune.restart() }
         else delete root._restoredIds[serverId]
         const savedTime = root.timestamps[serverId]
         const timestamp = restoring && typeof savedTime === "number" ? savedTime : Date.now()

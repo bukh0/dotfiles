@@ -1,5 +1,51 @@
 # Changelog
 
+## 2026-10-27 — process settlement and UI race fixes
+
+- Settle network status after successful exit and stdout completion; keep monitor
+  refreshes queued until settlement. Ignore stale scan stderr on failed spawn.
+- Serialize brightness writes through exit and stderr completion, prefer actual
+  diagnostics, and recover missing spawn signals with a launch watchdog.
+- Defer picker listing completion and queued refreshes while an apply is busy.
+- Make control and notification drawers mutually exclusive; animate music page
+  indices so opening or resizing does not slide through earlier players.
+- Prune orphaned restored notification timestamps after a one-second quiet
+  window, extended by restored notification delivery.
+- Validate numeric sensor reads, including negative temperatures, before choosing
+  a temperature source. Cancel the sysmon startup watchdog on intentional sensor
+  restarts and schedule a replacement even if the cancelled launch emits no exit.
+- Clear askpass cancellation metadata before each sudo call so an earlier cancel
+  cannot hide a later unrelated failure.
+- Add regressions for process callback ordering, failed spawn watchdog recovery,
+  busy picker refreshes, drawer exclusion, initial music layout, timestamp cleanup,
+  invalid sensor contents and cancellation followed by another failure.
+
+## 2026-10-27 — validate supplied service review
+
+- Report a failed Bluetooth Connect after successful Pair and Trust as a
+  connection warning, preserving the successful pairing result. The service
+  forwards this warning even with exit status zero. A private fake BlueZ test
+  covers the failure and verifies agent cleanup and operation ordering.
+- Continue temperature discovery after matching thermal/hwmon entries whose
+  temperature files are missing or unreadable. Test thermal priority, fallback
+  across unusable candidates, no-sensor results and recovery.
+- Initialize SysmonService at shell startup so sensor discovery can finish
+  before opening the panel. A real QML/process fixture verifies idle discovery
+  without sampling, then one sampler launch using the discovered sensor.
+  Demand-driven sampling and cached CPU/network values remain intentional;
+  touching the singleton cannot eliminate the required delta measurement interval.
+- External desktop integration tests explicitly skip absent source files with
+  status 77. The runner distinguishes skipped integrations from passed suites;
+  present-but-failing sources are still failures. Cover missing picker/wallpaper
+  helpers and an existing broken launcher with a disposable HOME.
+- Keep low/critical PendingCharge battery warnings: a present battery that is
+  not charging can still be nearly empty. Existing battery regressions cover
+  this behavior. Keep the previously accepted single-click notification links.
+- Saved-profile Wi-Fi authentication remains unverified against a real access
+  point. Upstream nmcli supports matching profiles and secret-agent requests;
+  that alone does not prove or disprove the reported retry problem. No saved
+  profiles were deleted or rewritten, and no real network was disconnected.
+
 ## 2026-10-25 — regression directory layout
 
 - Group regression suites under tests/bluetooth, network, notifications, picker,

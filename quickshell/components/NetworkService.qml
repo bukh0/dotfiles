@@ -152,7 +152,15 @@ Item {
         id: statusPoll
         property bool started: false
         onStarted: { started = true; statusLaunchCheck.stop() }
-        onExited: (code, status) => { if (code !== 0 || status !== 0) root.clearStatus() }
+        property bool exited: false
+        property bool stdoutDone: false
+        property bool succeeded: false
+        property string output: ""
+        onExited: (code, status) => {
+            exited = true
+            succeeded = code === 0 && status === 0
+            statusSettled.restart()
+        }
         // The wifi list is allowed to fail (no Wi-Fi device / radio off);
         // that must not stop ethernet detection from the device list.
         command: ["sh", "-c",
@@ -165,38 +173,9 @@ Item {
         stdout: StdioCollector {
             onStreamFinished: {
                 if (!statusPoll.started) return
-                if (text.trim() === "") { root.clearStatus(); return }
-                root._statusErrorLogged = false
-                const lines = text.trim().split("\n")
-                root.wifiOn = (lines.length > 0 ? lines[0].trim() : "") === "enabled"
-                root._radioOff = !root.wifiOn
-                if (root._radioOff) {
-                    root.networks = []
-                    root.cancelPasswordPrompt()
-                }
-
-                const activeNetworks = []
-                const wifiDevices = []
-                let activeType = "none"
-                for (let i = 1; i < lines.length; i++) {
-                    const fields = root.parseNmcliFields(lines[i])
-                    if (fields.length === 4 && fields[0] === "yes")
-                        activeNetworks.push(fields)
-                    if (fields.length === 3 && (fields[0] === "wifi" || fields[0] === "ethernet") && fields[1].startsWith("connected")) {
-                        if (fields[0] === "ethernet") {
-                            activeType = "ethernet"
-                        } else if (fields[0] === "wifi") {
-                            wifiDevices.push(fields[2])
-                            if (activeType !== "ethernet") activeType = "wifi"
-                        }
-                    }
-                }
-                // Keep the displayed SSID, signal and device from one connection.
-                const ssidFields = activeNetworks.find(fields => wifiDevices.includes(fields[3])) || []
-                root.ssid = ssidFields.length >= 3 ? ssidFields[1] : ""
-                root.signalStrength = ssidFields.length >= 3 ? (parseInt(ssidFields[2]) || 0) : 0
-                root.connectionType = activeType
-                root.activeWifiDevice = ssidFields[3] || wifiDevices[0] || ""
+                statusPoll.output = text
+                statusPoll.stdoutDone = true
+                statusSettled.restart()
             }
         }
         stderr: StdioCollector {
@@ -209,33 +188,68 @@ Item {
                 }
             }
         }
-        onRunningChanged: {
-            if (!running) {
-                if (!started) {
-                    statusLaunchCheck.stop()
-                    root.clearStatus()
-                }
-                root._drainMonitor()
-            }
-        }
+        onRunningChanged: if (!running) statusSettled.restart()
     }
 
-    Timer {
-        id: statusLaunchCheck
-        interval: 500
-        onTriggered: {
-            if (!statusPoll.started && !statusPoll.running) {
-                root.clearStatus()
-                root._drainMonitor()
+    property bool _statusInFlight: false
+    function finishStatus() {
+        if (!_statusInFlight || statusPoll.running) return
+        if (statusPoll.started && (!statusPoll.exited || !statusPoll.stdoutDone)) return
+        statusLaunchCheck.stop()
+        if (statusPoll.started && statusPoll.succeeded) applyStatus()
+        else clearStatus()
+        _statusInFlight = false
+        _drainMonitor()
+    }
+
+    function applyStatus() {
+        if (statusPoll.output.trim() === "") { root.clearStatus(); return }
+        root._statusErrorLogged = false
+        const lines = statusPoll.output.trim().split("\n")
+        root.wifiOn = (lines.length > 0 ? lines[0].trim() : "") === "enabled"
+        root._radioOff = !root.wifiOn
+        if (root._radioOff) {
+            root.networks = []
+            root.cancelPasswordPrompt()
+        }
+
+        const activeNetworks = []
+        const wifiDevices = []
+        let activeType = "none"
+        for (let i = 1; i < lines.length; i++) {
+            const fields = root.parseNmcliFields(lines[i])
+            if (fields.length === 4 && fields[0] === "yes")
+                activeNetworks.push(fields)
+            if (fields.length === 3 && (fields[0] === "wifi" || fields[0] === "ethernet") && fields[1].startsWith("connected")) {
+                if (fields[0] === "ethernet") {
+                    activeType = "ethernet"
+                } else if (fields[0] === "wifi") {
+                    wifiDevices.push(fields[2])
+                    if (activeType !== "ethernet") activeType = "wifi"
+                }
             }
         }
+        // Keep the displayed SSID, signal and device from one connection.
+        const ssidFields = activeNetworks.find(fields => wifiDevices.includes(fields[3])) || []
+        root.ssid = ssidFields.length >= 3 ? ssidFields[1] : ""
+        root.signalStrength = ssidFields.length >= 3 ? (parseInt(ssidFields[2]) || 0) : 0
+        root.connectionType = activeType
+        root.activeWifiDevice = ssidFields[3] || wifiDevices[0] || ""
     }
+
+    Timer { id: statusSettled; interval: 0; onTriggered: root.finishStatus() }
+    Timer { id: statusLaunchCheck; interval: 500; onTriggered: root.finishStatus() }
 
     property bool _monitorPending: false
 
     function refresh() {
-        if (statusPoll.running) root._monitorPending = true
+        if (_statusInFlight || statusPoll.running) root._monitorPending = true
         else {
+            _statusInFlight = true
+            statusPoll.exited = false
+            statusPoll.stdoutDone = false
+            statusPoll.succeeded = false
+            statusPoll.output = ""
             statusPoll.started = false
             statusLaunchCheck.restart()
             statusPoll.running = true
@@ -243,7 +257,7 @@ Item {
     }
 
     function _busy() {
-        return root.busy || cmdProc.running || connectProc.running || statusPoll.running || scanPoll.running
+        return root.busy || cmdProc.running || connectProc.running || _statusInFlight || statusPoll.running || scanPoll.running
     }
 
     function _drainMonitor() {
@@ -359,7 +373,7 @@ Item {
             }
         }
         stderr: StdioCollector {
-            onStreamFinished: root.reportStderr(text.trim())
+            onStreamFinished: if (scanPoll.started) root.reportStderr(text.trim())
         }
         onRunningChanged: {
             if (running) return

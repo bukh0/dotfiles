@@ -32,7 +32,7 @@ Item {
     property int _wantedRaw: -1
     property int _lastSentRaw: -1
     property bool _errorMuted: false
-    property bool _writeFinished: false
+    property bool _writeFinished: true
     property bool _writeStarted: false
     property int _readFailures: 0
     onDeviceChanged: { _readFailures = 0; readRetry.stop() }
@@ -42,7 +42,7 @@ Item {
     onAvailableChanged: if (available) _discoveryAttempts = 0
 
     function _busy() {
-        return root.interacting || setProc.running || root._wantedRaw >= 0 || settleTimer.running
+        return root.interacting || !root._writeFinished || setProc.running || root._wantedRaw >= 0 || settleTimer.running
     }
 
     // ── Discovery: ask brightnessctl which device it will actually drive ──
@@ -212,47 +212,62 @@ Item {
     }
 
     function _flush() {
-        if (root._wantedRaw < 0 || setProc.running) return
+        if (root._wantedRaw < 0 || !root._writeFinished || setProc.running) return
         const raw = root._wantedRaw
         root._wantedRaw = -1
         if (raw === root._lastSentRaw) return
         root._lastSentRaw = raw
         root._writeFinished = false
         root._writeStarted = false
+        setProc.exited = false
+        setProc.stderrDone = false
+        setProc.errorText = ""
+        setProc.exitCode = 0
+        setProc.succeeded = false
+        writeLaunchCheck.restart()
         settleTimer.stop()
         setProc.command = ["brightnessctl", "-q", "-d", root.device, "set", String(raw)]
         setProc.running = true
     }
 
+    Timer { id: writeSettled; interval: 0; onTriggered: root._finishWrite() }
+    Timer { id: writeLaunchCheck; interval: 500; onTriggered: root._finishWrite() }
     Process {
         id: setProc
-        onStarted: root._writeStarted = true
-        onExited: (exitCode, exitStatus) => {
-            if (exitCode !== 0 || exitStatus !== 0) {
-                root._lastSentRaw = -1
-                root._reportError("Could not set display brightness (exit " + exitCode + ").")
-            }
-            root._finishWrite()
+        property bool exited: false
+        property bool stderrDone: false
+        property bool succeeded: false
+        property int exitCode: 0
+        property string errorText: ""
+        onStarted: { root._writeStarted = true; writeLaunchCheck.stop() }
+        onExited: (code, status) => {
+            exitCode = code
+            succeeded = code === 0 && status === 0
+            exited = true
+            writeSettled.restart()
         }
         stderr: StdioCollector {
             onStreamFinished: {
-                const msg = text.trim()
-                if (msg === "") return
-                console.warn("brightness:", msg)
-                root._reportError(msg)
+                if (!root._writeStarted) return
+                setProc.errorText = text.trim()
+                setProc.stderrDone = true
+                writeSettled.restart()
             }
         }
-        onRunningChanged: {
-            if (!running && !root._writeStarted) {
-                root._lastSentRaw = -1
-                root._reportError("Could not start brightnessctl.")
-                root._finishWrite()
-            }
-        }
+        onRunningChanged: if (!running) writeSettled.restart()
     }
 
     function _finishWrite() {
-        if (root._writeFinished) return
+        if (root._writeFinished || setProc.running) return
+        if (root._writeStarted && (!setProc.exited || !setProc.stderrDone)) return
+        writeLaunchCheck.stop()
+        if (!root._writeStarted || !setProc.succeeded) root._lastSentRaw = -1
+        if (!root._writeStarted) root._reportError("Could not start brightnessctl.")
+        else if (setProc.errorText !== "") {
+            console.warn("brightness:", setProc.errorText)
+            root._reportError(setProc.errorText)
+        } else if (!setProc.succeeded)
+            root._reportError("Could not set display brightness (exit " + setProc.exitCode + ").")
         root._writeFinished = true
         settleTimer.restart()
         if (root._wantedRaw >= 0) writeTimer.restart()
