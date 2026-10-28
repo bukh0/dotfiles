@@ -28,8 +28,10 @@ Item {
     }
     property string _lastPasswordFailureSsid: ""
     property bool _statusErrorLogged: false
+    property string _lastStatusKey: ""
 
     signal connectionSettled()
+    signal connectionChanged()
     signal commandError(string message)
     onCommandError: message => Quickshell.execDetached(["notify-send", "-a", "Network", "--", "Wi-Fi Error", message])
 
@@ -125,6 +127,8 @@ Item {
         ssid = ""
         signalStrength = 0
         activeWifiDevice = ""
+        // Reconcile rows again when polling recovers, even on the same network.
+        _lastStatusKey = ""
     }
 
     // Returns true if the command was started, false if it was dropped
@@ -235,6 +239,29 @@ Item {
         root.signalStrength = ssidFields.length >= 3 ? (parseInt(ssidFields[2]) || 0) : 0
         root.connectionType = activeType
         root.activeWifiDevice = ssidFields[3] || wifiDevices[0] || ""
+
+        // Use every connected adapter, not just the connection in the header.
+        const connections = activeNetworks.filter(fields => wifiDevices.includes(fields[3]))
+        const key = JSON.stringify([activeType, root.ssid, root.activeWifiDevice,
+            connections.map(fields => [fields[1], fields[3]]).sort()])
+        // A scan started before this status read can finish afterwards with
+        // stale flags. Reconcile every successful poll, even if the key matches.
+        let touched = false
+        const synced = root.networks.map(n => {
+            const activeDevices = [...new Set(connections
+                .filter(fields => fields[1] === n.ssid)
+                .map(fields => fields[3]))].sort()
+            const active = activeDevices.length > 0
+            if (active === n.active && JSON.stringify(activeDevices) === JSON.stringify(n.activeDevices))
+                return n
+            touched = true
+            return Object.assign({}, n, { active: active, activeDevices: activeDevices })
+        })
+        if (touched) root.networks = synced
+        if (key !== root._lastStatusKey) {
+            root._lastStatusKey = key
+            root.connectionChanged()
+        }
     }
 
     Timer { id: statusSettled; interval: 0; onTriggered: root.finishStatus() }
@@ -438,7 +465,11 @@ Item {
         interval: 0
         onTriggered: {
             if (!scanPoll.exited || !scanPoll.stdoutDone) return
-            if (scanPoll.succeeded && !root._radioOff) root.networks = root.parseScan(scanPoll.output)
+            if (scanPoll.succeeded && !root._radioOff) {
+                const parsed = root.parseScan(scanPoll.output)
+                // Preserve delegates (including focus/hover) on unchanged scans.
+                if (JSON.stringify(parsed) !== JSON.stringify(root.networks)) root.networks = parsed
+            }
             scanLaunchCheck.stop()
             root.scanning = false
             if (root._scanPending) scanRestart.restart()

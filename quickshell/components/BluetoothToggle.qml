@@ -10,6 +10,7 @@ ColumnLayout {
     spacing: Theme.spacingSM
 
     property bool expanded: false
+    Component.onCompleted: BluetoothService.refresh()
 
     readonly property bool btOn: BluetoothService.powered
     readonly property bool powerBusy: BluetoothService.busy && BluetoothService.actionKind === "power"

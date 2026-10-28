@@ -9,6 +9,7 @@ return {
     },
     config = function()
       local cokeline = require("cokeline")
+      local bufferbar = require("config.cokeline")
       local theme = require("utils.theme")
 
       -- theme.colors() caches/invalidates itself, so calling it from get_color()
@@ -32,7 +33,7 @@ return {
         buffers = {
           -- keep terminals/quickfix/help off the bar
           filter_valid = function(buffer)
-            return vim.bo[buffer.number].buftype == ""
+            return bufferbar.is_file_buffer(buffer.number)
           end,
         },
 
@@ -121,7 +122,7 @@ return {
         },
       })
 
-      require("config.cokeline").setup()
+      bufferbar.setup()
 
       -- vim.diagnostic events don't trigger a tabline redraw on their own —
       -- force one so error/warning counts update the instant the LSP reports

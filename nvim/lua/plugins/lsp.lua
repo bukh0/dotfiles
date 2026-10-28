@@ -1,12 +1,16 @@
 local function switch_source_header(bufnr)
   local client = vim.lsp.get_clients({ bufnr = bufnr, name = "clangd" })[1]
   if not client then return end
+  local win = vim.api.nvim_get_current_win()
   client:request("textDocument/switchSourceHeader", vim.lsp.util.make_text_document_params(bufnr), function(err, result)
+    if not vim.api.nvim_win_is_valid(win) or vim.api.nvim_win_get_buf(win) ~= bufnr then return end
     if err or not result or result == "" then
       vim.notify("No source/header found", vim.log.levels.INFO)
       return
     end
-    vim.cmd.edit(vim.fn.fnameescape(vim.uri_to_fname(result)))
+    vim.api.nvim_win_call(win, function()
+      vim.cmd.edit(vim.fn.fnameescape(vim.uri_to_fname(result)))
+    end)
   end, bufnr)
 end
 

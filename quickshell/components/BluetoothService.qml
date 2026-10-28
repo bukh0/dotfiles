@@ -118,6 +118,16 @@ Item {
         let adapterFound = false
         let adapterPowered = false
         const known = {}   // mac -> record (merged if listed under several adapters)
+        const activeMediaDevices = new Set()
+
+        // BlueZ can expose an active audio transport while Device1.Connected
+        // is false. Transport objects reference the owning device explicitly.
+        for (const path in objs) {
+            const transport = objs[path]["org.bluez.MediaTransport1"]
+            if (transport && transport.Device && transport.State
+                    && (transport.State.data === "active" || transport.State.data === "pending"))
+                activeMediaDevices.add(transport.Device.data)
+        }
 
         for (const path in objs) {
             const ifaces = objs[path]
@@ -131,6 +141,8 @@ Item {
 
             const dev = ifaces["org.bluez.Device1"]
             if (!dev || !dev.Address || !dev.Address.data) continue
+            const media = ifaces["org.bluez.MediaControl1"]
+            const network = ifaces["org.bluez.Network1"]
 
             const mac = dev.Address.data
             // Alias first: it's what the user sees/renames and what
@@ -143,7 +155,10 @@ Item {
                 hasName: alias !== "" && !macLike.test(alias),
                 icon: (dev.Icon && dev.Icon.data) || "",
                 paired: !!(dev.Paired && dev.Paired.data),
-                connected: !!(dev.Connected && dev.Connected.data),
+                connected: !!((dev.Connected && dev.Connected.data)
+                    || (media && media.Connected && media.Connected.data)
+                    || (network && network.Connected && network.Connected.data)
+                    || activeMediaDevices.has(path)),
                 rssi: (dev.RSSI && typeof dev.RSSI.data === "number") ? dev.RSSI.data : -999
             }
 
@@ -286,6 +301,14 @@ Item {
         onTriggered: btMonitor.running = true
     }
 
+    function handleMonitorLine(line) {
+        // Match property names, not substrings in device names or values.
+        const relevant = /\bmember=Interfaces(?:Added|Removed)\b/.test(line)
+            || /^\s*string "(?:Connected|State|Powered|Paired|Name|Alias)"\s*$/.test(line)
+        // A continuous burst must not postpone the refresh indefinitely.
+        if (relevant && !monitorDebounce.running) monitorDebounce.start()
+    }
+
     Process {
         id: btMonitor
         command: ["dbus-monitor", "--system",
@@ -294,18 +317,7 @@ Item {
         ]
         running: true
         stdout: SplitParser {
-            onRead: line => {
-                // InterfacesAdded/Removed = device discovered / forgotten,
-                // which PropertiesChanged alone never reports.
-                if (line.includes("member=InterfacesAdded")
-                    || line.includes("member=InterfacesRemoved")
-                    || line.includes("Connected")
-                    || line.includes("Powered")
-                    || line.includes("Paired")
-                    || line.includes("Name")
-                    || line.includes("Alias"))
-                    monitorDebounce.restart()
-            }
+            onRead: line => root.handleMonitorLine(line)
         }
         onRunningChanged: {
             if (running) {

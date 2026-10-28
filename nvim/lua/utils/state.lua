@@ -18,21 +18,22 @@ function M.read(name, default)
 end
 
 function M.write(name, value)
-  vim.fn.mkdir(vim.fn.stdpath("state"), "p")
-  local f = io.open(path_for(name), "w")
-  if not f then
-    -- The only realistic cause is a missing/unwritable stdpath("state") dir.
-    -- Every caller previously ignored the boolean return value, so this was
-    -- failing completely silently.
+  local function failed(err)
     vim.notify(
-      ("failed to write state file '%s' (stdpath('state') not writable?)"):format(name),
+      ("failed to write state file '%s': %s"):format(name, tostring(err)),
       vim.log.levels.WARN,
       { title = "state.lua" }
     )
     return false
   end
-  f:write(value)
-  f:close()
+  local ok, err = pcall(vim.fn.mkdir, vim.fn.stdpath("state"), "p")
+  if not ok then return failed(err) end
+  local f, open_err = io.open(path_for(name), "w")
+  if not f then return failed(open_err) end
+  local written, write_err = f:write(value)
+  local closed, close_err = f:close()
+  if not written then return failed(write_err) end
+  if not closed then return failed(close_err) end
   return true
 end
 

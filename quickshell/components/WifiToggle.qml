@@ -17,6 +17,7 @@ ColumnLayout {
     readonly property bool scanning: NetworkService.scanning
 
     property bool expanded: false
+    Component.onCompleted: NetworkService.refresh()
     onWifiOnChanged: {
         if (!wifiOn) expanded = false
         else if (expanded) scan()
@@ -42,6 +43,12 @@ ColumnLayout {
             // connect/disconnect/rescan. Skipped while a password prompt is
             // open to avoid unnecessary discovery work during authentication.
             if (wifiRoot.expanded && wifiRoot.wifiOn && NetworkService.awaitingPasswordFor === "")
+                NetworkService.scan()
+        }
+        function onConnectionChanged() {
+            // Auto-connect, roam or drop: refresh and re-sort cached results.
+            if (wifiRoot.expanded && wifiRoot.wifiOn && !NetworkService.busy
+                    && NetworkService.awaitingPasswordFor === "")
                 NetworkService.scan()
         }
     }

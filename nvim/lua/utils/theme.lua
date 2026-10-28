@@ -133,8 +133,9 @@ M.on_colorscheme(function()
   if previewing then return end
   local name = active_colorscheme or vim.g.colors_name
   if name and name ~= "" and name ~= last_persisted then
-    state.write("colorscheme.state", name)
-    last_persisted = name
+    if state.write("colorscheme.state", name) then
+      last_persisted = name
+    end
   end
 end)
 
