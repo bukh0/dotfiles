@@ -21,7 +21,8 @@ ShellRoot {
         property bool previewLoading: false
         property bool busy: false
         property string error: ""
-        function inspect(id) {}
+        property var inspections: []
+        function inspect(id) { inspections.push(id) }
         function choose(id, paste) {}
         function perform(action, id) {}
         function refresh() {}
@@ -53,6 +54,42 @@ ShellRoot {
             view.move(100)
             if (view.selected !== 7) throw new Error("Selection bounds failed")
             view.move(-100)
+
+            // Reset selection against the new results, without previewing an
+            // intermediate old/new row. Also exercise preservation on refresh.
+            function findSearch(item) {
+                if (item.objectName === "clipboardSearch") return item
+                for (const child of item.children || []) { const found = findSearch(child); if (found) return found }
+                return null
+            }
+            const search = findSearch(view)
+            mock.entries = [
+                {id: "a", kind: "text", label: "Alpha"},
+                {id: "b", kind: "image", label: "Beta one"},
+                {id: "c", kind: "image", label: "Beta two"},
+                {id: "d", kind: "text", label: "Delta"}
+            ]
+            view.selected = 3
+            mock.inspections = []
+            search.text = "Beta"
+            if (view.selected !== 0 || view.current.id !== "b" || JSON.stringify(mock.inspections) !== '["b"]')
+                throw new Error("Search inspected an intermediate selection")
+            view.selected = 1
+            mock.inspections = []
+            search.text = ""
+            if (view.selected !== 0 || view.current.id !== "a" || JSON.stringify(mock.inspections) !== '["a"]')
+                throw new Error("Clearing search preserved the previous first result")
+            view.selected = 3
+            mock.inspections = []
+            view.category = "image"
+            if (view.selected !== 0 || view.current.id !== "b" || JSON.stringify(mock.inspections) !== '["b"]')
+                throw new Error("Category inspected an intermediate selection")
+            view.selected = 1
+            mock.inspections = []
+            mock.entries = [mock.entries[2], mock.entries[1]]
+            if (view.selected !== 0 || view.current.id !== "c" || JSON.stringify(mock.inspections) !== '["c"]')
+                throw new Error("Refresh failed to preserve the selected entry")
+            view.category = "all"
             mock.entries = Array.from({length: 80}, (_, i) => ({id: String(i), kind: "text", label: "Entry " + i}))
             view.selected = 70
             view.rebuild()

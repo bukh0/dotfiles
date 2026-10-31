@@ -1,8 +1,8 @@
 -- ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 -- ┃      @ ; Waybar blur                                             ┃
 -- ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-hl.layer_rule({ name = "waybar", blur = true, ignore_alpha = true })
+hl.layer_rule({ match = { namespace = "waybar" }, blur = true, ignore_alpha = 0.0 })
 -- ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 -- ┃      @ ; Rofi                                                    ┃
 -- ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-hl.layer_rule({ name = "rofi", blur = false, ignore_alpha = true })
+hl.layer_rule({ match = { namespace = "rofi" }, blur = false, ignore_alpha = 0.0 })

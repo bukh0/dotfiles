@@ -132,7 +132,7 @@ PanelWindow {
                     Text {
                         textFormat: Text.PlainText
                         color: Colors.surfaceFg
-                        font.pixelSize: 13
+                        font.pixelSize: 12
                         font.weight: Font.Normal
                         text: root.activeTitle
                         visible: text !== ""
@@ -210,7 +210,7 @@ PanelWindow {
                 Text {
                     textFormat: Text.PlainText
                     color: Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, Theme.opacityMuted)
-                    font.pixelSize: Theme.fontSizeBase
+                    font.pixelSize: Theme.fontSizeSM
                     font.family: Theme.fontMono
                     font.weight: Font.Medium
                     text: root.activeTitle

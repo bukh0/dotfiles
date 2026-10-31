@@ -3,13 +3,13 @@ hl.config({
     input = {
         kb_layout = "us",
         follow_mouse = 1,
-        sensitivity = 0.35,
+        sensitivity = 0.30,
         accel_profile = "adaptive",
 --        repeat_rate = 50,
 --        repeat_delay = 300,
         touchpad = {
             natural_scroll = true,
-            scroll_factor = 0.3,
+            scroll_factor = 0.9,
             tap_to_click = true
         }
     }

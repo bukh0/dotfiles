@@ -10,6 +10,7 @@ Rectangle {
     property string category: "all"
     property var filtered: []
     property int selected: 0
+    property bool _rebuilding: false
     property bool confirmClear: false
     readonly property var current: filtered.length ? filtered[Math.min(selected, filtered.length - 1)] : null
     readonly property bool compact: width < 720
@@ -24,15 +25,22 @@ Rectangle {
     MouseArea { anchors.fill: parent }
 
     function focusSearch() { search.forceActiveFocus() }
-    function rebuild() {
-        const oldId = current ? current.id : ""
+    function rebuild(preserveSelection = true) {
+        const oldId = preserveSelection && current ? current.id : ""
         const words = search.text.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean)
-        filtered = service.entries.filter(entry => {
+        const next = service.entries.filter(entry => {
             const match = category === "all" || (category === "text" && (entry.kind === "text" || entry.kind === "link")) || entry.kind === category
             return match && words.every(word => entry.label.toLocaleLowerCase().includes(word))
         })
-        const found = filtered.findIndex(entry => entry.id === oldId)
-        selected = found >= 0 ? found : Math.min(selected, Math.max(0, filtered.length - 1))
+        const found = oldId ? next.findIndex(entry => entry.id === oldId) : -1
+        // Publish the list and selection together before requesting a preview.
+        _rebuilding = true
+        filtered = next
+        selected = preserveSelection
+            ? (found >= 0 ? found : Math.min(selected, Math.max(0, filtered.length - 1)))
+            : 0
+        _rebuilding = false
+        service.inspect(current ? current.id : "")
         Qt.callLater(() => { if (filtered.length) history.positionViewAtIndex(selected, ListView.Contain) })
     }
     function move(amount) {
@@ -44,8 +52,8 @@ Rectangle {
     function kindName(kind) { return ({text: "Text", image: "Image", link: "Link", file: "File"})[kind] || "Text" }
     function kindIcon(kind) { return ({text: "≡", image: "▧", link: "↗", file: "▤"})[kind] || "≡" }
     function bytes(value) { return value >= 1048576 ? (value / 1048576).toFixed(1) + " MB" : value >= 1024 ? (value / 1024).toFixed(1) + " KB" : value + " bytes" }
-    onCategoryChanged: { selected = 0; rebuild() }
-    onCurrentChanged: service.inspect(current ? current.id : "")
+    onCategoryChanged: rebuild(false)
+    onCurrentChanged: if (!_rebuilding) service.inspect(current ? current.id : "")
     Component.onCompleted: { rebuild(); focusSearch() }
     Connections {
         target: view.service
@@ -135,7 +143,7 @@ Rectangle {
                     font.pixelSize: 13
                     font.family: "sans-serif"
                     selectByMouse: true
-                    onTextChanged: { view.selected = 0; view.rebuild() }
+                    onTextChanged: view.rebuild(false)
                     Keys.onPressed: event => {
                         const ctrl = Boolean(event.modifiers & Qt.ControlModifier)
                         if (event.key === Qt.Key_Escape) {

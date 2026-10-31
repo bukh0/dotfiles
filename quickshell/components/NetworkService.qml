@@ -320,7 +320,8 @@ Item {
                     root._monitorPending = true
                     return
                 }
-                monitorDebounce.restart()
+                // Coalesce bursts without waiting forever for a quiet stream.
+                if (!monitorDebounce.running) monitorDebounce.start()
             }
         }
         onRunningChanged: {

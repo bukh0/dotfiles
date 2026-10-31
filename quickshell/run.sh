@@ -84,11 +84,12 @@ stop_existing() {
 
 stop_existing
 
-setsid quickshell -p "$SCRIPT_DIR" > "${XDG_CACHE_HOME:-$HOME/.cache}/${PROFILE_NAME}.log" 2>&1 9>&- &
+LOG_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/${PROFILE_NAME}.log"
+: > "$LOG_FILE"
+setsid quickshell -p "$SCRIPT_DIR" >> "$LOG_FILE" 2>&1 9>&- &
 QUICKSHELL_PID=$!
 printf '%s\n' "$QUICKSHELL_PID" > "$PID_FILE"
 
-LOG_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/${PROFILE_NAME}.log"
 for _ in {1..100}; do
     if ! kill -0 "$QUICKSHELL_PID" 2>/dev/null || grep -q '^State:[[:space:]]*Z' "/proc/$QUICKSHELL_PID/status" 2>/dev/null; then
         break

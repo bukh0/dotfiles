@@ -345,8 +345,9 @@ Rectangle {
         onExited: (code, status) => {
             launchCheck.stop()
             view.busy = false
-            if (code === 0 && status === 0 && !view.operationCancelled) view.dismissed()
-            else { view.error = view.operationError(code, code === 127 ? "Could not start swww" : "Could not set the wallpaper. Check that swww is running."); view.focusSearch() }
+            const effectiveCode = status === 0 ? code : -1
+            if (effectiveCode === 0 && !view.operationCancelled) view.dismissed()
+            else { view.error = view.operationError(effectiveCode, effectiveCode === 127 ? "Could not start swww" : "Could not set the wallpaper. Check that swww is running."); view.focusSearch() }
         }
     }
     PageProcess {
@@ -378,6 +379,7 @@ Rectangle {
         stdout: StdioCollector {}
         stderr: StdioCollector {
             onStreamFinished: {
+                if (!applyProc._started) return
                 applyProc.errorText = text
                 applyProc.stderrDone = true
                 view.finishApply()

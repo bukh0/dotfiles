@@ -58,7 +58,7 @@ PanelWindow {
         x: full ? 0 : hoverGuard.x
         y: full ? controlPanel.barHeight : hoverGuard.y
         width: !controlPanel.isOpen ? 0 : full ? controlPanel.width : hoverGuard.width
-        height: !controlPanel.isOpen ? 0 : full ? controlPanel.height - controlPanel.barHeight : hoverGuard.height
+        height: !controlPanel.isOpen ? 0 : full ? Math.max(0, controlPanel.height - controlPanel.barHeight) : hoverGuard.height
     }
 
     Timer {
