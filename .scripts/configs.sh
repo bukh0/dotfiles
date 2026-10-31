@@ -45,7 +45,7 @@ case "$CHOICE" in
     ;;
 
   *Notes)
-    VAULT="$NOTES_DIR/uni"
+    VAULT="$NOTES_DIR/main"
     ACTION=$(printf '%s\n' "Open note" "New note" "Daily note" "Search notes" \
       | rofi -dmenu -i -no-custom -p "󰎞 Notes" -config "$ROFI_CONF")
 

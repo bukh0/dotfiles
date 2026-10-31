@@ -85,6 +85,7 @@ declare -A SYNC_MAP=(
   # --- Session env, GTK and cursor settings ---
   ["$CONFIG/uwsm"]="$DOTFILES/uwsm"
   ["$CONFIG/gtk-3.0/settings.ini"]="$DOTFILES/gtk-3.0/settings.ini"
+  ["$CONFIG/gtk-3.0/thunar.css"]="$DOTFILES/gtk-3.0/thunar.css"
   ["$CONFIG/gtk-4.0/settings.ini"]="$DOTFILES/gtk-4.0/settings.ini"
   ["$HOME/.icons/default/index.theme"]="$DOTFILES/icons/default/index.theme"
 
