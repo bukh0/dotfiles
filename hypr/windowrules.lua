@@ -9,7 +9,7 @@ hl.window_rule({ match = { class = "blueman-manager" },     float = true })
 hl.window_rule({ match = { class = "nm-connection-editor" }, float = true })
 
 -- Keep full touchpad scroll distance in PdfCraft independently of the global factor.
-hl.window_rule({ match = { class = "ai[.]storyteller[.]pdfcraft" }, scroll_touchpad = 1.0 })
+hl.window_rule({ match = { class = "ai[.]storyteller[.]pdfcraft" }, scroll_touchpad = 1.3 })
 
 -- Transparency
 hl.window_rule({ match = { class = "kitty" },               opacity = 1.0 })
