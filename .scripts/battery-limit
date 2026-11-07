@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+B=/sys/class/power_supply/BAT0
+cmd="${1:-status}"
+[[ $cmd == status || $EUID -eq 0 ]] || exec sudo "$0" "$@"
+case "$cmd" in
+  off)    echo 100 > $B/charge_control_end_threshold
+          echo 0   > $B/charge_control_start_threshold ;;
+  on)     lim=${2:-80}
+          echo $((lim-5)) > $B/charge_control_start_threshold
+          echo "$lim"     > $B/charge_control_end_threshold ;;
+  status) ;;
+  *) echo "usage: $0 off | on [limit] | status"; exit 1 ;;
+esac
+echo "start=$(cat $B/charge_control_start_threshold) end=$(cat $B/charge_control_end_threshold)"
