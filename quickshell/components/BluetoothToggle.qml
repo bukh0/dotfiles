@@ -154,7 +154,7 @@ ColumnLayout {
                 implicitHeight: 38
                 radius: 8
 
-                property bool isProcessing: BluetoothService.busy && BluetoothService.targetMac === modelData.mac
+                property bool isProcessing: BluetoothService.busy && BluetoothService.targetPath === modelData.path
                 // Derived, not latched, so a failed disconnect can't leave the row stuck.
                 readonly property bool isDisconnecting: isProcessing && modelData.connected
                 readonly property bool showConnected: modelData.connected && !isDisconnecting
@@ -202,7 +202,7 @@ ColumnLayout {
                     cursorShape: delegateRoot.isProcessing ? Qt.WaitCursor : Qt.PointingHandCursor
                     onClicked: {
                         if (BluetoothService.busy) return
-                        BluetoothService.toggleDevice(modelData.mac, modelData.connected)
+                        BluetoothService.toggleDevice(modelData.mac, modelData.connected, modelData.path)
                     }
                 }
             }
@@ -217,7 +217,7 @@ ColumnLayout {
                 implicitHeight: 38
                 radius: 8
 
-                property bool isProcessing: BluetoothService.busy && BluetoothService.targetMac === modelData.mac
+                property bool isProcessing: BluetoothService.busy && BluetoothService.targetPath === modelData.path
 
                 color: pairMa.containsMouse
                     ? Qt.rgba(Colors.surfaceContainerHigh.r, Colors.surfaceContainerHigh.g, Colors.surfaceContainerHigh.b, 0.8)
@@ -271,7 +271,7 @@ ColumnLayout {
                     cursorShape: pairDelegateRoot.isProcessing ? Qt.WaitCursor : Qt.PointingHandCursor
                     onClicked: {
                         if (BluetoothService.busy) return
-                        BluetoothService.pairDevice(modelData.mac)
+                        BluetoothService.pairDevice(modelData.mac, modelData.path)
                     }
                 }
             }

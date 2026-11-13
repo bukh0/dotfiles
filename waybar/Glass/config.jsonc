@@ -7,7 +7,7 @@
     "margin-right": 0,
     "height": 33,
     "spacing": 0,
-    "modules-left": ["custom/launcher", "hyprland/workspaces", "hyprland/window"],
+    "modules-left": ["custom/launcher", "cffi/workspaces", "hyprland/window"],
     "modules-center": ["custom/prev", "mpris", "custom/next", "clock"],
     "modules-right": ["cpu", "memory", "battery", "network", "network#speed", "bluetooth", "custom/performance", "tray", "custom/swaync", "custom/power"],
     "custom/launcher": {
@@ -15,20 +15,26 @@
         "on-click": "rofi -show drun",
         "tooltip": false
     },
-    "hyprland/workspaces": {
-        "format": "{id}",
-        "on-click": "~/.config/hypr/scripts/workspace.sh {id}",
-        "all-outputs": true,
-        "sort-by-number": true,
-        "persistent-workspaces": { "*": [1, 2, 3] }
+    "cffi/workspaces": {
+    "format": "{id}",
+    "all-outputs": true,
+    "sort-by-number": true,
+    "persistent-workspaces": {
+        "*": [
+            1,
+            2,
+            3
+        ]
     },
+    "module_path": "/home/bukh0/.config/waybar/native/workspaces.so"
+},
     "hyprland/window": {
         "format": "{initialTitle}",
         "max-length": 24,
         "rewrite": { "": "Desktop" }
     },
     "custom/prev": {
-        "exec": "playerctl status 2>/dev/null | grep -q 'Playing\\|Paused' && echo '{\"text\": \"󰒮\"}' || echo '{\"text\": \"\"}'",
+        "exec": "case $(playerctl status 2>/dev/null) in Playing|Paused) printf '%s\\n' '{\"text\":\"󰒮\"}' ;; *) printf '%s\\n' '{\"text\":\"\"}' ;; esac",
         "return-type": "json",
         "interval": 1,
         "on-click": "playerctl previous",
@@ -59,7 +65,7 @@
     "min-length": 22
     },
     "custom/next": {
-        "exec": "playerctl status 2>/dev/null | grep -q 'Playing\\|Paused' && echo '{\"text\": \"󰒭\"}' || echo '{\"text\": \"\"}'",
+        "exec": "case $(playerctl status 2>/dev/null) in Playing|Paused) printf '%s\\n' '{\"text\":\"󰒭\"}' ;; *) printf '%s\\n' '{\"text\":\"\"}' ;; esac",
         "return-type": "json",
         "interval": 2,
         "on-click": "playerctl next",

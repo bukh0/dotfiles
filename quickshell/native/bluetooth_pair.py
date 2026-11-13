@@ -5,7 +5,7 @@ import signal
 import sys
 
 
-def main(address):
+def main(address, device_path=""):
     if not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address):
         raise ValueError("Invalid Bluetooth address")
 
@@ -34,7 +34,8 @@ def main(address):
                             "GetManagedObjects", None, None,
                             Gio.DBusCallFlags.NONE, 5000, None).unpack()[0]
     device = next((path for path, interfaces in objects.items()
-                   if interfaces.get("org.bluez.Device1", {}).get("Address", "").lower() == address.lower()
+                   if (not device_path or path == device_path)
+                   and interfaces.get("org.bluez.Device1", {}).get("Address", "").lower() == address.lower()
                    and objects.get(interfaces["org.bluez.Device1"].get("Adapter"), {})
                    .get("org.bluez.Adapter1", {}).get("Powered", False)), None)
     if device is None:
@@ -163,7 +164,7 @@ def main(address):
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main(sys.argv[1]))
+        raise SystemExit(main(*sys.argv[1:]))
     except Exception as error:
         print(f"Bluetooth pairing failed: {error}", file=sys.stderr)
         raise SystemExit(1)

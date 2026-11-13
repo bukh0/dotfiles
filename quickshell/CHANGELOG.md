@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-11-13 — follow-up review
+
+- Preserve critical popups across drawer opening and accept critical arrivals
+  while it is open; retire alerts whose replacement downgrades their urgency.
+- Queue a scan requested during cancellation, clearing that request on another
+  stop or when Bluetooth powers off.
+- Render authentication prompts as plain text and allow 30-second cold starts.
+- Schedule the first sysmon crash retry after 250 ms before increasing backoff.
+- Verify thumbnail path keys and clipboard copy-to-paste settlement; retain
+  adapter-specific pairing and document network interface selection.
+
+## 2026-11-13 — shared process handling and recovery
+
+- Share one-shot process startup, output settlement, cancellation, and completion
+  across clipboard jobs, Bluetooth polling/scanning, and temperature discovery.
+- Continue Bluetooth discovery on healthy adapters and report scan failures.
+- Rediscover moved temperature sensors after repeated unavailable samples, with
+  bounded retry backoff and sampling restart when the selected path changes.
+- Add process lifecycle, sensor relocation, and partial discovery regressions.
+- Correct README test examples to match the available suites.
+
+## 2026-11-08 — fixes for the restored configuration
+
+- Validate GIF structure before classifying clipboard data as an image, so text
+  beginning with GIF87a or GIF89a remains text when previewed and copied.
+- Release the control panel's exclusive keyboard focus before opening Bluetooth
+  pairing or power-profile authentication dialogs. Keep the existing panel layout.
+- Show sudo's supplied authentication prompt in a masked Zenity entry dialog;
+  preserve the existing cancellation metadata.
+- Keep Bluetooth device object paths through the existing list and action flow,
+  targeting the selected adapter for connect, disconnect and pairing. Power and
+  discovery operations cover all adapters and release discovery on helper exit.
+- Read DND cache files left by either configuration, rejecting already-expired
+  saved state while retaining the restored boolean DND controls.
+- Restore test discovery and add focused MIME, adapter, dialog-focus, saved-state
+  and authentication-prompt checks. No profile, panel or widget redesign is included.
+
 ## 2026-10-27 — process settlement and UI race fixes
 
 - Settle network status after successful exit and stdout completion; keep monitor

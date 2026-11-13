@@ -123,7 +123,7 @@ RowLayout {
                 visible: active || wsMa.containsMouse
 
                 color: active
-                    ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.15)
+                    ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.25)
                     : (wsMa.containsMouse ? Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.08) : "transparent")
 
                 Behavior on color { ColorAnimation { duration: 150 } }
@@ -136,7 +136,7 @@ RowLayout {
                 font.pixelSize: Theme.workspaceFontSize
                 font.family: Theme.fontMono
                 font.weight: Font.Bold
-                color: Colors.primary
+                color: active ? Colors.primary : Qt.rgba(Colors.surfaceFg.r, Colors.surfaceFg.g, Colors.surfaceFg.b, 0.85)
             }
 
             MouseArea {

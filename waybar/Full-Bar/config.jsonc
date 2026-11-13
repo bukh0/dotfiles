@@ -14,7 +14,7 @@
         "custom/prev",
         "mpris",
         "custom/next",
-        "hyprland/workspaces",
+        "cffi/workspaces",
         "clock",
         "custom/performance",
         "battery",
@@ -62,25 +62,32 @@
         "tooltip-format": "{player}"
     },
     "custom/prev": {
-        "exec": "playerctl status 2>/dev/null | grep -q 'Playing\\|Paused' && echo '{\"text\": \"󰒮\"}' || echo '{\"text\": \"\"}'",
+        "exec": "case $(playerctl status 2>/dev/null) in Playing|Paused) printf '%s\\n' '{\"text\":\"󰒮\"}' ;; *) printf '%s\\n' '{\"text\":\"\"}' ;; esac",
         "return-type": "json",
         "interval": 2,
         "on-click": "playerctl previous",
         "tooltip": false
     },
     "custom/next": {
-        "exec": "playerctl status 2>/dev/null | grep -q 'Playing\\|Paused' && echo '{\"text\": \"󰒭\"}' || echo '{\"text\": \"\"}'",
+        "exec": "case $(playerctl status 2>/dev/null) in Playing|Paused) printf '%s\\n' '{\"text\":\"󰒭\"}' ;; *) printf '%s\\n' '{\"text\":\"\"}' ;; esac",
         "return-type": "json",
         "interval": 2,
         "on-click": "playerctl next",
         "tooltip": false
     },
-    "hyprland/workspaces": {
-        "format": "{id}",
-        "on-click": "activate",
-        "all-outputs": true,
-        "persistent-workspaces": { "*": [1, 2, 3, 4] }
+    "cffi/workspaces": {
+    "format": "{id}",
+    "all-outputs": true,
+    "persistent-workspaces": {
+        "*": [
+            1,
+            2,
+            3,
+            4
+        ]
     },
+    "module_path": "/home/bukh0/.config/waybar/native/workspaces.so"
+},
     "clock": { "format": "{:%H:%M · %a, %d/%m}" },
     "custom/performance": {
         "exec": "~/.scripts/performance-status.sh",

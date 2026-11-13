@@ -14,7 +14,11 @@ quickshell_lock() {
 }
 
 quickshell_bar_dir() {
-    case "$1" in default|alt) printf '%s/profiles/%s\n' "$QS_ROOT" "$1";; *) return 1;; esac
+    case "$1" in
+        default|alt) [[ -f "$QS_ROOT/profiles/$1/shell.qml" ]] || return 1
+            printf '%s\n' "$QS_ROOT/profiles/$1";;
+        *) return 1;;
+    esac
 }
 
 quickshell_read_bar() {
@@ -33,7 +37,7 @@ quickshell_write_bar() {
     return 1
 }
 
-# Match these two configurations only; other Quickshell applications may run.
+# Match the bar profiles only; other Quickshell applications may run.
 quickshell_pids() {
     local pid i candidate
     local -a args
@@ -46,10 +50,11 @@ quickshell_pids() {
                 -p|--path)
                     candidate=$(realpath -m -- "${args[i+1]}")
                     case "$candidate" in
-                        "$(realpath -m "$QS_ROOT/profiles/default")"|"$(realpath -m "$QS_ROOT/profiles/default/shell.qml")"|"$(realpath -m "$QS_ROOT/profiles/alt")"|"$(realpath -m "$QS_ROOT/profiles/alt/shell.qml")") printf '%s\n' "$pid"; break;;
+                        "$(realpath -m "$QS_ROOT")"|"$(realpath -m "$QS_ROOT/shell.qml")") printf '%s\n' "$pid"; break;;
+                        "$(realpath -m "$QS_ROOT/profiles/default")"|"$(realpath -m "$QS_ROOT/profiles/default/shell.qml")"|"$(realpath -m "$QS_ROOT/profiles/alt")"|"$(realpath -m "$QS_ROOT/profiles/alt/shell.qml")"|"$(realpath -m "$QS_ROOT/profiles/glass")"|"$(realpath -m "$QS_ROOT/profiles/glass/shell.qml")") printf '%s\n' "$pid"; break;;
                     esac;;
                 -c|--config)
-                    case "${args[i+1]}" in default|alt) printf '%s\n' "$pid"; break;; esac;;
+                    case "${args[i+1]}" in default|alt|glass) printf '%s\n' "$pid"; break;; esac;;
             esac
         done
     done < <(pgrep -u "$UID" -x quickshell || true)
@@ -89,7 +94,7 @@ quickshell_start() {
     local bar="$1" dir
     dir=$(quickshell_bar_dir "$bar") || return 1
     [[ -f "$dir/shell.qml" && -x "$QS_ROOT/run.sh" ]] || return 1
-    # Use the shared build, PID tracking, start validation and launcher lock.
+    # The restored launcher builds and starts a separate profile directory.
     # The detached shell must not inherit this control-script lock.
     "$QS_ROOT/run.sh" "$bar" 8>&-
 }

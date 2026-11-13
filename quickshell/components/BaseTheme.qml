@@ -48,12 +48,12 @@ QtObject {
     property int centerPillExtraWidth: 0
     property int pillHeight:      30
     property int pillPaddingH:    22
-    readonly property int workspaceSpacing: 4
+    property int workspaceSpacing: 0
     property int workspaceMinWidth: 22
-    property int workspaceHorizontalPadding: 8
+    property int workspaceHorizontalPadding: 0
     property int workspaceHeight: 22
     property int workspaceRadius: 5
-    property int workspaceFontSize: 14
+    property int workspaceFontSize: 13
     property int controlRadius: 4
     property int mediaArtworkRadius: 4
     property int mediaDotActiveWidth: 14

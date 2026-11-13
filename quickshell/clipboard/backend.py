@@ -52,6 +52,63 @@ def image_type(data):
     return ""
 
 
+def valid_gif(stream):
+    """Validate GIF block structure without decoding or allocating image pixels."""
+    stream.seek(0)
+    size = os.fstat(stream.fileno()).st_size
+    def take(count):
+        data = stream.read(count)
+        if len(data) != count:
+            raise ValueError("Truncated GIF")
+        return data
+    def skip(count):
+        if stream.tell() + count > size:
+            raise ValueError("Truncated GIF")
+        stream.seek(count, 1)
+    def blocks():
+        while length := take(1)[0]:
+            skip(length)
+    try:
+        header = take(13)
+        if header[:6] not in (b"GIF87a", b"GIF89a") or not int.from_bytes(header[6:8], "little") or not int.from_bytes(header[8:10], "little"):
+            return False
+        if header[10] & 0x80:
+            skip(3 * (1 << ((header[10] & 7) + 1)))
+        saw_image = False
+        while True:
+            marker = take(1)[0]
+            if marker == 0x3B:
+                return saw_image
+            if marker == 0x21:
+                take(1)  # Extension label; its payload is a sub-block sequence.
+                blocks()
+            elif marker == 0x2C:
+                descriptor = take(9)
+                if not int.from_bytes(descriptor[4:6], "little") or not int.from_bytes(descriptor[6:8], "little"):
+                    return False
+                if descriptor[8] & 0x80:
+                    skip(3 * (1 << ((descriptor[8] & 7) + 1)))
+                if not 2 <= take(1)[0] <= 8:
+                    return False
+                blocks()
+                saw_image = True
+            else:
+                return False
+    except ValueError:
+        return False
+    finally:
+        stream.seek(0)
+
+
+def stream_image_type(stream):
+    stream.seek(0)
+    mime = image_type(stream.read(32))
+    if mime == "image/gif" and not valid_gif(stream):
+        mime = ""
+    stream.seek(0)
+    return mime
+
+
 def active_window():
     try:
         return json.loads(run(["hyprctl", "-j", "activewindow"], stdout=subprocess.PIPE).stdout)
@@ -91,9 +148,7 @@ def preview(entry_id):
     with tempfile.TemporaryFile(buffering=0) as stream:
         decode(entry_id, stream)
         size = os.fstat(stream.fileno()).st_size
-        head = stream.read(32)
-        mime = image_type(head)
-        stream.seek(0)
+        mime = stream_image_type(stream)
         if mime:
             # Bound the JSON payload; copying still reads the untouched original.
             if size <= 256 * 1024:
@@ -128,7 +183,7 @@ def preview(entry_id):
 def copy(entry_id):
     with tempfile.TemporaryFile(buffering=0) as stream:
         decode(entry_id, stream)
-        mime = image_type(stream.read(32))
+        mime = stream_image_type(stream)
         if not mime:
             # Validate incrementally: preserve binary data and avoid a second
             # full-size allocation for large text entries.

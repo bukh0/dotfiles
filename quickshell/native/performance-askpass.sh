@@ -1,6 +1,6 @@
 #!/bin/bash
 # sudo normalizes askpass failures to exit 1; carry cancellation separately.
-if zenity --password --title="Power Profile" --text="${1:-Authentication is required to change the power profile.}"; then
+if zenity --no-markup --entry --hide-text --title="Power Profile" --text="${1:-Authentication is required to change the power profile.}"; then
     exit 0
 else
     status=$?

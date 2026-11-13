@@ -16,7 +16,13 @@ QtObject {
     property bool _dndReady: false
     Component.onCompleted: {
         try {
-            doNotDisturb = _dndStore.text().trim() === "1"
+            const text = _dndStore.text().trim()
+            if (text === "1" || text === "0" || text === "") doNotDisturb = text === "1"
+            else {
+                const saved = JSON.parse(text)
+                doNotDisturb = !!(saved && saved.enabled
+                    && (!saved.until || (typeof saved.until === "number" && saved.until > Date.now())))
+            }
         } catch (error) {
             doNotDisturb = false
         } finally {

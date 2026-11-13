@@ -83,6 +83,15 @@ PanelWindow {
         }
     }
 
+    Connections {
+        target: BluetoothService
+        function onExternalDialogRequested() { controlPanel.isOpen = false }
+    }
+    Connections {
+        target: SysmonService
+        function onExternalDialogRequested() { controlPanel.isOpen = false }
+    }
+
     onIsOpenChanged: {
         if (isOpen) NotificationDaemon.isDrawerOpen = false
         if (!isOpen) {

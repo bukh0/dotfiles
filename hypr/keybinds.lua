@@ -37,7 +37,6 @@ hl.bind(mod .. " + SHIFT + Q", hl.dsp.exec_cmd("uwsm stop"))
 
 -- Screenshot
 hl.bind(mod .. " + CTRL + Print", hl.dsp.exec_cmd("~/.scripts/screenshot.sh region"))
-
 hl.bind(mod .. " + Print", hl.dsp.exec_cmd("~/.scripts/screenshot.sh full"))
 
 
@@ -47,7 +46,7 @@ hl.bind(mod .. " + D", hl.dsp.exec_cmd("~/.scripts/wallpick-rofi.sh"))
 hl.bind(mod .. " + SHIFT + T", hl.dsp.exec_cmd("~/.scripts/picker-menu.sh"))
 hl.bind(mod .. " + T", hl.dsp.exec_cmd("~/.scripts/theme.switcher-rofi.sh"))
 hl.bind(mod .. " + H", hl.dsp.exec_cmd("~/.scripts/configs.sh"))
-hl.bind(mod .. " + SHIFT + N", hl.dsp.exec_cmd([[bash -c "pkill -x wlsunset || wlsunset -l -25.74 -L 28.18 -t 4500 -T 6500 &"]]))
+hl.bind(mod .. " + SHIFT + N", hl.dsp.exec_cmd("python3 ~/.config/quickshell_1/native/night_light.py toggle"))
 hl.bind(mod .. " + G", hl.dsp.exec_cmd("~/.scripts/gamemode-toggle.sh"))
 hl.bind(mod .. " + SHIFT + G", hl.dsp.exec_cmd("~/.config/quickshell/native/toggle-performance.sh"))
 hl.bind(mod .. " + J", hl.dsp.exec_cmd("~/.scripts/toggleLayout.sh"))
@@ -55,8 +54,8 @@ hl.bind(mod .. " + J", hl.dsp.exec_cmd("~/.scripts/toggleLayout.sh"))
 -- Waybar & Custom Toggles
 hl.bind(mod .. " + ALT + 7", hl.dsp.exec_cmd("~/.scripts/toggle_waybar.sh"))
 -- hl.bind(mod .. " + ALT + 8", hl.dsp.exec_cmd("~/user_scripts/wayclick/dusky_wayclick.sh"))
-hl.bind(mod .. " + ALT + 8", hl.dsp.exec_cmd("~/.scripts/toggle_quickshell.sh"))
-hl.bind(mod .. " + ALT + 9", hl.dsp.exec_cmd("~/.scripts/toggle_quickshell-alt.sh"))
+-- hl.bind(mod .. " + ALT + 8", hl.dsp.exec_cmd("~/.scripts/toggle_quickshell.sh"))
+-- hl.bind(mod .. " + ALT + 9", hl.dsp.exec_cmd("~/.scripts/toggle_quickshell-alt.sh"))
 hl.bind(mod .. " + ALT + 0", hl.dsp.exec_cmd("~/.scripts/switch_quickshell.sh"))
 
 -- Audio & Brightness

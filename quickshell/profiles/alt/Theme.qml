@@ -13,11 +13,6 @@ BaseTheme {
     centerPillExtraWidth: 80
     pillHeight: 35
     pillPaddingH: 24
-    workspaceMinWidth: 24
-    workspaceHorizontalPadding: 10
-    workspaceHeight: 30
-    workspaceRadius: 0
-    workspaceFontSize: 13
     controlRadius: 8
     mediaArtworkRadius: 10
     mediaDotActiveWidth: 16

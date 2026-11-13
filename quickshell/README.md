@@ -14,10 +14,6 @@ clipboard/           Clipboard browser and byte-safe Python bridge
 run.sh               Profile launcher (`run.sh [default|alt]`)
 reload.sh            Launcher alias
 tests/               Regression runner and shared Python helpers
-tests/bluetooth/     Bluetooth profile and transport state
-tests/network/       Status recovery and monitor event bursts
-tests/picker/        Operation exit and collector handling
-tests/integration/   Isolated startup and reload checks
 ```
 
 Use `./run.sh` for the default profile and `./run.sh alt` for the alternate profile. `native/Makefile` builds `native/sysmon`; both profiles resolve the helper from there.
@@ -43,7 +39,7 @@ for all available isolated suites, or `python3 tests/run.py --list` to list
 individual suites. Suite names stay the same regardless of their subdirectory;
 use the runner so shared helpers are available. Clipboard tests in `clipboard/tests/test_*.py` are discovered
 as `clipboard_*` suites. Pass suite names to run a subset, for example
-`python3 tests/run.py clipboard_ui monitor_burst process_results startup`.
+`python3 tests/run.py clipboard_ui managed_process temperature_recovery panels`.
 The runner disables Python
 bytecode generation so tests do not leave cache folders in the configuration. Tests require Quickshell,
 Qt 6 test tools and the relevant native helper dependencies. The local
@@ -72,8 +68,9 @@ Notification windows are thin `PanelWindow` wrappers around
 `NotificationPopupContent.qml` and `NotificationDrawerContent.qml`.
 Explicit web and mail links are clickable, and a
 popup body click invokes its default action when available. Opening the notification
-panel clears active and queued popups without deleting history; popups resume
-for new arrivals after the panel closes. History survives hot reloads but is not saved across process restarts.
+panel clears ordinary active and queued popups without deleting history. Critical
+popups remain visible and new critical arrivals still appear while the panel is
+open; ordinary popups resume for new arrivals after the panel closes. History survives hot reloads but is not saved across process restarts.
 
 After Quickshell upgrades, check notification timeouts/restoration, workspace
 switching and panel input regions in the running session. The available isolated
@@ -93,3 +90,22 @@ shell or wrapper.
 The picker requires GNU coreutils `timeout`. Theme/wallpaper application times out
 after 45 seconds; Escape cancels the process group. Cancellation reports that
 partial changes may already have been applied.
+
+One-shot clipboard jobs, Bluetooth polling/scanning, and temperature discovery use
+`components/ManagedProcess.qml`. Call `start(argv)`; it returns false while a job
+is pending. `completed(result)` fires once after exit and both output collectors
+settle, with `started`, `success`, `cancelled`, `exitCode`, `exitStatus`, `stdout`,
+and `stderr`. The job is reusable inside the completion handler. `cancel()` marks
+intentional cancellation. Callers retain retry policy and user-facing errors;
+streaming monitors keep their own parsers.
+
+Temperature discovery retries after repeated unavailable samples, backing off to
+60 samples while a sensor is missing. Bluetooth discovery continues on working
+adapters when another adapter fails and reports partial failures as warnings.
+
+The launcher allows up to 30 seconds for configuration startup. Resource network
+rates aggregate interfaces named like Ethernet/Wi-Fi, USB, Bluetooth PAN, and PPP
+links. This is a name-based transport heuristic, not total traffic across every
+interface: bridges and VPN tunnels are omitted to reduce double counting, while
+Wi-Fi AP interfaces with matching names are included. Custom interface names can
+fall outside this selection.

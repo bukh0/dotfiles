@@ -10,11 +10,24 @@ Item {
     property bool sampling: false
     property bool _skipFirst: true
     property bool _stoppingForIdle: false
-    function initialize() {} // Discover sensors at startup; sampling remains demand-driven.
+    function initialize() {} // Discovery starts with the singleton.
+    property int _temperatureFailures: 0
+    property int _temperatureRetrySamples: 3
+    function checkTemperature(value) {
+        if (value !== "N/A") {
+            _temperatureFailures = 0
+            _temperatureRetrySamples = 3
+            return
+        }
+        if (++_temperatureFailures < _temperatureRetrySamples || tempSourceDiscover.pending) return
+        _temperatureFailures = 0
+        _temperatureRetrySamples = Math.min(60, _temperatureRetrySamples * 2)
+        tempSourceDiscover.start(tempSourceDiscover.command)
+    }
     onWatchersChanged: {
         if (watchers > 0) {
-            if (root.tempSourcePath === "none" && !tempSourceDiscover.running)
-                tempSourceDiscover.running = true
+            if (root.tempSourcePath === "none" && !tempSourceDiscover.pending)
+                tempSourceDiscover.start(tempSourceDiscover.command)
             if (!sysmonDaemon.running) sysmonRestart.restart()
         } else {
             sysmonRestart.stop()
@@ -25,8 +38,11 @@ Item {
             sysmonDaemon.running = false
         }
     }
+    signal externalDialogRequested()
     function togglePowerProfile() {
-        if (!profileProc.running) profileProc.running = true
+        if (profileProc.running) return
+        externalDialogRequested()
+        Qt.callLater(() => { profileProc.running = true })
     }
 
     // Keep authentication and the toggle alive when the panel unloads.
@@ -67,7 +83,7 @@ Item {
     property bool _restartForTemperature: false
     property int _restartDelay: 250
 
-    Process {
+    ManagedProcess {
         id: tempSourceDiscover
         command: ["sh", "-c",
             "for z in /sys/class/thermal/thermal_zone*; do " +
@@ -79,21 +95,20 @@ Item {
             "if grep -Eq '^-?[0-9]+$' \"$h/temp1_input\" 2>/dev/null; then echo \"$h/temp1_input\"; exit; fi;; esac; " +
             "done"
         ]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const discovered = text.trim().split("\n")[0] || "none"
-                if (discovered === root.tempSourcePath && (sysmonDaemon.running || sysmonRestart.running)) return
-                root.tempSourcePath = discovered
-                if (sysmonDaemon.running) {
-                    startupCheck.stop()
-                    sysmonStableTimer.stop()
-                    root._restartForTemperature = true
-                    sysmonDaemon.running = false
-                    if (root.watchers > 0) sysmonRestart.restart()
-                } else if (root.watchers > 0) {
-                    sysmonRestart.restart()
-                }
+        Component.onCompleted: start(command)
+        onCompleted: result => {
+            if (!result.success) return
+            const discovered = result.stdout.trim().split("\n")[0] || "none"
+            if (discovered === root.tempSourcePath && (sysmonDaemon.running || sysmonRestart.running)) return
+            root.tempSourcePath = discovered
+            if (sysmonDaemon.running) {
+                startupCheck.stop()
+                sysmonStableTimer.stop()
+                root._restartForTemperature = true
+                sysmonDaemon.running = false
+                if (root.watchers > 0) sysmonRestart.restart()
+            } else if (root.watchers > 0) {
+                sysmonRestart.restart()
             }
         }
     }
@@ -115,6 +130,7 @@ Item {
                     root.ramPercent = parts[0]
                     root.tooltipRam = parts[1].replace(/\\n/g, "\n")
                     root.cpuTemp = parts[7]
+                    root.checkTemperature(parts[7])
                     root.cpuHot = parts[8] === "1"
                     root.tooltipTemp = parts[9].replace(/\\n/g, "\n")
                     root.powerProfile = parts[10]
@@ -150,9 +166,9 @@ Item {
         root._stoppingForIdle = false
         root._restartForTemperature = false
         if (root.watchers <= 0 || sysmonRestart.running) return
+        sysmonRestart.interval = root._restartDelay
         if (!intentional)
             root._restartDelay = Math.min(root._restartDelay * 2, 30000)
-        sysmonRestart.interval = root._restartDelay
         sysmonRestart.restart()
     }
 

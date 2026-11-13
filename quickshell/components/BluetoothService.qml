@@ -24,6 +24,8 @@ Item {
     property bool busy: false         // a power/connect/pair command is running
     property string actionKind: ""    // "power" | "connect" | "pair" while busy
     property string targetMac: ""
+    property string targetPath: ""
+    signal externalDialogRequested()
 
     readonly property int maxDiscovered: 8
     readonly property int scanSeconds: 8
@@ -58,37 +60,8 @@ Item {
             return
         }
         root._pollInFlight = true
-        btPoll.started = false
-        btPoll.exited = false
-        btPoll.streamDone = false
-        btPoll.output = ""
-        btPoll.ok = false
-        pollLaunchCheck.restart()
-        btPoll.running = true
-    }
-
-    function _finishPoll() {
-        if (!root._pollInFlight || !btPoll.exited || !btPoll.streamDone) return
-        pollLaunchCheck.stop()
-        if (btPoll.started && btPoll.ok) root._applyManagedObjects(btPoll.output)
-        else root._markUnavailable()
-        root._pollInFlight = false
-        if (root._pollQueued) {
-            root._pollQueued = false
-            root.refresh()
-        }
-    }
-
-    Timer {
-        id: pollLaunchCheck
-        interval: 500
-        onTriggered: {
-            if (root._pollInFlight && !btPoll.started && !btPoll.running) {
-                btPoll.exited = true
-                btPoll.streamDone = true
-                root._finishPoll()
-            }
-        }
+        btPoll.start(["busctl", "--system", "-j", "call", "org.bluez", "/",
+                      "org.freedesktop.DBus.ObjectManager", "GetManagedObjects"])
     }
 
     function _markUnavailable() {
@@ -117,7 +90,7 @@ Item {
 
         let adapterFound = false
         let adapterPowered = false
-        const known = {}   // mac -> record (merged if listed under several adapters)
+        const known = {}   // BlueZ object path: each adapter owns its own bond.
         const activeMediaDevices = new Set()
 
         // BlueZ can expose an active audio transport while Device1.Connected
@@ -150,6 +123,7 @@ Item {
             const alias = (dev.Alias && dev.Alias.data) || (dev.Name && dev.Name.data) || ""
             const rec = {
                 mac: mac,
+                path: path,
                 name: alias || mac,
                 // Nameless devices get an alias like "AA-BB-CC-DD-EE-FF".
                 hasName: alias !== "" && !macLike.test(alias),
@@ -162,19 +136,7 @@ Item {
                 rssi: (dev.RSSI && typeof dev.RSSI.data === "number") ? dev.RSSI.data : -999
             }
 
-            const prev = known[mac]
-            if (prev) {
-                if (!prev.hasName && rec.hasName) {
-                    prev.name = rec.name
-                    prev.hasName = true
-                }
-                if (!prev.icon && rec.icon) prev.icon = rec.icon
-                prev.paired = prev.paired || rec.paired
-                prev.connected = prev.connected || rec.connected
-                prev.rssi = Math.max(prev.rssi, rec.rssi)
-            } else {
-                known[mac] = rec
-            }
+            known[path] = rec
         }
 
         root.hasAdapter = adapterFound
@@ -196,7 +158,7 @@ Item {
         // Connected devices need disconnect controls even without a bond.
         const paired = all
             .filter(d => d.paired || d.connected)
-            .map(d => ({ mac: d.mac, name: d.name, connected: d.connected, icon: d.icon }))
+            .map(d => ({ mac: d.mac, path: d.path, name: d.name, connected: d.connected, icon: d.icon }))
             .sort((a, b) => (Number(b.connected) - Number(a.connected)) || a.name.localeCompare(b.name))
 
         // Strongest signal first (devices not seen recently have no RSSI and
@@ -205,9 +167,10 @@ Item {
             .filter(d => !d.paired && !d.connected && d.hasName)
             .sort((a, b) => (b.rssi - a.rssi) || a.name.localeCompare(b.name))
             .slice(0, root.maxDiscovered)
-            .map(d => ({ mac: d.mac, name: d.name, icon: d.icon }))
+            .map(d => ({ mac: d.mac, path: d.path, name: d.name, icon: d.icon }))
 
         const connected = all.filter(d => d.connected)
+            .filter((d, i, list) => list.findIndex(x => x.mac === d.mac) === i)
         const connectedMacs = connected.map(d => d.mac)
         root.connectedName = connected.map(d => d.name).join(", ")
 
@@ -234,45 +197,21 @@ Item {
         root._assign("discovered", discovered)
     }
 
-    Process {
+    ManagedProcess {
         id: btPoll
-        property bool started: false
-        property bool exited: false
-        property bool streamDone: false
-        property bool ok: false
-        property string output: ""
-        onStarted: { started = true; pollLaunchCheck.stop() }
-        onExited: (code, status) => {
-            exited = true
-            ok = code === 0 && status === 0
-            pollSettled.restart()
-        }
-        command: ["busctl", "--system", "-j", "call", "org.bluez", "/",
-                  "org.freedesktop.DBus.ObjectManager", "GetManagedObjects"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                btPoll.output = btPoll.started ? text : ""
-                btPoll.streamDone = true
-                pollSettled.restart()
+        onCompleted: result => {
+            if (result.stderr.trim() && !root._pollErrorLogged) {
+                root._pollErrorLogged = true
+                console.warn("bluetooth: busctl:", result.stderr.trim())
+            }
+            if (result.success) root._applyManagedObjects(result.stdout)
+            else root._markUnavailable()
+            root._pollInFlight = false
+            if (root._pollQueued) {
+                root._pollQueued = false
+                root.refresh()
             }
         }
-        // Log only. Notifying here spammed "Bluetooth Warning" on every
-        // poll whenever bluetoothd wasn't running.
-        stderr: StdioCollector {
-            onStreamFinished: {
-                const msg = btPoll.started ? text.trim() : ""
-                if (msg !== "" && !root._pollErrorLogged) {
-                    root._pollErrorLogged = true
-                    console.warn("bluetooth: busctl:", msg)
-                }
-            }
-        }
-    }
-
-    Timer {
-        id: pollSettled
-        interval: 0
-        onTriggered: root._finishPoll()
     }
 
     Timer {
@@ -365,7 +304,7 @@ Item {
         onTriggered: if (!actionProc.started && !actionProc.running && root.busy) root._finishAction()
     }
 
-    function _startAction(kind, mac, script, args) {
+    function _startAction(kind, mac, script, args, path) {
         if (root.busy || actionProc.running) return false
         actionProc.started = false
         actionProc._exited = false
@@ -373,10 +312,14 @@ Item {
         root.busy = true
         root.actionKind = kind
         root.targetMac = mac || ""
+        root.targetPath = path || ""
         const wrapper = "out=$({ " + script + "; } 2>&1); rc=$?; printf '%s\\n%s' \"$rc\" \"$out\""
         actionProc.command = ["sh", "-c", wrapper, "sh"].concat(args || [])
         actionLaunchCheck.restart()
-        actionProc.running = true
+        if (kind === "pair") {
+            externalDialogRequested()
+            Qt.callLater(() => { actionProc.running = true })
+        } else actionProc.running = true
         return true
     }
 
@@ -394,6 +337,7 @@ Item {
         root.busy = false
         root.actionKind = ""
         root.targetMac = ""
+        root.targetPath = ""
 
         if (isNaN(rc)) {
             root.notify("Bluetooth Warning", "Command failed to run")
@@ -443,37 +387,43 @@ Item {
     }
 
     function setPower(on) {
-        // rfkill first: a soft-blocked adapter otherwise fails with
-        // "org.bluez.Error.Blocked".
         const accepted = root._startAction("power", "",
-            on ? "rfkill unblock bluetooth 2>/dev/null; timeout 15 bluetoothctl power on"
-               : "timeout 15 bluetoothctl power off", [])
+            'timeout 15 python3 "$1" power "$2"',
+            [Quickshell.shellPath("../../native/bluetooth_control.py"), on ? "on" : "off"])
         if (accepted && !on) stopScan()
         return accepted
     }
 
-    function toggleDevice(mac, connected) {
-        if (!root._validMac(mac)) return false
-        // timeout: a hung bluetoothctl used to lock the whole UI forever.
+    function toggleDevice(mac, connected, path) {
+        if (!root._validMac(mac) || !path) return false
         return root._startAction("connect", mac,
-            connected ? "timeout 15 bluetoothctl disconnect \"$1\""
-                      : "timeout 30 bluetoothctl connect \"$1\"", [mac])
+            'timeout 35 python3 "$1" "$2" "$3"',
+            [Quickshell.shellPath("../../native/bluetooth_control.py"), connected ? "disconnect" : "connect", path], path)
     }
 
-    function pairDevice(mac) {
-        if (!root._validMac(mac)) return false
+    function pairDevice(mac, path) {
+        if (!root._validMac(mac) || !path) return false
         return root._startAction("pair", mac,
-            "python3 \"$1\" \"$2\"", [Quickshell.shellPath("../../native/bluetooth_pair.py"), mac])
+            'python3 "$1" "$2" "$3"', [Quickshell.shellPath("../../native/bluetooth_pair.py"), mac, path], path)
     }
+
+    property bool _scanQueued: false
 
     // ── Scanning ───────────────────────────────────────────────────────
-    Process {
+    ManagedProcess {
         id: scanProc
-        command: ["bluetoothctl", "--timeout", String(root.scanSeconds), "scan", "on"]
-        onRunningChanged: {
-            if (!running) {
-                root.scanning = false
-                root.refresh()
+        onCompleted: result => {
+            root.scanning = false
+            if (!result.cancelled) {
+                if (!result.started) root.notify("Bluetooth Scan Failed", "Could not start the Bluetooth helper.")
+                else if (!result.success || result.stderr.trim())
+                    root.notify(result.success ? "Bluetooth Scan Warning" : "Bluetooth Scan Failed",
+                        result.stderr.trim() || "Discovery failed (exit " + result.exitCode + ").")
+            }
+            root.refresh()
+            if (root._scanQueued) {
+                root._scanQueued = false
+                root.scan()
             }
         }
     }
@@ -482,20 +432,33 @@ Item {
     Timer {
         interval: (root.scanSeconds + 4) * 1000
         running: root.scanning
-        onTriggered: root.stopScan()
+        onTriggered: {
+            root.stopScan()
+            root.notify("Bluetooth Scan Failed", "Discovery timed out. Try scanning again.")
+        }
     }
 
     function stopScan() {
-        scanProc.running = false
+        root._scanQueued = false
+        scanProc.cancel()
         root.scanning = false
     }
 
     onPoweredChanged: if (!powered) stopScan()
 
     function scan() {
-        if (!root.powered || root.actionKind === "power" || scanProc.running) return
+        if (!root.powered || root.actionKind === "power") return
+        if (scanProc.pending) {
+            // An active scan already satisfies the request. A cancelled one
+            // must finish releasing discovery before we start its replacement.
+            if (scanProc.cancelled) {
+                root._scanQueued = true
+                root.scanning = true
+            }
+            return
+        }
         root.scanning = true
-        scanProc.running = true
+        scanProc.start(["python3", Quickshell.shellPath("../../native/bluetooth_control.py"), "scan", String(root.scanSeconds)])
     }
 
     Component.onCompleted: root.refresh()

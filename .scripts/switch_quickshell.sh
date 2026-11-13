@@ -5,8 +5,9 @@ quickshell_lock
 CURRENT_BAR=$(quickshell_read_bar)
 case "${1:-}" in
     reload) TARGET_BAR=$CURRENT_BAR;;
-    '') if [[ "$CURRENT_BAR" == default ]]; then TARGET_BAR=alt; else TARGET_BAR=default; fi;;
-    *) printf 'Usage: %s [reload]\n' "$0" >&2; exit 1;;
+    '') case "$CURRENT_BAR" in default) TARGET_BAR=alt;; *) TARGET_BAR=default;; esac;;
+    default|alt) TARGET_BAR=$1;;
+    *) printf 'Usage: %s [reload|default|alt]\n' "$0" >&2; exit 1;;
 esac
 quickshell_stop
 quickshell_stop_notification_daemons

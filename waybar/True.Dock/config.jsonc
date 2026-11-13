@@ -8,8 +8,8 @@
   "margin-left": 0,
   "margin-right": 0,
   
-  "modules-left": ["custom/active_window"],
-  "modules-center": [ "group/center3-expander", "hyprland/workspaces", "group/center2-expander" ],
+  "modules-left": ["hyprland/window"],
+  "modules-center": [ "group/center3-expander", "cffi/workspaces", "group/center2-expander" ],
   "modules-right": [
     "custom/separator#blank",
     "custom/separator#dot",
@@ -18,7 +18,7 @@
 
   "group/center2": {
     "orientation": "inherit",
-    "modules": [ "mpris", "clock", "custom/screenrecording-indicator", "custom/update", "custom/idle-indicator", "custom/notification-silencing-indicator" ]
+    "modules": [ "mpris", "clock" ]
   },
   "group/center3": {
     "orientation": "inherit",
@@ -45,17 +45,26 @@
   "custom/separator#blank": { "format": " ", "tooltip": false },
   "custom/separator#dot": { "format": "  ", "tooltip": false },
 
-  "hyprland/workspaces": {
+  "cffi/workspaces": {
     "format": "{icon}",
-    "on-click": "activate",
     "all-outputs": true,
     "format-icons": {
-          "default": "",
-          "active": "",
-          "empty": "",
+        "default": "",
+        "active": "",
+        "empty": ""
     },
-    "persistent-workspaces": { "*": [1, 2, 3, 4, 5, 6] }
-  },
+    "persistent-workspaces": {
+        "*": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+        ]
+    },
+    "module_path": "/home/bukh0/.config/waybar/native/workspaces.so"
+},
 
   "mpris": {
     "format": "󰎆 {title}",
@@ -96,4 +105,6 @@
   "memory": { "format": "󰍛 {percentage}%" },
   "disk": { "format": "󰋊 {percentage_used}%", "path": "/" },
   "tray": { "icon-size": 16, "spacing": 8 }
+,
+  "hyprland/window": {"format": "{initialTitle}", "max-length": 24}
 }

@@ -64,10 +64,5 @@ Button {
         }
     }
     HoverHandler { blocking: false; cursorShape: Qt.PointingHandCursor }
-    PlainToolTip {
-        visible: control.hovered && control.hint !== ""
-        text: control.hint
-        delay: 600
-    }
     Accessible.name: text || hint
 }

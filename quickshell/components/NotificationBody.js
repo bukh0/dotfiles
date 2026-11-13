@@ -36,6 +36,6 @@ function styled(body) {
             linked = false
             return close
         }
-        return escapeText(part)
+        return escapeText(part).replace(/\r?\n/g, "<br>")
     }).join("") + (linked ? "</a>" : "")
 }

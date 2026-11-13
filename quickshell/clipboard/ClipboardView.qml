@@ -89,9 +89,6 @@ Rectangle {
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }
-        ToolTip.visible: hovered && tip !== ""
-        ToolTip.text: tip
-        ToolTip.delay: 600
         Accessible.name: tip || text
     }
 

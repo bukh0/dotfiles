@@ -59,66 +59,24 @@ Item {
         else contextProcess.start(["python3", helper, "context"])
         refresh()
     }
-    // EOF and process exit can arrive in either order. Publish exactly once,
-    // after both, and release pending before invoking callers.
-    component JsonProcess: Process {
-        id: job
-        property bool pending: false
-        property bool exited: false
-        property bool outputDone: false
-        property bool startedSuccessfully: false
-        property bool failed: false
-        property string output: ""
-        signal completed(var data)
-        function start(args) {
-            if (pending || running) return
-            exited = false
-            outputDone = false
-            startedSuccessfully = false
-            failed = false
-            output = ""
-            pending = true
-            startupCheck.restart()
-            exec(args)
-        }
-        function finish() {
-            if (!pending || running || !exited || !outputDone) return
-            const data = failed ? {error: "Clipboard helper exited unexpectedly. Try again."} : service.result(output)
-            pending = false
-            completed(data)
-        }
-        onStarted: { startedSuccessfully = true; startupCheck.stop() }
-        onRunningChanged: if (!running) Qt.callLater(job.finish)
-        onExited: (code, status) => {
-            startupCheck.stop()
-            failed = code !== 0 || status !== 0
-            exited = true
-            Qt.callLater(job.finish)
-        }
-        stdout: StdioCollector {
-            onStreamFinished: {
-                job.output = text
-                job.outputDone = true
-                Qt.callLater(job.finish)
-            }
-        }
-        property Timer startupCheck: Timer {
-            interval: 500
-            onTriggered: {
-                if (job.pending && !job.startedSuccessfully && !job.running) {
-                    job.pending = false
-                    job.completed({error: "Could not start the clipboard helper. Check that Python 3 is installed."})
-                }
-            }
+    component JsonProcess: ManagedProcess {
+        signal decoded(var data)
+        onCompleted: result => {
+            const data = !result.started
+                ? {error: "Could not start the clipboard helper. Check that Python 3 is installed."}
+                : !result.success
+                ? {error: "Clipboard helper exited unexpectedly. Try again."}
+                : service.result(result.stdout)
+            decoded(data)
         }
     }
     JsonProcess {
         id: contextProcess
-        onCompleted: data => { service.address = data.address || "" }
+        onDecoded: data => { service.address = data.address || "" }
     }
     JsonProcess {
         id: listProcess
-        onCompleted: data => {
+        onDecoded: data => {
             if (data.error) service.error = data.error
             else if (!data.entries || typeof data.entries.length !== "number") service.error = "Could not read clipboard entries."
             else { service.error = ""; service.entries = data.entries }
@@ -136,7 +94,7 @@ Item {
     }
     JsonProcess {
         id: previewProcess
-        onCompleted: data => {
+        onDecoded: data => {
             if (service.previewId === service.requestedId && service.requestedId !== "") {
                 service.loadedPreviewId = service.previewId
                 previewDelay.stop()
@@ -148,7 +106,7 @@ Item {
     }
     JsonProcess {
         id: actionProcess
-        onCompleted: data => {
+        onDecoded: data => {
             if (data.error) { service.error = data.error; return }
             if (service.action === "copy") service.copied(service.pasteAfterCopy)
             else if (service.action === "paste") service.pasted()

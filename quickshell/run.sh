@@ -90,7 +90,8 @@ setsid quickshell -p "$SCRIPT_DIR" >> "$LOG_FILE" 2>&1 9>&- &
 QUICKSHELL_PID=$!
 printf '%s\n' "$QUICKSHELL_PID" > "$PID_FILE"
 
-for _ in {1..100}; do
+# Allow cold starts while still treating a hung configuration as a failure.
+for _ in {1..300}; do
     if ! kill -0 "$QUICKSHELL_PID" 2>/dev/null || grep -q '^State:[[:space:]]*Z' "/proc/$QUICKSHELL_PID/status" 2>/dev/null; then
         break
     fi

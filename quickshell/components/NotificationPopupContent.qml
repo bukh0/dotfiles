@@ -98,7 +98,12 @@ Rectangle {
         _fill()
     }
     function showNotification(data, targetScreen) {
-        if (!data || NotificationDaemon.isDrawerOpen) return
+        if (!data) return
+        if (NotificationDaemon.isDrawerOpen && data.urgency !== popup.criticalUrgency) {
+            // A replacement may downgrade an already-visible critical alert.
+            _forget(data.notifId)
+            return
+        }
         // Keep one screen for the entire visible/queued burst, including fades.
         if (targetScreen && active.count === 0 && _queue.length === 0) screen = targetScreen
         const id = data.notifId
@@ -149,7 +154,7 @@ Rectangle {
     }
     Connections {
         target: NotificationDaemon
-        function onIsDrawerOpenChanged() { if (NotificationDaemon.isDrawerOpen) popup.dismissAll() }
+        function onIsDrawerOpenChanged() { if (NotificationDaemon.isDrawerOpen) popup.dismissNonCritical() }
         function onDoNotDisturbChanged() { if (NotificationDaemon.doNotDisturb) popup.dismissNonCritical() }
         function onDismissPopup() { popup.dismiss() }
         function onDismissPopupById(id) { popup._forget(id) }

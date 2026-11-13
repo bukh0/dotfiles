@@ -7,6 +7,12 @@ configuration {
     icon-theme:         "Papirus-Dark";
     font:               "JetBrainsMono Nerd Font 11";
 
+    /* Rank search results by relevance; keep launch history when idle. */
+    sort: true;
+    sorting-method: "fzf";
+    matching: "fuzzy";
+    drun-match-fields: "name,generic,exec,keywords";
+
     display-drun:       "  Apps";
     display-run:        "  Run";
     display-clipboard:  "󰅌  Clip";

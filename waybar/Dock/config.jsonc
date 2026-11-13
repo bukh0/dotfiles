@@ -8,7 +8,7 @@
     "modules-center": [
         "clock",
         "mpris",
-        "hyprland/workspaces",
+        "cffi/workspaces",
         "pulseaudio",
         "network",
         "battery"
@@ -23,15 +23,15 @@
         "format-paused": "󰐊 {artist} - {title}",
         "max-length": 35
     },
-    "hyprland/workspaces": {
-        "format": "{name}",
-        "on-click": "activate",
-        "all-outputs": true,
-        "sort-by-number": true,
-        "persistent-workspaces": {
-            "*": 5
-        }
+    "cffi/workspaces": {
+    "format": "{name}",
+    "all-outputs": true,
+    "sort-by-number": true,
+    "persistent-workspaces": {
+        "*": 5
     },
+    "module_path": "/home/bukh0/.config/waybar/native/workspaces.so"
+},
     "pulseaudio": {
         "format": "{icon}",
         "format-muted": "󰖁",

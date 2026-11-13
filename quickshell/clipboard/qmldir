@@ -1,3 +1,5 @@
 singleton Colors 1.0 Colors.qml
 ClipboardView 1.0 ClipboardView.qml
 ClipboardService 1.0 ClipboardService.qml
+
+ManagedProcess 1.0 ManagedProcess.qml

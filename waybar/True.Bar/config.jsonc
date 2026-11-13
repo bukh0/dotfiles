@@ -12,7 +12,7 @@
         "memory", 
         "mpris",
         "custom/cava",
-        "hyprland/workspaces", 
+        "cffi/workspaces", 
         "clock", 
         "custom/performance", 
         "battery", 
@@ -49,16 +49,25 @@
 
     "custom/cava": { "exec": "waybar-cava", "format": "{}" },
 
-    "hyprland/workspaces": {
-        "format": "{icon}",
-        "on-click": "activate",
-        "all-outputs": true,
-        "format-icons": {
-            "active": "",
-            "default": ""
-        },
-        "persistent-workspaces": { "*": [1, 2, 3, 4, 5, 6] }
+    "cffi/workspaces": {
+    "format": "{icon}",
+    "all-outputs": true,
+    "format-icons": {
+        "active": "",
+        "default": ""
     },
+    "persistent-workspaces": {
+        "*": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+        ]
+    },
+    "module_path": "/home/bukh0/.config/waybar/native/workspaces.so"
+},
 
     "clock": { "format": "{:%H:%M · %a, %d/%m}" },
 
